@@ -86,14 +86,14 @@ export const GAMEPLAY_PRESETS = {
     desc: 'Tête ultra-réactive, levage aérien souple, contraction vive et détente coup sec d’un vrai caterpillar.',
     gravity: 490,
     groundSnapping: 1.4,
-    orientationUpForce: 1550,
+    orientationUpForce: 1750,
     orientationResponsiveness: 1.4,
     orientationHeadSpan: 4,
     orientationRearSpan: 4,
-    jumpBoost: 1.05,
-    jumpUpAngleBonus: 1.45,
+    jumpBoost: 0.45,
+    jumpUpAngleBonus: 1.25,
     jumpChargeTime: 4.8,
-    gripDistance: 24,
+    gripDistance: 26,
     gripAngleTolerance: -0.15,
     omegaArchVisual: 1.0,
     wigglePhysicsAmount: 24,
@@ -102,10 +102,10 @@ export const GAMEPLAY_PRESETS = {
     bendCanOrientVertically: true,
     bendOrientationPower: 0.50,
     bendContractSpeed: 24.0,
-    unbendExtensionSpeed: 26.0,
-    groundPushForce: 1.05,
+    unbendExtensionSpeed: 28.0,
+    groundPushForce: 0.50,
     airborneExtensionOnly: true,
-    unbendReachBonus: 1.08,
+    unbendReachBonus: 1.18,
     preserveShapeOnBend: true
   },
   visqueux_larvaire: {
@@ -197,7 +197,7 @@ export const GAMEPLAY_CONFIG = {
   groundSnapping: 1.4,
 
   // Force d'orientation vers le haut (permet de dresser la tête facilement)
-  orientationUpForce: 1550,
+  orientationUpForce: 1750,
 
   // Vitesse de réaction à l'orientation des flèches
   orientationResponsiveness: 1.4,
@@ -208,17 +208,17 @@ export const GAMEPLAY_CONFIG = {
   // Nombre de segments arrière mobilisés pour lever la queue quand l'avant est accroché (1 à 5)
   orientationRearSpan: 4,
 
-  // Multiplicateur général de puissance du bond au relâchement d'Espace
-  jumpBoost: 1.05,
+  // Multiplicateur général de puissance du bond au relâchement d'Espace (beaucoup moins de saut)
+  jumpBoost: 0.45,
 
   // Bonus d'impulsion verticale quand on oriente vers le haut
-  jumpUpAngleBonus: 1.45,
+  jumpUpAngleBonus: 1.25,
 
   // Durée maximale de chargement du saut avec Espace (en secondes, au moins 4s pleines)
   jumpChargeTime: 4.8,
 
   // Distance maximale d'accroche des ventouses/griffes aux surfaces (en px)
-  gripDistance: 24,
+  gripDistance: 26,
 
   // Seuil angulaire (produit scalaire) déclenchant le retournement automatique sur saisie inversée
   gripAngleTolerance: -0.15,
@@ -245,16 +245,16 @@ export const GAMEPLAY_CONFIG = {
   bendContractSpeed: 24.0,
 
   // Vitesse de déploiement / détente du corps d'un coup sec au relâchement
-  unbendExtensionSpeed: 26.0,
+  unbendExtensionSpeed: 28.0,
 
-  // Poussée sur la surface au décollage
-  groundPushForce: 1.05,
+  // Poussée sur la surface au décollage (réduite pour éviter de s'envoler)
+  groundPushForce: 0.50,
 
   // En l'air sans appui : déploiement élastique pur sans saut magique
   airborneExtensionOnly: true,
 
-  // Bonus de portée d'extension maximale au déploiement (permet de tendre la chenille à chaque fois au maximum)
-  unbendReachBonus: 1.08,
+  // Bonus de portée d'extension maximale au déploiement (vrai détente du squelette pour attraper au loin)
+  unbendReachBonus: 1.18,
 
   // Préserver la posture et courbure du corps pendant la charge (ne pas écraser en barre droite)
   preserveShapeOnBend: true,
@@ -263,8 +263,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v29';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v29';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v30';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v30';
 
 export function loadSavedGameplayConfig() {
   try {
