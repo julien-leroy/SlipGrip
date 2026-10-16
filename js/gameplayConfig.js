@@ -83,10 +83,10 @@ export const CATERPILLAR_CLASSES = {
 export const GAMEPLAY_PRESETS = {
   arcade_dynamique: {
     name: 'Arcade Dynamique (Recommandé)',
-    desc: 'Tête ultra-réactive, gravité franche et lourde qui plaque vite, saut orienté équilibré avec Espace.',
-    gravity: 550,
-    groundSnapping: 1.8,
-    orientationUpForce: 1350,
+    desc: 'Tête ultra-réactive, levage aérien souple, contraction vive et détente coup sec d’un vrai caterpillar.',
+    gravity: 490,
+    groundSnapping: 1.4,
+    orientationUpForce: 1550,
     orientationResponsiveness: 1.4,
     orientationHeadSpan: 4,
     orientationRearSpan: 4,
@@ -101,7 +101,8 @@ export const GAMEPLAY_PRESETS = {
     showBadgesOverlay: true,
     bendCanOrientVertically: true,
     bendOrientationPower: 0.50,
-    unbendExtensionSpeed: 10.0,
+    bendContractSpeed: 24.0,
+    unbendExtensionSpeed: 26.0,
     groundPushForce: 1.05,
     airborneExtensionOnly: true,
     unbendReachBonus: 1.08,
@@ -189,14 +190,14 @@ export const GAMEPLAY_PRESETS = {
 
 // Configuration active du gameplay (modifiable en temps réel)
 export const GAMEPLAY_CONFIG = {
-  // Gravité du monde (en px/s²) — plaque naturellement la chenille au sol avec du poids
-  gravity: 550,
+  // Gravité du monde (en px/s²) — plaque naturellement la chenille au sol sans pénaliser le levage
+  gravity: 490,
 
   // Force de plaquage / amortissement au sol
-  groundSnapping: 1.8,
+  groundSnapping: 1.4,
 
-  // Force d'orientation vers le haut (s'oppose à la gravité pour dresser la tête)
-  orientationUpForce: 1350,
+  // Force d'orientation vers le haut (permet de dresser la tête facilement)
+  orientationUpForce: 1550,
 
   // Vitesse de réaction à l'orientation des flèches
   orientationResponsiveness: 1.4,
@@ -240,8 +241,11 @@ export const GAMEPLAY_CONFIG = {
   // Multiplicateur de puissance d'orientation pendant la charge Espace
   bendOrientationPower: 0.50,
 
-  // Vitesse de déploiement / détente du corps au relâchement
-  unbendExtensionSpeed: 10.0,
+  // Vitesse de contraction vive du corps au clic Espace (marche d'arpenteuse)
+  bendContractSpeed: 24.0,
+
+  // Vitesse de déploiement / détente du corps d'un coup sec au relâchement
+  unbendExtensionSpeed: 26.0,
 
   // Poussée sur la surface au décollage
   groundPushForce: 1.05,
@@ -259,8 +263,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v28';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v28';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v29';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v29';
 
 export function loadSavedGameplayConfig() {
   try {

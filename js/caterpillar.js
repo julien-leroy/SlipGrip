@@ -471,28 +471,30 @@ export class Caterpillar {
       this.chargeDuration = Math.min(maxChargeTime, this.chargeDuration + safeDt * chargeSpeed);
       const chargeRatio = this.chargeDuration / maxChargeTime;
 
-      // Quick contraction into bended pose without changing orientation
-      this.contraction += (1 - this.contraction) * Math.min(1, safeDt * 10.0);
+      // Quick crisp contraction into bent pose like an inchworm walking!
+      const bendSpeed = GAMEPLAY_CONFIG.bendContractSpeed || 24.0;
+      this.contraction += (1 - this.contraction) * Math.min(1, safeDt * bendSpeed);
       this.storedContraction = Math.max(this.storedContraction, chargeRatio);
       if (anyAnchored) {
         this.hadAnchorDuringContraction = true;
       }
       this.rigidityTimer = 0.38;
-      this.bodyRigidity += (0.85 - this.bodyRigidity) * Math.min(1, safeDt * 6.5);
+      this.bodyRigidity += (0.85 - this.bodyRigidity) * Math.min(1, safeDt * 10.0);
     } else {
       if (this.wasSpaceHeld) {
-        // Space released: always trigger full maximum reach extension!
+        // Space released: snap unbend in one sharp crisp pop ("coup sec")!
         const effectivePower = Math.max(this.storedContraction, this.contraction, 0.20);
-        this.rigidityTimer = 0.45;
+        this.rigidityTimer = 0.35;
         this.bodyRigidity = 1.0;
-        this.extensionTimer = 0.50; // Active maximum extension phase
+        this.extensionTimer = 0.28; // Snappy crisp extension
+        this.contraction = 0; // Immediate sharp unbend snap!
         this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles);
       }
       this.chargeDuration = 0;
       if (this.extensionTimer > 0) {
         this.extensionTimer = Math.max(0, this.extensionTimer - safeDt);
       }
-      const unbendSpeed = GAMEPLAY_CONFIG.unbendExtensionSpeed || 10.0;
+      const unbendSpeed = GAMEPLAY_CONFIG.unbendExtensionSpeed || 26.0;
       this.contraction += (0 - this.contraction) * Math.min(1, safeDt * unbendSpeed);
       if (this.contraction < 0.05 && this.extensionTimer <= 0) {
         this.storedContraction = 0;
@@ -729,7 +731,7 @@ export class Caterpillar {
         const bendMult = isBending ? (GAMEPLAY_CONFIG.bendOrientationPower !== undefined ? GAMEPLAY_CONFIG.bendOrientationPower : 0.50) : 1.0;
         const agilityRatio = (clsAgility / clsMass) * bendMult;
 
-        const upForce = (GAMEPLAY_CONFIG.orientationUpForce || 1350) * resp * agilityRatio;
+        const upForce = (GAMEPLAY_CONFIG.orientationUpForce || 1550) * resp * agilityRatio;
         const downForce = 950 * resp * agilityRatio;
         const sideCurlForce = 1250 * resp * agilityRatio;
 
@@ -760,10 +762,10 @@ export class Caterpillar {
               }
             }
           } else if (rearLocked && !frontLocked) {
-            // Rear is anchored: all free body segments (1 to N-1) smoothly curve and orient in the direction of the arrow keys
+            // Rear is anchored: head lifts easily and body smoothly curves in the direction of the arrow keys
             for (let i = 1; i < N; i++) {
               const w = Math.pow(i / (N - 1), 1.15) * inertiaBoost * dt;
-              if (effSteerY < 0) this.nodes[i].vy -= upForce * w;
+              if (effSteerY < 0) this.nodes[i].vy -= upForce * 1.35 * w;
               else if (effSteerY > 0) this.nodes[i].vy += downForce * w;
 
               if (steerX !== 0) {
@@ -835,11 +837,12 @@ export class Caterpillar {
 
       if (!restingOnGentleSlope) {
         const heightAboveGround = Math.max(0, lowestY - n.y);
-        const heavyLiftFactor = isAirborne ? 1.0 : (1.0 + Math.min(1.15, Math.pow(heightAboveGround / 85, 1.45)));
-        const snapMult = (n.vy >= 0 && heightAboveGround < 50) ? (1.0 + (GAMEPLAY_CONFIG.groundSnapping || 1.5) * 0.35) : 1.0;
-        // When bending while anchored, muscular tension supports the body so aiming with left/right never collapses to the ground:
-        const holdGravityMult = (isBending && (rearLocked || frontLocked)) ? 0.20 : 1.0;
-        n.vy += currentGravity * heavyLiftFactor * snapMult * holdGravityMult * dt;
+        const snapMult = (n.vy >= 0 && heightAboveGround < 50) ? (1.0 + (GAMEPLAY_CONFIG.groundSnapping || 1.4) * 0.35) : 1.0;
+        // Natural caterpillar musculature: gravity never artificially resists lifting the head!
+        const isLifting = effSteerY < 0;
+        const liftRelief = isLifting ? 0.25 : (hasSteer ? 0.60 : 1.0);
+        const holdGravityMult = (isBending && (rearLocked || frontLocked)) ? 0.20 : liftRelief;
+        n.vy += currentGravity * snapMult * holdGravityMult * dt;
       } else {
         n.vx *= 0.45;
         n.vy = Math.max(0, n.vy) + currentGravity * 0.25 * dt;
@@ -872,13 +875,13 @@ export class Caterpillar {
       }
     }
 
-    // Active outward extension thrust during space release:
-    // Ensures the caterpillar unfolds to its maximum size every single time space is released!
+    // Active outward extension thrust during space release (crisp sharp snap "coup sec"):
+    // Ensures the caterpillar snaps out to its maximum size every single time space is released!
     if (this.extensionTimer > 0) {
-      const extRatio = this.extensionTimer / 0.50;
+      const extRatio = Math.pow(this.extensionTimer / 0.28, 0.6);
       if (rearLocked && !frontLocked) {
-        // Project head and free segments forward along the spine
-        const thrust = 340 * extRatio;
+        // Project head and free segments forward along the spine with punchy snap
+        const thrust = 520 * extRatio;
         for (let i = 1; i < N; i++) {
           const prev = this.nodes[i - 1];
           const cur = this.nodes[i];
@@ -890,7 +893,7 @@ export class Caterpillar {
         }
       } else if (frontLocked && !rearLocked) {
         // Project tail outward from front anchor to full reach
-        const thrust = 300 * extRatio;
+        const thrust = 460 * extRatio;
         for (let i = 0; i < N - 1; i++) {
           const next = this.nodes[i + 1];
           const cur = this.nodes[i];
@@ -902,7 +905,7 @@ export class Caterpillar {
         }
       } else if (!rearLocked && !frontLocked) {
         const { dx, dy } = this.getFrontVector();
-        const thrust = 180 * extRatio;
+        const thrust = 280 * extRatio;
         for (let i = 0; i < N; i++) {
           const ratio = i / (N - 1);
           this.nodes[i].vx += dx * thrust * ratio * dt;
