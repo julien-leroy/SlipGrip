@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=24';
-import { sound } from './audio.js?v=24';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=24';
+import { MATERIALS } from './physics.js?v=29';
+import { sound } from './audio.js?v=29';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=29';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -699,6 +699,10 @@ export class Caterpillar {
     }
     const hasSteer = steerX !== 0 || steerY !== 0;
 
+    const holdingPropWithoutAnchor = (this.frontAnchor.anchored && this.frontAnchor.propRef && !this.rearAnchor.anchored) ||
+                                     (this.rearAnchor.anchored && this.rearAnchor.propRef && !this.frontAnchor.anchored);
+    const effSteerY = holdingPropWithoutAnchor ? Math.max(0, steerY) : steerY;
+
     // Lowest Y of the caterpillar (ground contact level) to compute vertical lift resistance
     let lowestY = rear.y;
     for (let i = 1; i < N; i++) {
@@ -736,9 +740,6 @@ export class Caterpillar {
         const sideCurlForce = 1250 * resp * agilityRatio;
 
         const headSpan = Math.max(1, Math.min(N - 1, GAMEPLAY_CONFIG.orientationHeadSpan || 4));
-        const holdingPropWithoutAnchor = (this.frontAnchor.anchored && this.frontAnchor.propRef && !this.rearAnchor.anchored) ||
-                                         (this.rearAnchor.anchored && this.rearAnchor.propRef && !this.frontAnchor.anchored);
-        const effSteerY = holdingPropWithoutAnchor ? Math.max(0, steerY) : steerY;
 
         if (!bothAnchored) {
           if (!rearLocked && !frontLocked) {
