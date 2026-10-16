@@ -83,16 +83,16 @@ export const CATERPILLAR_CLASSES = {
 export const GAMEPLAY_PRESETS = {
   arcade_dynamique: {
     name: 'Arcade Dynamique (Recommandé)',
-    desc: 'Tête ultra-réactive, gravité franche qui plaque vite, saut orienté puissant avec Espace.',
-    gravity: 490,
-    groundSnapping: 1.5,
-    orientationUpForce: 1250,
+    desc: 'Tête ultra-réactive, gravité franche et lourde qui plaque vite, saut orienté équilibré avec Espace.',
+    gravity: 550,
+    groundSnapping: 1.8,
+    orientationUpForce: 1350,
     orientationResponsiveness: 1.4,
     orientationHeadSpan: 4,
     orientationRearSpan: 4,
-    jumpBoost: 1.35,
-    jumpUpAngleBonus: 1.55,
-    jumpChargeTime: 4.5,
+    jumpBoost: 1.05,
+    jumpUpAngleBonus: 1.45,
+    jumpChargeTime: 4.8,
     gripDistance: 24,
     gripAngleTolerance: -0.15,
     omegaArchVisual: 1.0,
@@ -102,7 +102,7 @@ export const GAMEPLAY_PRESETS = {
     bendCanOrientVertically: true,
     bendOrientationPower: 0.50,
     unbendExtensionSpeed: 8.0,
-    groundPushForce: 1.35,
+    groundPushForce: 1.05,
     airborneExtensionOnly: true,
     unbendReachBonus: 1.0,
     preserveShapeOnBend: true
@@ -189,14 +189,14 @@ export const GAMEPLAY_PRESETS = {
 
 // Configuration active du gameplay (modifiable en temps réel)
 export const GAMEPLAY_CONFIG = {
-  // Gravité du monde (en px/s²) — plaque naturellement la chenille au sol
-  gravity: 490,
+  // Gravité du monde (en px/s²) — plaque naturellement la chenille au sol avec du poids
+  gravity: 550,
 
   // Force de plaquage / amortissement au sol
-  groundSnapping: 1.5,
+  groundSnapping: 1.8,
 
   // Force d'orientation vers le haut (s'oppose à la gravité pour dresser la tête)
-  orientationUpForce: 1250,
+  orientationUpForce: 1350,
 
   // Vitesse de réaction à l'orientation des flèches
   orientationResponsiveness: 1.4,
@@ -208,13 +208,13 @@ export const GAMEPLAY_CONFIG = {
   orientationRearSpan: 4,
 
   // Multiplicateur général de puissance du bond au relâchement d'Espace
-  jumpBoost: 1.35,
+  jumpBoost: 1.05,
 
   // Bonus d'impulsion verticale quand on oriente vers le haut
-  jumpUpAngleBonus: 1.55,
+  jumpUpAngleBonus: 1.45,
 
-  // Durée maximale de chargement du saut avec Espace (en secondes)
-  jumpChargeTime: 4.5,
+  // Durée maximale de chargement du saut avec Espace (en secondes, au moins 4s pleines)
+  jumpChargeTime: 4.8,
 
   // Distance maximale d'accroche des ventouses/griffes aux surfaces (en px)
   gripDistance: 24,
@@ -244,7 +244,7 @@ export const GAMEPLAY_CONFIG = {
   unbendExtensionSpeed: 8.0,
 
   // Poussée sur la surface au décollage
-  groundPushForce: 1.35,
+  groundPushForce: 1.05,
 
   // En l'air sans appui : déploiement élastique pur sans saut magique
   airborneExtensionOnly: true,
@@ -259,8 +259,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v26';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v26';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v27';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v27';
 
 export function loadSavedGameplayConfig() {
   try {

@@ -360,8 +360,8 @@ export class Caterpillar {
         // flies forward smoothly and finishes its expansion without getting stopped!
         const power = Math.max(this.extensionMomentum.power || 0, this.storedContraction || 0.4);
         const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
-        const pushMult = (GAMEPLAY_CONFIG.groundPushForce || GAMEPLAY_CONFIG.jumpBoost || 1.35) * clsJump;
-        const launchSpeed = (120 + power * 140) * pushMult;
+        const pushMult = (GAMEPLAY_CONFIG.groundPushForce || GAMEPLAY_CONFIG.jumpBoost || 1.05) * clsJump;
+        const launchSpeed = (95 + power * 105) * pushMult;
 
         let aimX = 0;
         let aimY = 0;
@@ -416,9 +416,9 @@ export class Caterpillar {
     aimX /= len;
     aimY /= len;
 
-    const hopSpeed = (120 + power * 145) * (GAMEPLAY_CONFIG.jumpBoost || 1.35);
+    const hopSpeed = (85 + power * 95) * (GAMEPLAY_CONFIG.jumpBoost || 1.05);
     const vx = aimX * hopSpeed;
-    const upImpulse = steerY < 0 ? (65 + power * 120) : 32;
+    const upImpulse = steerY < 0 ? (45 + power * 80) : 22;
     const vy = aimY * hopSpeed - upImpulse;
 
     for (let i = 0; i < this.numNodes; i++) {
@@ -464,7 +464,7 @@ export class Caterpillar {
     // SPACEBAR: Pure longitudinal contraction of segment lengths (never lifts body into air!)
     const spaceHeld = !!inputs.space;
     if (spaceHeld) {
-      const maxChargeTime = GAMEPLAY_CONFIG.jumpChargeTime || 3.0;
+      const maxChargeTime = Math.max(4.0, GAMEPLAY_CONFIG.jumpChargeTime || 4.8);
       const chargeSpeed = (this.bodyClass && this.bodyClass.chargeSpeedMult) || 1.0;
       this.chargeDuration = Math.min(maxChargeTime, this.chargeDuration + safeDt * chargeSpeed);
       const chargeRatio = this.chargeDuration / maxChargeTime;
@@ -544,7 +544,7 @@ export class Caterpillar {
     const steerY = (inputs.up ? -1 : 0) + (inputs.down ? 1 : 0);
 
     const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
-    const pushMult = (GAMEPLAY_CONFIG.groundPushForce || GAMEPLAY_CONFIG.jumpBoost || 1.35) * clsJump;
+    const pushMult = (GAMEPLAY_CONFIG.groundPushForce || GAMEPLAY_CONFIG.jumpBoost || 1.05) * clsJump;
 
     if (!rearLocked && !frontLocked && !hadAnchor) {
       if (anyOnGround) {
@@ -553,9 +553,9 @@ export class Caterpillar {
 
         if (steerY < 0) {
           // Clean upward jump in the aimed/facing direction, NO backward recoil/slip!
-          const upHopSpeed = (120 + power * 145) * pushMult;
+          const upHopSpeed = (85 + power * 95) * pushMult;
           const forwardDir = steerX !== 0 ? steerX : facingDir;
-          const forwardSpeed = (35 + power * 55) * pushMult;
+          const forwardSpeed = (25 + power * 35) * pushMult;
 
           for (let i = 0; i < this.numNodes; i++) {
             const ratio = i / (this.numNodes - 1);
@@ -568,7 +568,7 @@ export class Caterpillar {
           sound.playLaunch(0.45 + power * 0.45);
         } else {
           // Normal horizontal hop along the ground in aimed or facing direction
-          const baseSpeed = (75 + power * 115) * pushMult;
+          const baseSpeed = (55 + power * 75) * pushMult;
           const aimX = steerX !== 0 ? steerX : facingDir;
           for (let i = 0; i < this.numNodes; i++) {
             const ratio = i / (this.numNodes - 1);
@@ -603,7 +603,7 @@ export class Caterpillar {
 
       let aimY = 0;
       if (steerY !== 0) {
-        aimY = (steerY < 0 ? -(GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.55) : 0.65) + surfNy * 0.35;
+        aimY = (steerY < 0 ? -(GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.45) : 0.65) + surfNy * 0.35;
       } else {
         aimY = dy + surfNy * 0.35;
       }
@@ -612,13 +612,13 @@ export class Caterpillar {
       aimX /= len;
       aimY /= len;
 
-      const speed = (115 + power * 135) * pushMult;
+      const speed = (95 + power * 105) * pushMult;
       this.lastLaunchDir = { aimX, aimY, speed };
 
       for (let i = 1; i < this.numNodes; i++) {
         const ratio = i / (this.numNodes - 1);
         this.nodes[i].vx = aimX * speed * ratio;
-        this.nodes[i].vy = aimY * speed * ratio - (steerY < 0 ? 45 * ratio : 18 * ratio);
+        this.nodes[i].vy = aimY * speed * ratio - (steerY < 0 ? 35 * ratio : 14 * ratio);
       }
       particles.spawnMud(this.rear.x, this.rear.y, -surfNx, -surfNy, 5, power * 0.5);
     } else if (frontLocked && !rearLocked) {
@@ -640,7 +640,7 @@ export class Caterpillar {
 
       let aimY = 0;
       if (steerY !== 0) {
-        aimY = (steerY < 0 ? -(GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.55) : 0.65) + surfNy * 0.35;
+        aimY = (steerY < 0 ? -(GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.45) : 0.65) + surfNy * 0.35;
       } else {
         aimY = -dy + surfNy * 0.35;
       }
@@ -649,7 +649,7 @@ export class Caterpillar {
       aimX /= len;
       aimY /= len;
 
-      const speed = (100 + power * 120) * pushMult;
+      const speed = (85 + power * 95) * pushMult;
       this.lastLaunchDir = { aimX, aimY, speed };
 
       for (let i = 0; i < this.numNodes - 1; i++) {
@@ -733,9 +733,14 @@ export class Caterpillar {
         if (!bothAnchored) {
           if (!rearLocked && !frontLocked) {
             // Free caterpillar on the ground:
-            // Full vertical force allows freely orienting, raising the head and curling the spine,
-            // while horizontal crawl force is moderated so the caterpillar moves slower on the ground!
-            const groundCrawlForce = sideCurlForce * 0.28;
+            // Full vertical force allows freely orienting, raising the head and curling the spine.
+            // Forward ground crawl is slow and deliberate (0.08x); backward sliding is completely eliminated (0.01x)!
+            const { dx } = this.getFrontVector();
+            const facingDir = dx >= 0 ? 1 : -1;
+            const isReverse = (steerX !== 0) && (Math.sign(steerX) !== facingDir);
+            const crawlMult = isReverse ? 0.01 : 0.08;
+            const groundCrawlForce = sideCurlForce * crawlMult;
+
             const startIdx = N - headSpan;
             for (let i = startIdx; i < N; i++) {
               const w = Math.pow((i - startIdx + 1) / headSpan, 1.1) * inertiaBoost * dt;
@@ -777,7 +782,7 @@ export class Caterpillar {
     }
 
     // 3. Integrate Heavier Gravity, Viscous Damping & Physical Larval Wiggle
-    const currentGravity = world.gravity || GAMEPLAY_CONFIG.gravity || 490;
+    const currentGravity = world.gravity || GAMEPLAY_CONFIG.gravity || 550;
 
     for (let i = 0; i < N; i++) {
       const n = this.nodes[i];
@@ -903,6 +908,10 @@ export class Caterpillar {
     const isHopping = this.extensionMomentum.timer > 0.15;
     const isExtending = !inputs.space && this.contraction > 0.08;
     const hasSteer = !!(inputs.left || inputs.right || inputs.up || inputs.down);
+    const steerX = (inputs.right ? 1 : 0) - (inputs.left ? 1 : 0);
+    const { dx } = this.getFrontVector();
+    const facingDir = dx >= 0 ? 1 : -1;
+    const isReverse = (steerX !== 0) && (Math.sign(steerX) !== facingDir);
 
     for (let i = 0; i < N; i++) {
       const n = this.nodes[i];
@@ -936,8 +945,8 @@ export class Caterpillar {
             const vt = n.vx * cp.tx + n.vy * cp.ty;
             const newVn = vn < 0 ? -vn * mat.restitution * 0.3 : vn;
 
-            // Ground traction: viscous launch in air/hop, but natural controlled traction when crawling on the ground
-            const frictionRate = (isHopping || isExtending) ? 6.5 : (hasSteer ? 22.0 : 45.0);
+            // Ground traction: viscous launch in air/hop, but strong controlled traction when crawling on the ground
+            const frictionRate = (isHopping || isExtending) ? 6.5 : (hasSteer ? (isReverse ? 45.0 : 34.0) : 48.0);
             let newVt = vt * Math.max(0, 1 - frictionRate * dt);
             if (!hasSteer && !isHopping && !isExtending && Math.abs(newVt) < 24) {
               newVt = 0;
