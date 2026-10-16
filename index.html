@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SlipGrip — Course de Plateforme 2D Physique & Délirante</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css?v=16" />
+</head>
+<body>
+  <div id="game-wrapper">
+    <!-- Main 2D Game Canvas -->
+    <canvas id="game-canvas"></canvas>
+
+    <!-- Top HUD: Level Info, Race Timer & Best Records -->
+    <header id="hud-top">
+      <div class="hud-card brand-card">
+        <div class="logo-badge">🐛 SlipGrip</div>
+        <div class="level-selector">
+          <button class="lvl-btn active" data-level="0" title="Niveau 1 : Le Sous-bois Glissant">
+            <span class="lvl-num">1</span>
+          </button>
+          <button class="lvl-btn" data-level="1" title="Niveau 2 : Le Potager Suspendu">
+            <span class="lvl-num">2</span>
+          </button>
+          <button class="lvl-btn" data-level="2" title="Niveau 3 : Le Pique-nique Ravagé">
+            <span class="lvl-num">3</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="hud-card timer-card">
+        <div class="timer-block">
+          <span class="timer-label">CHRONO</span>
+          <span id="race-timer" class="timer-value">00:00.00</span>
+        </div>
+        <div class="timer-divider"></div>
+        <div class="timer-block record-block">
+          <span class="timer-label">RECORD 🏆</span>
+          <span id="best-timer" class="timer-record">--:--.--</span>
+        </div>
+        <div class="progress-bar-wrap" title="Progression vers la ligne d'arrivée">
+          <div id="race-progress-fill" class="progress-bar-fill"></div>
+          <span class="progress-bug" id="race-progress-bug">🐛</span>
+          <span class="progress-flag">🏁</span>
+        </div>
+      </div>
+
+      <div class="hud-card actions-card">
+        <button id="btn-tuning" class="action-btn" title="Régler le Gameplay & Physique (Touche Tab ou T)">
+          ⚙️ Réglages
+        </button>
+        <button id="btn-cosmetics" class="action-btn" title="Personnaliser votre chenille (Chapeau, Couleur, Visage)">
+          🎨 Cosmétiques
+        </button>
+        <button id="btn-checkpoint" class="action-btn" title="Revenir au dernier Checkpoint activé (Touche C)">
+          🚩 Checkpoint <kbd>C</kbd>
+        </button>
+        <button id="btn-restart" class="action-btn" title="Recommencer le niveau depuis le départ (Touche R)">
+          🔄 Départ <kbd>R</kbd>
+        </button>
+        <button id="btn-mute" class="action-btn icon-only" title="Activer / Couper le son">
+          🔊
+        </button>
+        <button id="btn-help" class="action-btn icon-only" title="Afficher les contrôles">
+          ❓
+        </button>
+      </div>
+    </header>
+
+    <!-- Bottom HUD: Suction Cups (Q & D), Omega Arch Gauge & Subtle Rotation -->
+    <footer id="hud-bottom">
+      <!-- Rear Anchor Indicator (Q) -->
+      <div id="anchor-rear-widget" class="anchor-widget">
+        <div class="key-cap" id="key-q">Q</div>
+        <div class="anchor-info">
+          <div class="anchor-title">PATTE ARRIÈRE (MAINTENIR)</div>
+          <div class="anchor-state" id="state-q">LIBRE</div>
+        </div>
+        <div class="suction-icon" id="icon-q">⚪</div>
+      </div>
+
+      <!-- Omega Arch & Rotation Widget -->
+      <div class="omega-widget" id="omega-widget">
+        <div class="omega-top-row">
+          <span class="omega-title"><kbd>ESPACE</kbd> Contraction de la Chenille</span>
+          <span class="omega-pct" id="omega-pct">0%</span>
+        </div>
+        <div class="omega-meter-track">
+          <div id="omega-meter-fill" class="omega-meter-fill"></div>
+        </div>
+        <div class="com-row">
+          <span class="com-arrow" id="com-left">◀</span>
+          <span class="com-label">Orientation (<kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd>)</span>
+          <span class="com-arrow" id="com-right">▶</span>
+        </div>
+      </div>
+
+      <!-- Front Anchor Indicator (D) -->
+      <div id="anchor-front-widget" class="anchor-widget">
+        <div class="suction-icon" id="icon-d">⚪</div>
+        <div class="anchor-info">
+          <div class="anchor-title">PATTE AVANT (MAINTENIR)</div>
+          <div class="anchor-state" id="state-d">LIBRE</div>
+        </div>
+        <div class="key-cap" id="key-d">D</div>
+      </div>
+    </footer>
+
+    <!-- Contextual Tip Banner -->
+    <div id="coach-banner" class="coach-banner">
+      <span id="coach-text">
+        💡 <strong>Astuce Saut :</strong> Accrochez (<kbd>Q</kbd>), pliez (<kbd>ESPACE</kbd>), orientez vers le haut (<kbd>↑</kbd>), puis relâchez <kbd>ESPACE</kbd> et <kbd>Q</kbd> pour bondir en avant !
+      </span>
+    </div>
+
+    <!-- Cosmetics Customization Modal -->
+    <div id="cosmetics-modal" class="modal-backdrop hidden">
+      <div class="modal-card cosmetics-card">
+        <h2>🎨 Vestiaire de la Chenille</h2>
+        <p class="help-intro">Personnalisez la couleur, le petit chapeau et l'expression de votre chenille !</p>
+
+        <!-- Species / Morphology Selection -->
+        <div class="cosmetic-section">
+          <h4>🐛 Espèce & Morphologie de Chenille</h4>
+          <p class="section-desc">Chaque morphologie offre une physique distincte, avec ses forces et faiblesses équilibrées !</p>
+          <div class="class-grid" id="class-options">
+            <button class="class-card active" data-class="classique">
+              <div class="class-header">
+                <span class="class-icon">⚖️</span>
+                <div>
+                  <div class="class-title">Chenille Classique</div>
+                  <div class="class-subtitle">L’Équilibrée</div>
+                </div>
+              </div>
+              <p class="class-desc">L’archétype idéal pour apprendre et maîtriser tous les terrains.</p>
+              <div class="class-badges">
+                <span class="badge pro">✅ Polyvalente & Stable</span>
+                <span class="badge con">⚠️ Stats moyennes</span>
+              </div>
+            </button>
+
+            <button class="class-card" data-class="arpenteuse">
+              <div class="class-header">
+                <span class="class-icon">📏</span>
+                <div>
+                  <div class="class-title">Arpenteuse Élastique</div>
+                  <div class="class-subtitle">La Longue Portée</div>
+                </div>
+              </div>
+              <p class="class-desc">Corps longiligne (9 segments) franchissant les gouffres géants.</p>
+              <div class="class-badges">
+                <span class="badge pro">✅ +35% Portée d’extension</span>
+                <span class="badge con">⚠️ -25% Masse (sensible mousse)</span>
+              </div>
+            </button>
+
+            <button class="class-card" data-class="dodue">
+              <div class="class-header">
+                <span class="class-icon">🦣</span>
+                <div>
+                  <div class="class-title">Larve Dodue</div>
+                  <div class="class-subtitle">Le Colosse / Sumo</div>
+                </div>
+              </div>
+              <p class="class-desc">Grosse larve compacte et rembourrée, inébranlable aux impacts.</p>
+              <div class="class-badges">
+                <span class="badge pro">✅ +45% Masse & Ancrage</span>
+                <span class="badge con">⚠️ Portée raccourcie (-25%)</span>
+              </div>
+            </button>
+
+            <button class="class-card" data-class="voltigeuse">
+              <div class="class-header">
+                <span class="class-icon">⚡</span>
+                <div>
+                  <div class="class-title">Voltigeuse Aérienne</div>
+                  <div class="class-subtitle">L’Acrobate Vif</div>
+                </div>
+              </div>
+              <p class="class-desc">Nerveuse et profilée pour les enchaînements et figures rapides.</p>
+              <div class="class-badges">
+                <span class="badge pro">✅ Charge éclair & Rotation vive</span>
+                <span class="badge con">⚠️ Fenêtre d’accroche stricte</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div class="cosmetic-section">
+          <h4>🎨 Couleur du Corps</h4>
+          <div class="cosmetic-options" id="palette-options">
+            <button class="cos-btn active" data-palette="emerald">🍏 Vert Pomme</button>
+            <button class="cos-btn" data-palette="axolotl">🌸 Rose Bonbon</button>
+            <button class="cos-btn" data-palette="pastel_blue">💧 Bleu Lagon</button>
+            <button class="cos-btn" data-palette="amber">🍊 Mandarine</button>
+            <button class="cos-btn" data-palette="cosmic">🟣 Lavande</button>
+            <button class="cos-btn" data-palette="solar">☀️ Soleil Doré</button>
+          </div>
+        </div>
+
+        <div class="cosmetic-section">
+          <h4>🎩 Petit Chapeau</h4>
+          <div class="cosmetic-options" id="hat-options">
+            <button class="cos-btn active" data-hat="crown">👑 Couronne</button>
+            <button class="cos-btn" data-hat="tophat">🎩 Haut-de-forme</button>
+            <button class="cos-btn" data-hat="mushroom">🍄 Champignon</button>
+            <button class="cos-btn" data-hat="propeller">🧢 Hélice</button>
+            <button class="cos-btn" data-hat="flower">🌼 Fleur</button>
+            <button class="cos-btn" data-hat="alien">👽 Antennes</button>
+            <button class="cos-btn" data-hat="none">🚫 Aucun</button>
+          </div>
+        </div>
+
+        <div class="cosmetic-section">
+          <h4>😊 Expression du Visage</h4>
+          <div class="cosmetic-options" id="face-options">
+            <button class="cos-btn active" data-face="cute">😊 Mignon</button>
+            <button class="cos-btn" data-face="determined">😠 Déterminé</button>
+            <button class="cos-btn" data-face="derpy">🤪 Rigolo</button>
+            <button class="cos-btn" data-face="cool">😎 Cool</button>
+            <button class="cos-btn" data-face="starry">🤩 Étoilé</button>
+          </div>
+        </div>
+
+        <div class="modal-buttons">
+          <button id="btn-close-cosmetics" class="big-btn primary">Valider mon style ✨</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gameplay & Physics Tuning Modal -->
+    <div id="tuning-modal" class="modal-backdrop hidden">
+      <div class="modal-card tuning-card">
+        <div class="tuning-header">
+          <h2>⚙️ Laboratoire de Réglages Gameplay</h2>
+          <button id="btn-close-tuning-x" class="close-x-btn" title="Fermer">✕</button>
+        </div>
+        <p class="help-intro">
+          Testez différents gameplays en temps réel ou ajustez chaque variable pour trouver votre maniement idéal !
+          Vos réglages sont sauvegardés et peuvent être copiés dans <code>js/gameplayConfig.js</code>.
+        </p>
+
+        <!-- Presets -->
+        <div class="tuning-section">
+          <h4>🎮 Presets Prédéfinis</h4>
+          <div class="preset-buttons" id="preset-buttons">
+            <button class="preset-btn active" data-preset="arcade_dynamique">
+              <strong>🚀 Arcade Dynamique</strong>
+              <span>Tête vive, saut orienté puissant, gravité franche</span>
+            </button>
+            <button class="preset-btn" data-preset="visqueux_larvaire">
+              <strong>🐛 Visqueux / Larvaire</strong>
+              <span>Ultra-mou, lourd, bonds réduits, grand wiggle</span>
+            </button>
+            <button class="preset-btn" data-preset="omega_bouncy">
+              <strong>⚡ Oméga Rebondissant</strong>
+              <span>Arche Oméga spectaculaire, sauts lunaires</span>
+            </button>
+            <button class="preset-btn" data-preset="agile_grimpeur">
+              <strong>🧗 Agile Grimpeur</strong>
+              <span>Accroche longue portée, escalade snappy</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sliders Grid -->
+        <div class="tuning-section">
+          <h4>🎛️ Variables de Physique & Contrôles</h4>
+          <div class="tuning-grid">
+            <div class="tune-item">
+              <label for="tune-gravity">🌍 Gravité (plaque au sol) : <span id="val-gravity" class="tune-val">490</span> px/s²</label>
+              <input type="range" id="tune-gravity" min="200" max="800" step="10" value="490" />
+            </div>
+
+            <div class="tune-item">
+              <label for="tune-groundSnapping">⬇️ Plaquage / Amorti au sol : <span id="val-groundSnapping" class="tune-val">1.5</span></label>
+              <input type="range" id="tune-groundSnapping" min="0.5" max="3.0" step="0.1" value="1.5" />
+            </div>
+
+            <div class="tune-item">
+              <label for="tune-orientationUpForce">🚀 Force Levage Tête (↑) : <span id="val-orientationUpForce" class="tune-val">1250</span></label>
+              <input type="range" id="tune-orientationUpForce" min="400" max="2200" step="50" value="1250" />
+            </div>
+
+            <div class="tune-item">
+              <label for="tune-orientationResponsiveness">⚡ Réactivité Orientation : <span id="val-orientationResponsiveness" class="tune-val">1.4</span></label>
+              <input type="range" id="tune-orientationResponsiveness" min="0.5" max="2.5" step="0.1" value="1.4" />
+            </div>
+
+            <div class="tune-item">
+              <label for="tune-bendOrientationPower">🧭 Force Orientation Charge Espace : <span id="val-bendOrientationPower" class="tune-val">1.0</span></label>
+              <input type="range" id="tune-bendOrientationPower" min="0.2" max="2.5" step="0.1" value="1.0" />
+            </div>
+
+            <div class="tune-item">
+              <label for="tune-jumpBoost">🦘 Puissance du Saut (Espace) : <span id="val-jumpBoost" class="tune-val">1.35</span></label>
+              <input type="range" id="tune-jumpBoost" min="0.5" max="2.5" step="0.05" value="1.35" />
+            </div>
+
+            <div class="tune-item">
+              <label for="tune-groundPushForce">🦶 Poussée Décollage Surface : <span id="val-groundPushForce" class="tune-val">1.35</span></label>
+              <input type="range" id="tune-groundPushForce" min="0.5" max="2.5" step="0.05" value="1.35" />
+            </div>
+
+            <div class="tune-item">
+              <label for="tune-unbendExtensionSpeed">⚡ Vitesse Détente / Déploiement : <span id="val-unbendExtensionSpeed" class="tune-val">8.0</span></label>
+              <input type="range" id="tune-unbendExtensionSpeed" min="3.0" max="18.0" step="0.5" value="8.0" />
+            </div>
+
+            <div class="tune-item">
+              <label for="tune-unbendReachBonus">📏 Portée Extension au Relâchement : <span id="val-unbendReachBonus" class="tune-val">1.0</span></label>
+              <input type="range" id="tune-unbendReachBonus" min="0.8" max="1.5" step="0.05" value="1.0" />
+            </div>
+
+
+            <div class="tune-item">
+              <label for="tune-jumpUpAngleBonus">📐 Bonus Saut vers le Haut : <span id="val-jumpUpAngleBonus" class="tune-val">1.55</span></label>
+              <input type="range" id="tune-jumpUpAngleBonus" min="0.5" max="2.5" step="0.05" value="1.55" />
+            </div>
+
+            <div class="tune-item">
+              <label for="tune-jumpChargeTime">⏱️ Temps Max de Charge Saut : <span id="val-jumpChargeTime" class="tune-val">3.0</span> s</label>
+              <input type="range" id="tune-jumpChargeTime" min="1.0" max="5.0" step="0.5" value="3.0" />
+            </div>
+
+            <div class="tune-item">
+              <label for="tune-gripDistance">🧲 Distance d'Accroche : <span id="val-gripDistance" class="tune-val">24</span> px</label>
+              <input type="range" id="tune-gripDistance" min="10" max="45" step="1" value="24" />
+            </div>
+
+            <div class="tune-item">
+              <label for="tune-omegaArchVisual">🔄 Forme Oméga Visuelle : <span id="val-omegaArchVisual" class="tune-val">1.0</span></label>
+              <input type="range" id="tune-omegaArchVisual" min="0.0" max="2.0" step="0.1" value="1.0" />
+            </div>
+
+            <div class="tune-item">
+              <label for="tune-wigglePhysicsAmount">🐛 Wiggle Larvaire Physique : <span id="val-wigglePhysicsAmount" class="tune-val">18</span></label>
+              <input type="range" id="tune-wigglePhysicsAmount" min="0" max="50" step="2" value="18" />
+            </div>
+
+            <div class="tune-item">
+              <label for="tune-clawScale">🐾 Taille des Griffes (Overflow) : <span id="val-clawScale" class="tune-val">1.35</span></label>
+              <input type="range" id="tune-clawScale" min="0.8" max="2.2" step="0.05" value="1.35" />
+            </div>
+
+            <div class="tune-item checkbox-item">
+              <label>
+                <input type="checkbox" id="tune-bendCanOrientVertically" checked />
+                <span>↕️ Autoriser l'orientation verticale (↑ / ↓) pendant la charge Espace</span>
+              </label>
+            </div>
+
+            <div class="tune-item checkbox-item">
+              <label>
+                <input type="checkbox" id="tune-preserveShapeOnBend" checked />
+                <span>🐛 Préserver la posture & courbure pendant la charge (ne pas écraser en barre)</span>
+              </label>
+            </div>
+
+            <div class="tune-item checkbox-item">
+              <label>
+                <input type="checkbox" id="tune-airborneExtensionOnly" checked />
+                <span>🦅 En l'air sans appui : Déploiement élastique pur (sans saut magique)</span>
+              </label>
+            </div>
+
+            <div class="tune-item checkbox-item">
+              <label>
+                <input type="checkbox" id="tune-showBadgesOverlay" checked />
+                <span>👁️ Afficher Aides Visuelles Q & D en Superposition</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-buttons tuning-actions">
+          <button id="btn-save-default" class="big-btn primary" title="Enregistrer ces réglages comme la configuration par défaut définitive">
+            💾 Définir par Défaut
+          </button>
+          <button id="btn-copy-config" class="big-btn secondary" title="Copier le code de la configuration active pour le coller dans js/gameplayConfig.js">
+            📋 Copier
+          </button>
+          <button id="btn-reset-tuning" class="big-btn secondary">
+            🔄 Réinitialiser
+          </button>
+          <button id="btn-close-tuning" class="big-btn secondary">
+            Fermer ✕
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Victory Overlay Modal -->
+    <div id="victory-modal" class="modal-backdrop hidden">
+      <div class="modal-card victory-card">
+        <div class="victory-crown">🎉🏁🐛🏁🎉</div>
+        <h1 id="victory-title">NIVEAU TERMINÉ !</h1>
+        <p id="victory-subtitle" class="victory-subtitle">La foule d'insectes est en délire !</p>
+
+        <div class="stats-grid">
+          <div class="stat-box">
+            <span class="stat-label">TEMPS FINAL</span>
+            <span id="victory-time" class="stat-val">00:24.50</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">MEILLEUR RECORD</span>
+            <span id="victory-best" class="stat-val gold">00:24.50</span>
+          </div>
+        </div>
+
+        <div id="new-record-badge" class="new-record-badge hidden">
+          ⭐ NOUVEAU RECORD DU NIVEAU ! ⭐
+        </div>
+
+        <div class="modal-buttons">
+          <button id="btn-replay-lvl" class="big-btn secondary">🔄 Rejouer</button>
+          <button id="btn-next-lvl" class="big-btn primary">Niveau Suivant ▶</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Help / Controls Modal -->
+    <div id="help-modal" class="modal-backdrop hidden">
+      <div class="modal-card help-card">
+        <h2>🐛 Guide de Pilotage — SlipGrip</h2>
+        <p class="help-intro">
+          Votre chenille arpenteuse possède deux pattes-ventouses (<kbd>Q</kbd> à l'arrière et <kbd>D</kbd> à l'avant).
+        </p>
+
+        <div class="controls-grid">
+          <div class="ctrl-item">
+            <div class="ctrl-keys"><kbd>Q</kbd> <span class="sub-key">(Maintenir)</span></div>
+            <div class="ctrl-desc">
+              <strong>Ventouse Arrière</strong><br/>
+              Maintenez <kbd>Q</kbd> tout près d'une surface (sol, gland, pomme de pin) pour y coller la patte arrière.
+            </div>
+          </div>
+          <div class="ctrl-item">
+            <div class="ctrl-keys"><kbd>D</kbd> <span class="sub-key">(Maintenir)</span></div>
+            <div class="ctrl-desc">
+              <strong>Ventouse Avant</strong><br/>
+              Maintenez <kbd>D</kbd> tout près d'une surface pour y coller la patte avant.
+            </div>
+          </div>
+          <div class="ctrl-item">
+            <div class="ctrl-keys"><kbd>ESPACE</kbd></div>
+            <div class="ctrl-desc">
+              <strong>Plier (Ω) / Étendre avec Inertie</strong><br/>
+              Maintenez pour plier la chenille. Relâchez <kbd>ESPACE</kbd> + lâchez l'accroche pour faire un petit bond vers l'avant !
+            </div>
+          </div>
+          <div class="ctrl-item">
+            <div class="ctrl-keys"><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd></div>
+            <div class="ctrl-desc">
+              <strong>Orientation & Rotation</strong><br/>
+              Oriente la chenille vers le haut lorsqu'elle est accrochée, ou la fait pivoter légèrement dans les airs.
+            </div>
+          </div>
+        </div>
+
+        <div class="tech-tips">
+          <div class="tech-box">
+            <h4>🚀 Petit Bond par Inertie</h4>
+            <p>1. Accrochez l'arrière (<kbd>Q</kbd>) et maintenez <kbd>ESPACE</kbd> pour plier.<br/>
+               2. Orientez vers le haut avec <kbd>↑</kbd>.<br/>
+               3. Relâchez <kbd>ESPACE</kbd> et lâchez <kbd>Q</kbd> pour faire un petit bond en avant !</p>
+          </div>
+          <div class="tech-box">
+            <h4>🌰 Glands (x2) & Pommes de pin géantes (x5)</h4>
+            <p>Collez vos ventouses sur leur surface ! Vous pouvez soulever ou tirer un gland, mais les pommes de pin géantes sont trop lourdes : grimpez dessus en prenant garde à ne pas les faire rouler !</p>
+          </div>
+        </div>
+
+        <div class="modal-buttons">
+          <button id="btn-close-help" class="big-btn primary">C'est parti ! 🐛</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js?v=26"></script>
+</body>
+</html>
