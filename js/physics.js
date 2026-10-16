@@ -1,6 +1,6 @@
 // js/physics.js — Stable 2D Physics World with Continuous Terrain & Heavy Boulder Pinecones / Acorns
 
-import { GAMEPLAY_CONFIG } from './gameplayConfig.js?v=35';
+import { GAMEPLAY_CONFIG } from './gameplayConfig.js?v=36';
 
 export const MATERIALS = {
   dirt:    { friction: 0.90, gripSlide: 0.0,  restitution: 0.05, name: 'Terre meuble' },

@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=35';
-import { sound } from './audio.js?v=35';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=35';
+import { MATERIALS } from './physics.js?v=36';
+import { sound } from './audio.js?v=36';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=36';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -748,14 +748,42 @@ export class Caterpillar {
             // Free caterpillar on the ground:
             // The player directs the HEAD freely (raise head, look up, reach)
             // While passive horizontal crawling with arrows alone is slow and deliberate.
-            const startIdx = N - headSpan;
-            for (let i = startIdx; i < N; i++) {
-              const w = Math.pow((i - startIdx + 1) / headSpan, 1.1) * inertiaBoost * dt;
-              if (effSteerY < 0) this.nodes[i].vy -= upForce * 0.90 * w;
-              else if (effSteerY > 0) this.nodes[i].vy += downForce * w;
+            // But the HEAD can be actively lifted and reached over obstacles/stairs!
+            let aimDirX = 0;
+            let aimDirY = 0;
+            if (hasSteer) {
+              const aimDist = Math.hypot(steerX, effSteerY) || 1;
+              aimDirX = steerX / aimDist;
+              aimDirY = effSteerY / aimDist;
 
+              // Full reaching authority on the head:
+              const headReachForce = (GAMEPLAY_CONFIG.headReachForce || 1600) * resp * agilityRatio;
+              this.head.vx += aimDirX * headReachForce * dt;
+              this.head.vy += aimDirY * headReachForce * dt;
+
+              // Neck follows with partial power:
+              this.nodes[N - 2].vx += aimDirX * headReachForce * 0.50 * dt;
+              this.nodes[N - 2].vy += aimDirY * headReachForce * 0.50 * dt;
+
+              // Mid vertebra slight support:
+              this.nodes[N - 3].vx += aimDirX * headReachForce * 0.15 * dt;
+              this.nodes[N - 3].vy += aimDirY * headReachForce * 0.15 * dt;
+
+              // Lower body (node 0 and 1) gets ZERO upward lift! They carry their own weight on the ground.
               if (steerX !== 0) {
-                this.nodes[i].vx += steerX * (sideCurlForce * 0.035) * w;
+                this.nodes[0].vx += steerX * (sideCurlForce * 0.035) * dt;
+                this.nodes[1].vx += steerX * (sideCurlForce * 0.035) * dt;
+              }
+
+              // Active peeling / unsticking force if the head is touching an obstacle and steering away/up:
+              if (this.head.onGround && this.head.groundNx !== undefined) {
+                const dotAway = aimDirX * this.head.groundNx + aimDirY * this.head.groundNy;
+                if (dotAway > -0.3 || effSteerY < 0) {
+                  const unstick = 950 * dt;
+                  this.head.vx += this.head.groundNx * unstick;
+                  this.head.vy += (this.head.groundNy < 0 ? this.head.groundNy * unstick : -unstick * 0.7);
+                  this.head.onGround = false;
+                }
               }
             }
           } else if (rearLocked && !frontLocked) {
@@ -784,9 +812,20 @@ export class Caterpillar {
 
               // Active reaching extension towards aim direction (allows stretching with arrows alone!)
               if (hasSteer) {
-                const reachGuide = 680 * resp * agilityRatio * ratio;
+                const reachGuide = 1500 * resp * agilityRatio * ratio;
                 this.nodes[i].vx += aimDirX * reachGuide * dt;
                 this.nodes[i].vy += aimDirY * reachGuide * dt;
+              }
+            }
+
+            // Active peeling force if head touches an obstacle and steering away:
+            if (hasSteer && this.head.onGround && this.head.groundNx !== undefined) {
+              const dotAway = aimDirX * this.head.groundNx + aimDirY * this.head.groundNy;
+              if (dotAway > -0.3 || effSteerY < 0) {
+                const unstick = 1100 * dt;
+                this.head.vx += this.head.groundNx * unstick;
+                this.head.vy += (this.head.groundNy < 0 ? this.head.groundNy * unstick : -unstick * 0.8);
+                this.head.onGround = false;
               }
             }
           } else if (frontLocked && !rearLocked) {
@@ -877,16 +916,23 @@ export class Caterpillar {
       if (!restingOnGentleSlope) {
         const heightAboveGround = Math.max(0, lowestY - n.y);
         const isAnchoredOnePaw = (rearLocked && !frontLocked) || (frontLocked && !rearLocked);
-        // Ground snapping must NEVER drag down the body when anchored by one paw and reaching/lifting
-        const snapMult = (!isAnchoredOnePaw && n.vy >= 0 && heightAboveGround < 50) ? (1.0 + (GAMEPLAY_CONFIG.groundSnapping || 1.3) * 0.35) : 1.0;
-        const isLifting = effSteerY < 0;
+        const isHeadPart = (i >= N - 2);
+        const isLiftingHead = isHeadPart && effSteerY < 0;
+        // Ground snapping must NEVER drag down the head when lifting or aiming
+        const snapMult = (!isAnchoredOnePaw && !isLiftingHead && n.vy >= 0 && heightAboveGround < 50) ? (1.0 + (GAMEPLAY_CONFIG.groundSnapping || 1.3) * 0.35) : 1.0;
+
         let liftRelief = 1.0;
-        if (isLifting) {
-          if (rearLocked && !frontLocked) liftRelief = 0.04; // Head is light and agile
-          else if (frontLocked && !rearLocked) liftRelief = 0.85; // Tail stays down on surface
-          else liftRelief = 0.20;
+        if (effSteerY < 0) {
+          if (rearLocked && !frontLocked) {
+            liftRelief = (i >= N - 2) ? 0.04 : 0.85; // Head/neck agile; rear nodes carry weight
+          } else if (frontLocked && !rearLocked) {
+            liftRelief = 0.85; // Tail stays down on surface
+          } else {
+            // Free on ground: Head and neck are agile; rear nodes (0 and 1) carry full weight (1.0)!
+            liftRelief = (i === N - 1) ? 0.05 : ((i === N - 2) ? 0.35 : 1.0);
+          }
         } else if (hasSteer) {
-          liftRelief = isAnchoredOnePaw ? 0.35 : 0.60;
+          liftRelief = isHeadPart ? (isAnchoredOnePaw ? 0.25 : 0.50) : 1.0;
         }
         const holdGravityMult = (isBending && (rearLocked || frontLocked)) ? 0.15 : liftRelief;
         n.vy += currentGravity * snapMult * holdGravityMult * dt;
@@ -896,7 +942,8 @@ export class Caterpillar {
       }
 
       // Calm, slow crawl speed on ground when just steering with arrows:
-      if (!isHopping && !isExtending && anyOnGround) {
+      // (Only applies to rear and body feet so head can reach freely over obstacles!)
+      if (!isHopping && !isExtending && anyOnGround && i < N - 2) {
         const maxGroundCrawl = GAMEPLAY_CONFIG.maxGroundCrawl || 26;
         if (n.onGround || n.groundMaterial) {
           if (n.vx > maxGroundCrawl) n.vx = maxGroundCrawl;
@@ -1127,7 +1174,8 @@ export class Caterpillar {
             const newVn = vn < 0 ? -vn * mat.restitution * 0.3 : vn;
 
             // Ground traction: allow free natural arching/contracting without locking feet into the dirt!
-            const frictionRate = (isHopping || isExtending || isBending) ? 8.0 : (hasSteer ? (isReverse ? 45.0 : 34.0) : 48.0);
+            const isHead = (i === N - 1);
+            const frictionRate = (isHead && hasSteer) ? 2.5 : ((isHopping || isExtending || isBending) ? 8.0 : (hasSteer ? (isReverse ? 45.0 : 34.0) : 48.0));
             let newVt = vt * Math.max(0, 1 - frictionRate * dt);
             if (!hasSteer && !isHopping && !isExtending && !isBending && Math.abs(newVt) < 24) {
               newVt = 0;
@@ -1152,7 +1200,8 @@ export class Caterpillar {
               newVt = vt * Math.max(0, 1 - 1.2 * dt);
             } else {
               const excessSlope = Math.max(0, slopeGrade - 0.30);
-              const damping = hasSteer ? 5.5 : Math.max(2.0, 18.0 - excessSlope * 20.0);
+              const isHead = (i === N - 1);
+              const damping = (isHead && hasSteer) ? 1.5 : (hasSteer ? 5.5 : Math.max(2.0, 18.0 - excessSlope * 20.0));
               newVt = vt * Math.max(0, 1 - damping * dt);
             }
 
