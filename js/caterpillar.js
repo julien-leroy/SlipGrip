@@ -822,6 +822,25 @@ export class Caterpillar {
             const surfTy = surfNx * facingSign;
             const surfAngle = Math.atan2(surfTy, surfTx);
 
+            // Count consecutive supporting nodes from the rear anchor
+            let rearGroundCount = 2; // Node 0 is anchored, Node 1 is planted tail segment
+            for (let i = 2; i < N; i++) {
+              if (this.nodes[i].onGround || this.nodes[i].groundMaterial) {
+                rearGroundCount++;
+              } else {
+                break;
+              }
+            }
+            // Support power:
+            // - If only 2 nodes touch surface (rear tip + tail segment): supportPower = 0.50 (low lift, cannot stand high)
+            // - If 3+ nodes touch surface (several segments on ground): supportPower = 1.0 (firm base, can lift upper body!)
+            const supportPower = Math.min(1.0, Math.max(0.40, (rearGroundCount - 1) / 2.0));
+
+            // Maximum lift angle from surface tangent:
+            // Capped at ~60° when several segments are on ground, and ~30° when only 2 nodes.
+            // Never erects 90° straight like a flagpole ("droit comme un piquet")!
+            const maxAngleDiff = Math.PI * 0.35 * supportPower;
+
             // 2. Aim vector from player input
             let aimX = surfTx;
             let aimY = surfTy;
@@ -830,15 +849,24 @@ export class Caterpillar {
             if (steerX !== 0 || steerY !== 0) {
               hasAimInput = true;
               const sDist = Math.hypot(steerX, steerY) || 1;
-              aimX = steerX / sDist;
-              aimY = (steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.25) : steerY) / sDist;
-              const aLen = Math.hypot(aimX, aimY) || 1;
-              aimX /= aLen;
-              aimY /= aLen;
+              const rawAimX = steerX / sDist;
+              const rawAimY = (steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.25) : steerY) / sDist;
+              const rawAngle = Math.atan2(rawAimY, rawAimX);
+
+              // Clamp angle relative to surface tangent within support limits
+              let diffFromSurf = rawAngle - surfAngle;
+              while (diffFromSurf > Math.PI) diffFromSurf -= Math.PI * 2;
+              while (diffFromSurf < -Math.PI) diffFromSurf += Math.PI * 2;
+              const clampedDiff = Math.max(-maxAngleDiff, Math.min(maxAngleDiff, diffFromSurf));
+              const finalAimAngle = surfAngle + clampedDiff;
+              aimX = Math.cos(finalAimAngle);
+              aimY = Math.sin(finalAimAngle);
             } else if (inputs.up) {
               hasAimInput = true;
-              aimX = 0;
-              aimY = -1;
+              // Rearing upward: forward-up curved arch within support limits, NOT a vertical pole!
+              const rearAngle = surfAngle - facingSign * maxAngleDiff;
+              aimX = Math.cos(rearAngle);
+              aimY = Math.sin(rearAngle);
             }
 
             const targetAimAngle = Math.atan2(aimY, aimX);
@@ -914,13 +942,25 @@ export class Caterpillar {
               }
             }
           } else if (frontLocked && !rearLocked) {
-            // Front is anchored: The tail cannot be flown or lifted arbitrarily into the sky!
-            // It rests on the surface and can only be pulled closer (ramener) or pushed further (éloigner),
-            // sliding along the ground according to the texture and friction of the surface it rests upon!
+            // Front is anchored: The player controls the tail with the arrows!
+            // Rule: Can only lift slightly upward if several front segments touch the ground/surface,
+            // and never like a flagpole ("pas trop vers le haut").
             const tail = this.rear;
             const matName = tail.groundMaterial || 'dirt';
             const mat = MATERIALS[matName] || MATERIALS.dirt;
-            const slideEase = Math.max(0.18, 1.15 - mat.friction * 0.75);
+            const slideEase = Math.max(0.25, 1.15 - mat.friction * 0.70);
+
+            // Count how many consecutive front nodes are touching / resting on a surface
+            let frontGroundCount = 1; // Head (N-1) is anchored
+            for (let i = N - 2; i >= 0; i--) {
+              if (this.nodes[i].onGround || this.nodes[i].groundMaterial) {
+                frontGroundCount++;
+              } else {
+                break;
+              }
+            }
+            // Support ratio: 0.15 if only head is on surface, up to 1.0 if 3+ front nodes touch the ground
+            const frontSupportRatio = Math.max(0.15, Math.min(1.0, (frontGroundCount - 1) / 2.0));
 
             // Vector from tail toward front anchor:
             const toFrontX = this.frontAnchor.x - tail.x;
@@ -929,23 +969,50 @@ export class Caterpillar {
             const dirX = toFrontX / toFrontDist;
             const dirY = toFrontY / toFrontDist;
 
-            // Project user steering along the tail-to-head direction
-            const steerAlong = steerX * dirX + (effSteerY !== 0 ? effSteerY * dirY : 0);
-            let moveIntensity = 0;
-            if (steerAlong > 0.1 || isBending) {
-              // Ramener la queue vers l'avant (along the surface)
-              moveIntensity = isBending ? 1.0 : steerAlong;
-            } else if (steerAlong < -0.1) {
-              // Éloigner la queue vers l'arrière (along the surface)
-              moveIntensity = steerAlong;
-            }
-
-            if (moveIntensity !== 0) {
-              const slideForce = 440 * moveIntensity * slideEase * resp * dt;
+            // 1. Horizontal tail steering (Left / Right arrows)
+            // Allows player to swing, slide, or sway the tail onto ledges or away/closer!
+            if (steerX !== 0) {
+              const tailHorizontalForce = 620 * slideEase * resp * dt;
               for (let i = 0; i < N - 1; i++) {
                 const ratio = (N - 1 - i) / (N - 1);
-                this.nodes[i].vx += dirX * slideForce * ratio;
-                this.nodes[i].vy += dirY * slideForce * ratio;
+                this.nodes[i].vx += steerX * tailHorizontalForce * ratio;
+              }
+            }
+
+            // 2. Longitudinal pull / push (Bending / Space or directional pull)
+            if (isBending) {
+              // Holding Space draws the tail smoothly toward the front anchor
+              const pullForce = 580 * slideEase * resp * dt;
+              for (let i = 0; i < N - 1; i++) {
+                const ratio = (N - 1 - i) / (N - 1);
+                this.nodes[i].vx += dirX * pullForce * ratio;
+                this.nodes[i].vy += dirY * pullForce * ratio;
+              }
+            }
+
+            // 3. Vertical tail control (Up / Down arrows):
+            // - Down arrow: presses tail firmly against ground/surface for easy Q gripping
+            // - Up arrow: lifts tail in a gentle low arch, ONLY if front has several segments on ground,
+            //   and strictly clamped so it never stands vertical like a stick ("pas trop vers le haut")!
+            if (effSteerY > 0) {
+              // Press tail down
+              const downForce = 550 * resp * dt;
+              for (let i = 0; i < N - 1; i++) {
+                const ratio = (N - 1 - i) / (N - 1);
+                this.nodes[i].vy += downForce * ratio;
+              }
+            } else if (effSteerY < 0 && frontSupportRatio > 0.3) {
+              // Lift tail slightly, scaled by support ratio
+              const liftForce = 420 * frontSupportRatio * resp * dt;
+              for (let i = 0; i < N - 1; i++) {
+                const ratio = Math.pow((N - 1 - i) / (N - 1), 1.25);
+                this.nodes[i].vy -= liftForce * ratio;
+              }
+              // Strict ceiling clamp: tail can NEVER rise higher than a small gentle arch (~32px above front anchor)
+              const maxTailElevation = this.frontAnchor.y - 32;
+              if (tail.y < maxTailElevation) {
+                tail.y = maxTailElevation;
+                tail.vy = Math.max(0, tail.vy);
               }
             }
           }
