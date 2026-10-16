@@ -101,10 +101,10 @@ export const GAMEPLAY_PRESETS = {
     showBadgesOverlay: true,
     bendCanOrientVertically: true,
     bendOrientationPower: 0.50,
-    unbendExtensionSpeed: 8.0,
+    unbendExtensionSpeed: 10.0,
     groundPushForce: 1.05,
     airborneExtensionOnly: true,
-    unbendReachBonus: 1.0,
+    unbendReachBonus: 1.08,
     preserveShapeOnBend: true
   },
   visqueux_larvaire: {
@@ -241,7 +241,7 @@ export const GAMEPLAY_CONFIG = {
   bendOrientationPower: 0.50,
 
   // Vitesse de déploiement / détente du corps au relâchement
-  unbendExtensionSpeed: 8.0,
+  unbendExtensionSpeed: 10.0,
 
   // Poussée sur la surface au décollage
   groundPushForce: 1.05,
@@ -249,8 +249,8 @@ export const GAMEPLAY_CONFIG = {
   // En l'air sans appui : déploiement élastique pur sans saut magique
   airborneExtensionOnly: true,
 
-  // Bonus de portée d'extension maximale au déploiement
-  unbendReachBonus: 1.0,
+  // Bonus de portée d'extension maximale au déploiement (permet de tendre la chenille à chaque fois au maximum)
+  unbendReachBonus: 1.08,
 
   // Préserver la posture et courbure du corps pendant la charge (ne pas écraser en barre droite)
   preserveShapeOnBend: true,
@@ -259,8 +259,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v27';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v27';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v28';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v28';
 
 export function loadSavedGameplayConfig() {
   try {

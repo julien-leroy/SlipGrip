@@ -112,6 +112,7 @@ export class Caterpillar {
       power: 0,
       consumed: false
     };
+    this.extensionTimer = 0;
 
     this.wiggleTime = 0;
     this.crawlPhase = 0;
@@ -273,6 +274,7 @@ export class Caterpillar {
       power: 0,
       consumed: false
     };
+    this.extensionTimer = 0;
 
     this.wiggleTime = 0;
     this.crawlPhase = 0;
@@ -478,15 +480,21 @@ export class Caterpillar {
       this.rigidityTimer = 0.38;
       this.bodyRigidity += (0.85 - this.bodyRigidity) * Math.min(1, safeDt * 6.5);
     } else {
-      if (this.wasSpaceHeld && this.storedContraction > 0.12) {
-        this.rigidityTimer = 0.38;
+      if (this.wasSpaceHeld) {
+        // Space released: always trigger full maximum reach extension!
+        const effectivePower = Math.max(this.storedContraction, this.contraction, 0.20);
+        this.rigidityTimer = 0.45;
         this.bodyRigidity = 1.0;
-        this.onReleaseSpace(this.storedContraction, this.hadAnchorDuringContraction, inputs, particles);
+        this.extensionTimer = 0.50; // Active maximum extension phase
+        this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles);
       }
       this.chargeDuration = 0;
-      const unbendSpeed = GAMEPLAY_CONFIG.unbendExtensionSpeed || 8.0;
+      if (this.extensionTimer > 0) {
+        this.extensionTimer = Math.max(0, this.extensionTimer - safeDt);
+      }
+      const unbendSpeed = GAMEPLAY_CONFIG.unbendExtensionSpeed || 10.0;
       this.contraction += (0 - this.contraction) * Math.min(1, safeDt * unbendSpeed);
-      if (this.contraction < 0.05) {
+      if (this.contraction < 0.05 && this.extensionTimer <= 0) {
         this.storedContraction = 0;
         this.hadAnchorDuringContraction = false;
       }
@@ -864,14 +872,55 @@ export class Caterpillar {
       }
     }
 
+    // Active outward extension thrust during space release:
+    // Ensures the caterpillar unfolds to its maximum size every single time space is released!
+    if (this.extensionTimer > 0) {
+      const extRatio = this.extensionTimer / 0.50;
+      if (rearLocked && !frontLocked) {
+        // Project head and free segments forward along the spine
+        const thrust = 340 * extRatio;
+        for (let i = 1; i < N; i++) {
+          const prev = this.nodes[i - 1];
+          const cur = this.nodes[i];
+          const dx = cur.x - prev.x;
+          const dy = cur.y - prev.y;
+          const len = Math.hypot(dx, dy) || 1;
+          cur.vx += (dx / len) * thrust * dt;
+          cur.vy += (dy / len) * thrust * dt;
+        }
+      } else if (frontLocked && !rearLocked) {
+        // Project tail outward from front anchor to full reach
+        const thrust = 300 * extRatio;
+        for (let i = 0; i < N - 1; i++) {
+          const next = this.nodes[i + 1];
+          const cur = this.nodes[i];
+          const dx = cur.x - next.x;
+          const dy = cur.y - next.y;
+          const len = Math.hypot(dx, dy) || 1;
+          cur.vx += (dx / len) * thrust * dt;
+          cur.vy += (dy / len) * thrust * dt;
+        }
+      } else if (!rearLocked && !frontLocked) {
+        const { dx, dy } = this.getFrontVector();
+        const thrust = 180 * extRatio;
+        for (let i = 0; i < N; i++) {
+          const ratio = i / (N - 1);
+          this.nodes[i].vx += dx * thrust * ratio * dt;
+          this.nodes[i].vy += dy * thrust * ratio * dt;
+        }
+      }
+    }
+
     // 4. SKELETON CONSTRAINTS:
-    // Pure longitudinal contraction of segment lengths — NO upward force!
+    // Pure longitudinal contraction / full extension to maximum reach
+    const reachBonus = this.extensionTimer > 0 ? (GAMEPLAY_CONFIG.unbendReachBonus || 1.05) : 1.0;
     const targetSegLen =
-      this.extendedSegLen * (1 - this.contraction) +
+      (this.extendedSegLen * reachBonus) * (1 - this.contraction) +
       this.contractedSegLen * this.contraction;
 
-    for (let iter = 0; iter < 3; iter++) {
-      // Soft neighbor distance constraints
+    const constraintIterations = this.extensionTimer > 0 ? 6 : 3;
+    for (let iter = 0; iter < constraintIterations; iter++) {
+      // Neighbor distance constraints
       for (let i = 0; i < N - 1; i++) {
         const a = this.nodes[i];
         const b = this.nodes[i + 1];
@@ -883,7 +932,7 @@ export class Caterpillar {
         const aPinned = (i === 0 && (rearLocked || this.rearAnchor.anchored));
         const bPinned = (i + 1 === N - 1 && (frontLocked || this.frontAnchor.anchored));
 
-        const stiff = 0.44 + this.bodyRigidity * 0.16;
+        const stiff = this.extensionTimer > 0 ? 0.82 : (0.44 + this.bodyRigidity * 0.16);
         if (aPinned && !bPinned) {
           b.x -= dx * diff * stiff;
           b.y -= dy * diff * stiff;
@@ -906,7 +955,7 @@ export class Caterpillar {
   handleWorldCollisions(dt, world, particles, inputs, isFirstSubstep) {
     const N = this.numNodes;
     const isHopping = this.extensionMomentum.timer > 0.15;
-    const isExtending = !inputs.space && this.contraction > 0.08;
+    const isExtending = this.extensionTimer > 0 || (!inputs.space && this.contraction > 0.04);
     const hasSteer = !!(inputs.left || inputs.right || inputs.up || inputs.down);
     const steerX = (inputs.right ? 1 : 0) - (inputs.left ? 1 : 0);
     const { dx } = this.getFrontVector();
