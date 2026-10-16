@@ -84,8 +84,8 @@ export const GAMEPLAY_PRESETS = {
   arcade_dynamique: {
     name: 'Arcade Dynamique (Recommandé)',
     desc: 'Tête agile et réactive, corps suivant naturellement, contraction douce et zéro tremblement.',
-    gravity: 490,
-    groundSnapping: 1.3,
+    gravity: 740,
+    groundSnapping: 1.5,
     orientationUpForce: 1650,
     orientationResponsiveness: 1.45,
     orientationHeadSpan: 2,
@@ -195,11 +195,11 @@ export const GAMEPLAY_PRESETS = {
 
 // Configuration active du gameplay (modifiable en temps réel)
 export const GAMEPLAY_CONFIG = {
-  // Gravité du monde (en px/s²) — plaque naturellement la chenille au sol sans pénaliser le levage
-  gravity: 490,
+  // Gravité du monde (en px/s²) — physique vive et ancrée, fin de la gravité lunaire
+  gravity: 740,
 
   // Force de plaquage / amortissement au sol
-  groundSnapping: 1.4,
+  groundSnapping: 1.5,
 
   // Force d'orientation vers le haut (permet de dresser la tête facilement)
   orientationUpForce: 1750,
@@ -274,8 +274,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v34';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v34';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v35';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v35';
 
 export function loadSavedGameplayConfig() {
   try {

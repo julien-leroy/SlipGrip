@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=34';
-import { sound } from './audio.js?v=34';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=34';
+import { MATERIALS } from './physics.js?v=35';
+import { sound } from './audio.js?v=35';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=35';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -574,34 +574,30 @@ export class Caterpillar {
 
     if (!rearLocked && !frontLocked && !hadAnchor) {
       if (anyOnGround) {
-        let { dx } = this.getFrontVector();
-        const facingDir = dx >= 0 ? 1 : -1;
+        let { dx, dy } = this.getFrontVector();
+        let aimX = dx;
+        let aimY = dy;
+        if (steerX !== 0 || steerY !== 0) {
+          const sDist = Math.hypot(steerX, steerY) || 1;
+          aimX = steerX / sDist;
+          aimY = steerY / sDist;
+        }
 
-        if (steerY < 0) {
-          // Clean upward hop with true jump inertia
-          const upHopSpeed = (55 + power * 75) * pushMult;
-          const forwardDir = steerX !== 0 ? steerX : facingDir;
-          const forwardSpeed = (20 + power * 35) * pushMult;
-
-          for (let i = 0; i < this.numNodes; i++) {
-            const ratio = i / (this.numNodes - 1);
-            this.nodes[i].vx += forwardDir * forwardSpeed * (0.6 + ratio * 0.4);
-            this.nodes[i].vy = -upHopSpeed * (0.85 + ratio * 0.25);
+        const pushSpeed = (45 + power * 65) * pushMult;
+        for (let i = 0; i < this.numNodes; i++) {
+          const ratio = i / (this.numNodes - 1);
+          this.nodes[i].vx += aimX * pushSpeed * (0.5 + ratio * 0.5);
+          this.nodes[i].vy += aimY * pushSpeed * (0.5 + ratio * 0.5);
+          if (aimY < -0.25) {
             this.nodes[i].onGround = false;
           }
-          this.hopTimer = 0.35;
-
-          particles.spawnMud(this.rear.x, this.rear.y, -forwardDir, 0.35, 7, power * 0.6);
-          sound.playLaunch(0.40 + power * 0.40);
-        } else {
-          // Horizontal scoot along the ground in aimed or facing direction
-          const baseSpeed = (35 + power * 45) * pushMult;
-          const aimX = steerX !== 0 ? steerX : facingDir;
-          for (let i = 0; i < this.numNodes; i++) {
-            const ratio = i / (this.numNodes - 1);
-            this.nodes[i].vx += aimX * baseSpeed * ratio;
-          }
         }
+        if (aimY < -0.25) {
+          this.hopTimer = 0.35;
+        }
+
+        particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, 6, power * 0.5);
+        sound.playLaunch(0.40 + power * 0.40);
       }
       return;
     }
@@ -619,24 +615,17 @@ export class Caterpillar {
       const surfNx = this.rearAnchor.nx || 0;
       const surfNy = this.rearAnchor.ny !== undefined ? this.rearAnchor.ny : -1;
 
-      // When steerX/steerY are pressed, strictly obey user arrow keys in screen space
-      let aimX = 0;
-      if (steerX !== 0) {
-        aimX = steerX * 0.90 + surfNx * 0.35;
-      } else {
-        aimX = dx + surfNx * 0.35;
+      // When steerX/steerY are pressed, obey user arrow keys; otherwise strictly follow the worm's orientation!
+      let aimX = dx;
+      let aimY = dy;
+      if (steerX !== 0 || steerY !== 0) {
+        const sDist = Math.hypot(steerX, steerY) || 1;
+        aimX = steerX / sDist;
+        aimY = (steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.25) : steerY) / sDist;
+        const len = Math.hypot(aimX, aimY) || 1;
+        aimX /= len;
+        aimY /= len;
       }
-
-      let aimY = 0;
-      if (steerY !== 0) {
-        aimY = (steerY < 0 ? -(GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : 0.65) + surfNy * 0.35;
-      } else {
-        aimY = dy + surfNy * 0.35;
-      }
-
-      const len = Math.hypot(aimX, aimY) || 1;
-      aimX /= len;
-      aimY /= len;
 
       // Satisfying jump velocity and forward flight inertia
       const speed = (65 + power * 80) * pushMult;
@@ -645,7 +634,7 @@ export class Caterpillar {
       for (let i = 1; i < this.numNodes; i++) {
         const ratio = i / (this.numNodes - 1);
         this.nodes[i].vx = aimX * speed * ratio;
-        this.nodes[i].vy = aimY * speed * ratio - (steerY < 0 ? 25 * ratio : 8 * ratio);
+        this.nodes[i].vy = aimY * speed * ratio;
       }
       particles.spawnMud(this.rear.x, this.rear.y, -surfNx, -surfNy, 6, power * 0.5);
     } else if (frontLocked && !rearLocked) {
@@ -771,14 +760,16 @@ export class Caterpillar {
             }
           } else if (rearLocked && !frontLocked) {
             // Rear is anchored: Head can be directed freely anywhere in 2D space, body follows!
-            let aimDirX = steerX;
-            let aimDirY = effSteerY;
-            const aimDist = Math.hypot(aimDirX, aimDirY);
-            if (aimDist > 0.1) {
-              aimDirX /= aimDist;
-              aimDirY /= aimDist;
+            let aimDirX = 0;
+            let aimDirY = 0;
+            if (hasSteer) {
+              const aimDist = Math.hypot(steerX, effSteerY) || 1;
+              aimDirX = steerX / aimDist;
+              aimDirY = effSteerY / aimDist;
             } else {
-              aimDirX = 0; aimDirY = -1;
+              const fv = this.getFrontVector();
+              aimDirX = fv.dx;
+              aimDirY = fv.dy;
             }
 
             for (let i = 1; i < N; i++) {
@@ -839,7 +830,7 @@ export class Caterpillar {
     }
 
     // 3. Integrate Heavier Gravity, Viscous Damping & Physical Larval Breathing
-    const currentGravity = world.gravity || GAMEPLAY_CONFIG.gravity || 520;
+    const currentGravity = world.gravity || GAMEPLAY_CONFIG.gravity || 740;
 
     for (let i = 0; i < N; i++) {
       const n = this.nodes[i];
@@ -862,12 +853,6 @@ export class Caterpillar {
       const wiggleWave = Math.sin(this.wiggleTime * 3.5 - i * 0.8) * (GAMEPLAY_CONFIG.wigglePhysicsAmount || 4) * midWeight;
       n.vx += locNx * wiggleWave * dt;
       n.vy += locNy * wiggleWave * dt;
-
-      // Natural upward Omega (Ω) arch formation during contraction
-      if (isBending) {
-        const archUpForce = 850 * dt;
-        n.vy -= archUpForce * midWeight;
-      }
 
       // Subtle passive rotational drift in the air when doing nothing
       if (isAirborne && !hasSteer) {
