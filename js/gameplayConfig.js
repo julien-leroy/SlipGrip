@@ -6,14 +6,14 @@ export const CATERPILLAR_CLASSES = {
     id: 'classique',
     name: 'Chenille Classique',
     subtitle: 'L’Équilibrée',
-    desc: 'Squelette anatomique 5 segments, maniement naturel de la tête, reptation souple.',
+    desc: 'Squelette anatomique 7 segments, maniement naturel de la tête, reptation souple.',
     pro: 'Corps organique fluide, tête agile, zéro tremblement.',
     con: 'Reptation passive au sol lente (privilégier l’arpentage).',
     badge: '⚖️ Équilibrée',
-    numNodes: 5,
-    extendedSegLen: 34,
-    contractedSegLen: 20,
-    radii: [15.5, 17.5, 18.0, 17.0, 18.0],
+    numNodes: 7,
+    extendedSegLen: 33,
+    contractedSegLen: 18,
+    radii: [15.5, 17.0, 18.0, 18.5, 18.0, 17.0, 18.0],
     massMult: 1.0,
     reachMult: 1.0,
     jumpMult: 0.88,
@@ -29,10 +29,10 @@ export const CATERPILLAR_CLASSES = {
     pro: '+25% d’Extension, excellente portée pour saisir au loin.',
     con: 'Corps plus fin, glisse davantage sur la mousse.',
     badge: '📏 Longue Portée',
-    numNodes: 5,
-    extendedSegLen: 42,
-    contractedSegLen: 20,
-    radii: [14.0, 15.5, 16.0, 15.5, 16.5],
+    numNodes: 7,
+    extendedSegLen: 40,
+    contractedSegLen: 18,
+    radii: [13.5, 15.0, 15.8, 16.2, 16.0, 15.2, 16.5],
     massMult: 0.80,
     reachMult: 1.25,
     jumpMult: 0.85,
@@ -48,10 +48,10 @@ export const CATERPILLAR_CLASSES = {
     pro: '+40% de Masse, ancrage rocheux solide, inertie puissante.',
     con: 'Portée raccourcie, levage de tête plus pesant.',
     badge: '🦣 Colosse / Sumo',
-    numNodes: 5,
-    extendedSegLen: 28,
-    contractedSegLen: 18,
-    radii: [19.0, 22.0, 23.5, 21.5, 22.0],
+    numNodes: 7,
+    extendedSegLen: 27,
+    contractedSegLen: 16,
+    radii: [19.0, 21.5, 23.0, 24.0, 23.0, 21.5, 22.0],
     massMult: 1.40,
     reachMult: 0.80,
     jumpMult: 1.05,
@@ -67,10 +67,10 @@ export const CATERPILLAR_CLASSES = {
     pro: '+25% Vitesse de charge, orientation vive de la tête.',
     con: 'Plus légère, rebonds plus vifs.',
     badge: '⚡ Acrobate Vif',
-    numNodes: 5,
-    extendedSegLen: 34,
-    contractedSegLen: 20,
-    radii: [15.0, 16.5, 17.0, 16.5, 17.5],
+    numNodes: 7,
+    extendedSegLen: 33,
+    contractedSegLen: 18,
+    radii: [14.5, 16.0, 16.8, 17.2, 17.0, 16.2, 17.5],
     massMult: 0.90,
     reachMult: 1.0,
     jumpMult: 1.0,
@@ -104,7 +104,7 @@ export const GAMEPLAY_PRESETS = {
     bendOrientationPower: 0.55,
     bendContractSpeed: 11.0,
     unbendExtensionSpeed: 14.0,
-    anchorReleaseMomentumWindow: 0.12,
+    anchorReleaseMomentumWindow: 0.22,
     groundPushForce: 0.80,
     airborneExtensionOnly: true,
     unbendReachBonus: 1.15,
@@ -265,7 +265,7 @@ export const GAMEPLAY_CONFIG = {
   unbendReachBonus: 1.15,
 
   // Fenêtre de tolérance (sec) pour relâcher l'accroche et bénéficier de l'élan de détente
-  anchorReleaseMomentumWindow: 0.12,
+  anchorReleaseMomentumWindow: 0.22,
 
   // Préserver la posture et courbure du corps pendant la charge (ne pas écraser en barre droite)
   preserveShapeOnBend: true,
@@ -274,8 +274,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v35';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v35';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v37';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v37';
 
 export function loadSavedGameplayConfig() {
   try {

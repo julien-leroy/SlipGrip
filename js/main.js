@@ -1,11 +1,11 @@
 // js/main.js — Main Game Loop, Hold-to-Grip Input Controller, Checkpoints, Camera & HUD Manager
 
-import { PhysicsWorld } from './physics.js?v=36';
-import { Caterpillar } from './caterpillar.js?v=36';
-import { ParticleSystem } from './particles.js?v=36';
-import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=36';
-import { sound } from './audio.js?v=36';
-import { GAMEPLAY_CONFIG, GAMEPLAY_PRESETS, applyPreset, saveGameplayConfig, resetGameplayConfig, saveAsDefaultGameplayConfig } from './gameplayConfig.js?v=36';
+import { PhysicsWorld } from './physics.js?v=37';
+import { Caterpillar } from './caterpillar.js?v=37';
+import { ParticleSystem } from './particles.js?v=37';
+import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=37';
+import { sound } from './audio.js?v=37';
+import { GAMEPLAY_CONFIG, GAMEPLAY_PRESETS, applyPreset, saveGameplayConfig, resetGameplayConfig, saveAsDefaultGameplayConfig } from './gameplayConfig.js?v=37';
 
 class SlipGripGame {
   constructor() {
