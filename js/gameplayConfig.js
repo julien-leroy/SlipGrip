@@ -103,6 +103,7 @@ export const GAMEPLAY_PRESETS = {
     bendOrientationPower: 0.50,
     bendContractSpeed: 24.0,
     unbendExtensionSpeed: 28.0,
+    anchorReleaseMomentumWindow: 0.12,
     groundPushForce: 0.85,
     airborneExtensionOnly: true,
     unbendReachBonus: 1.15,
@@ -129,6 +130,7 @@ export const GAMEPLAY_PRESETS = {
     bendCanOrientVertically: true,
     bendOrientationPower: 0.8,
     unbendExtensionSpeed: 6.0,
+    anchorReleaseMomentumWindow: 0.08,
     groundPushForce: 0.85,
     airborneExtensionOnly: true,
     unbendReachBonus: 0.95,
@@ -155,6 +157,7 @@ export const GAMEPLAY_PRESETS = {
     bendCanOrientVertically: true,
     bendOrientationPower: 1.25,
     unbendExtensionSpeed: 10.0,
+    anchorReleaseMomentumWindow: 0.16,
     groundPushForce: 1.75,
     airborneExtensionOnly: true,
     unbendReachBonus: 1.1,
@@ -181,6 +184,7 @@ export const GAMEPLAY_PRESETS = {
     bendCanOrientVertically: true,
     bendOrientationPower: 1.1,
     unbendExtensionSpeed: 9.0,
+    anchorReleaseMomentumWindow: 0.12,
     groundPushForce: 1.2,
     airborneExtensionOnly: true,
     unbendReachBonus: 1.15,
@@ -256,6 +260,9 @@ export const GAMEPLAY_CONFIG = {
   // Bonus de portée d'extension maximale au déploiement (vrai détente du squelette pour attraper au loin)
   unbendReachBonus: 1.15,
 
+  // Fenêtre de tolérance (sec) pour relâcher l'accroche et bénéficier de l'élan de détente
+  anchorReleaseMomentumWindow: 0.12,
+
   // Préserver la posture et courbure du corps pendant la charge (ne pas écraser en barre droite)
   preserveShapeOnBend: true,
 
@@ -263,8 +270,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v31';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v31';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v33';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v33';
 
 export function loadSavedGameplayConfig() {
   try {

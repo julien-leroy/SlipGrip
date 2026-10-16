@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=32';
-import { sound } from './audio.js?v=32';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=32';
+import { MATERIALS } from './physics.js?v=33';
+import { sound } from './audio.js?v=33';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=33';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -113,6 +113,7 @@ export class Caterpillar {
       consumed: false
     };
     this.extensionTimer = 0;
+    this.hopTimer = 0;
 
     this.wiggleTime = 0;
     this.crawlPhase = 0;
@@ -275,6 +276,7 @@ export class Caterpillar {
       consumed: false
     };
     this.extensionTimer = 0;
+    this.hopTimer = 0;
 
     this.wiggleTime = 0;
     this.crawlPhase = 0;
@@ -362,11 +364,11 @@ export class Caterpillar {
 
     const otherAnchor = isFront ? this.rearAnchor : this.frontAnchor;
     if (!otherAnchor.anchored) {
-      if (this.extensionMomentum.timer > 0 || this.contraction > 0.05) {
-        // Releasing anchor while jump extension is active:
+      if (this.extensionMomentum.timer > 0 && !this.extensionMomentum.consumed) {
+        // Releasing anchor within the tight snap window after releasing Space:
         // Carry forward launch velocity to all nodes so the entire caterpillar
-        // flies forward smoothly and finishes its expansion without getting stopped!
-        const power = Math.max(this.extensionMomentum.power || 0, this.storedContraction || 0.4);
+        // flies forward smoothly with momentum!
+        const power = this.extensionMomentum.power || 0.4;
         const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
         const pushMult = (GAMEPLAY_CONFIG.groundPushForce || GAMEPLAY_CONFIG.jumpBoost || 0.85) * clsJump;
         const launchSpeed = (55 + power * 65) * pushMult;
@@ -389,7 +391,8 @@ export class Caterpillar {
         }
 
         this.extensionMomentum.consumed = true;
-        this.extensionMomentum.timer = 0.35;
+        this.extensionMomentum.timer = 0;
+        this.hopTimer = 0.35;
         sound.playLaunch(0.40 + power * 0.40);
       }
     }
@@ -435,6 +438,7 @@ export class Caterpillar {
       this.nodes[i].vy = vy * frontBias;
       this.nodes[i].onGround = false;
     }
+    this.hopTimer = 0.35;
 
     particles.spawnMud(this.rear.x, this.rear.y, 0, -1, 6, power * 0.6);
   }
@@ -449,6 +453,9 @@ export class Caterpillar {
 
     if (this.extensionMomentum.timer > 0) {
       this.extensionMomentum.timer = Math.max(0, this.extensionMomentum.timer - safeDt);
+    }
+    if (this.hopTimer > 0) {
+      this.hopTimer = Math.max(0, this.hopTimer - safeDt);
     }
 
     // Live surface proximity detection for Q and D visual aids
@@ -473,6 +480,8 @@ export class Caterpillar {
     const spaceHeld = !!inputs.space;
     if (spaceHeld) {
       this.extensionTimer = 0; // Never allow extension to fight contraction
+      this.extensionMomentum.timer = 0;
+      this.extensionMomentum.consumed = false;
       const maxChargeTime = Math.max(4.0, GAMEPLAY_CONFIG.jumpChargeTime || 4.8);
       const chargeSpeed = (this.bodyClass && this.bodyClass.chargeSpeedMult) || 1.0;
       this.chargeDuration = Math.min(maxChargeTime, this.chargeDuration + safeDt * chargeSpeed);
@@ -580,6 +589,7 @@ export class Caterpillar {
             this.nodes[i].vy = -upHopSpeed * (0.85 + ratio * 0.25);
             this.nodes[i].onGround = false;
           }
+          this.hopTimer = 0.35;
 
           particles.spawnMud(this.rear.x, this.rear.y, -forwardDir, 0.35, 7, power * 0.6);
           sound.playLaunch(0.40 + power * 0.40);
@@ -596,13 +606,14 @@ export class Caterpillar {
       return;
     }
 
-    this.extensionMomentum.timer = 0.38;
+    this.extensionMomentum.timer = GAMEPLAY_CONFIG.anchorReleaseMomentumWindow || 0.12;
     this.extensionMomentum.power = power;
     this.extensionMomentum.consumed = false;
 
     if (!rearLocked && !frontLocked && hadAnchor) {
       this.triggerNaturalHop(power, particles);
       this.extensionMomentum.consumed = true;
+      this.extensionMomentum.timer = 0;
     } else if (rearLocked && !frontLocked) {
       let { dx, dy } = this.getFrontVector();
       const surfNx = this.rearAnchor.nx || 0;
@@ -687,7 +698,7 @@ export class Caterpillar {
 
     const rearLocked = this.rearAnchor.anchored && (!this.rearAnchor.propRef || this.rearAnchor.propRef.mass >= 15 || bothOnSameProp);
     const frontLocked = this.frontAnchor.anchored && (!this.frontAnchor.propRef || this.frontAnchor.propRef.mass >= 15 || bothOnSameProp);
-    const isHopping = this.extensionMomentum.timer > 0.15;
+    const isHopping = this.hopTimer > 0;
     const isExtending = !inputs.space && this.contraction > 0.08;
     const anyOnGround = this.nodes.some(n => n.onGround) || rearLocked || frontLocked;
     const isAirborne = !anyOnGround;
@@ -1090,7 +1101,7 @@ export class Caterpillar {
 
   handleWorldCollisions(dt, world, particles, inputs, isFirstSubstep) {
     const N = this.numNodes;
-    const isHopping = this.extensionMomentum.timer > 0.15;
+    const isHopping = this.hopTimer > 0;
     const isExtending = this.extensionTimer > 0 || (!inputs.space && this.contraction > 0.04);
     const isBending = !!inputs.space || this.contraction > 0.04;
     const hasSteer = !!(inputs.left || inputs.right || inputs.up || inputs.down);
