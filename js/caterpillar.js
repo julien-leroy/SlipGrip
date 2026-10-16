@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=31';
-import { sound } from './audio.js?v=31';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=31';
+import { MATERIALS } from './physics.js?v=32';
+import { sound } from './audio.js?v=32';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=32';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -336,13 +336,19 @@ export class Caterpillar {
   releaseAnchor(anchor, isFront, particles) {
     const node = isFront ? this.head : this.rear;
 
-    // Fling / Throw grabbable light props (like acorns) with inertia!
+    // Fling / Throw grabbable light props (like acorns) with inertia and aim!
     if (anchor.propRef) {
       const prop = anchor.propRef;
       if (prop.type === 'acorn' || prop.mass < 15) {
-        prop.vx = Math.max(-260, Math.min(260, node.vx * 1.30));
-        prop.vy = Math.max(-260, Math.min(260, node.vy * 1.30 - 35));
-        sound.playLaunch(0.6);
+        // Catapult slingshot launch based on swing velocity + unbend extension
+        const boost = (this.extensionTimer > 0 ? 1.75 : 1.45);
+        prop.vx = Math.max(-480, Math.min(480, node.vx * boost));
+        prop.vy = Math.max(-480, Math.min(480, node.vy * boost - 50));
+        sound.playLaunch(0.65);
+        if (particles) {
+          particles.spawnPopup(node.x, node.y - 24, 'LANCÉ ! 🌰', '#ffd93b');
+          particles.spawnMud(node.x, node.y, 0, -1, 6, 0.6);
+        }
       }
     }
 
@@ -466,13 +472,14 @@ export class Caterpillar {
     // SPACEBAR: Pure longitudinal contraction of segment lengths (never lifts body into air!)
     const spaceHeld = !!inputs.space;
     if (spaceHeld) {
+      this.extensionTimer = 0; // Never allow extension to fight contraction
       const maxChargeTime = Math.max(4.0, GAMEPLAY_CONFIG.jumpChargeTime || 4.8);
       const chargeSpeed = (this.bodyClass && this.bodyClass.chargeSpeedMult) || 1.0;
       this.chargeDuration = Math.min(maxChargeTime, this.chargeDuration + safeDt * chargeSpeed);
       const chargeRatio = this.chargeDuration / maxChargeTime;
 
-      // Quick crisp contraction into bent pose like an inchworm walking!
-      const bendSpeed = GAMEPLAY_CONFIG.bendContractSpeed || 24.0;
+      // Clean, solid contraction into bent pose like an inchworm walking
+      const bendSpeed = GAMEPLAY_CONFIG.bendContractSpeed || 20.0;
       this.contraction += (1 - this.contraction) * Math.min(1, safeDt * bendSpeed);
       this.storedContraction = Math.max(this.storedContraction, chargeRatio);
       if (anyAnchored) {
@@ -846,6 +853,12 @@ export class Caterpillar {
       n.vx += locNx * wiggleWave * dt;
       n.vy += locNy * wiggleWave * dt;
 
+      // Natural upward Omega (Ω) arch formation during contraction
+      if (isBending) {
+        const archUpForce = 950 * dt;
+        n.vy -= archUpForce * midWeight;
+      }
+
       // Subtle passive rotational drift in the air when doing nothing
       if (isAirborne && !hasSteer) {
         const centeredIdx = i - (N - 1) * 0.5;
@@ -860,6 +873,7 @@ export class Caterpillar {
         n.groundSlopeGrade <= 0.30 &&
         !isHopping &&
         !isExtending &&
+        !isBending &&
         !hasSteer &&
         Math.hypot(n.vx, n.vy) < 22;
 
@@ -1013,7 +1027,7 @@ export class Caterpillar {
 
     const constraintIterations = this.extensionTimer > 0 ? 8 : 4;
     for (let iter = 0; iter < constraintIterations; iter++) {
-      // Neighbor distance constraints
+      // 1. Neighbor distance constraints
       for (let i = 0; i < N - 1; i++) {
         const a = this.nodes[i];
         const b = this.nodes[i + 1];
@@ -1025,7 +1039,7 @@ export class Caterpillar {
         const aPinned = (i === 0 && (rearLocked || this.rearAnchor.anchored));
         const bPinned = (i + 1 === N - 1 && (frontLocked || this.frontAnchor.anchored));
 
-        const stiff = this.extensionTimer > 0 ? 0.95 : (0.50 + this.bodyRigidity * 0.20);
+        const stiff = this.extensionTimer > 0 ? 0.95 : (0.55 + this.bodyRigidity * 0.20);
         if (aPinned && !bPinned) {
           b.x -= dx * diff * stiff;
           b.y -= dy * diff * stiff;
@@ -1039,6 +1053,35 @@ export class Caterpillar {
           b.y -= dy * diff * stiff * 0.5;
         }
       }
+
+      // 2. Anti-Crumple Skip-1 Distance Constraints: GUARANTEES the spine can NEVER knot or fold back!
+      const minSkipDist = targetSegLen * 1.68;
+      for (let i = 0; i < N - 2; i++) {
+        const a = this.nodes[i];
+        const c = this.nodes[i + 2];
+        const dx = c.x - a.x;
+        const dy = c.y - a.y;
+        const d = Math.hypot(dx, dy) || 0.0001;
+        if (d < minSkipDist) {
+          const diff = (d - minSkipDist) / d; // negative
+          const aPinned = (i === 0 && (rearLocked || this.rearAnchor.anchored));
+          const cPinned = (i + 2 === N - 1 && (frontLocked || this.frontAnchor.anchored));
+          const skipStiff = 0.65;
+
+          if (aPinned && !cPinned) {
+            c.x -= dx * diff * skipStiff;
+            c.y -= dy * diff * skipStiff;
+          } else if (cPinned && !aPinned) {
+            a.x += dx * diff * skipStiff;
+            a.y += dy * diff * skipStiff;
+          } else if (!aPinned && !cPinned) {
+            a.x += dx * diff * skipStiff * 0.5;
+            a.y += dy * diff * skipStiff * 0.5;
+            c.x -= dx * diff * skipStiff * 0.5;
+            c.y -= dy * diff * skipStiff * 0.5;
+          }
+        }
+      }
     }
 
     // 5. Handle World Collisions
@@ -1049,6 +1092,7 @@ export class Caterpillar {
     const N = this.numNodes;
     const isHopping = this.extensionMomentum.timer > 0.15;
     const isExtending = this.extensionTimer > 0 || (!inputs.space && this.contraction > 0.04);
+    const isBending = !!inputs.space || this.contraction > 0.04;
     const hasSteer = !!(inputs.left || inputs.right || inputs.up || inputs.down);
     const steerX = (inputs.right ? 1 : 0) - (inputs.left ? 1 : 0);
     const { dx } = this.getFrontVector();
@@ -1088,16 +1132,16 @@ export class Caterpillar {
             const vt = n.vx * cp.tx + n.vy * cp.ty;
             const newVn = vn < 0 ? -vn * mat.restitution * 0.3 : vn;
 
-            // Ground traction: viscous launch in air/hop, but strong controlled traction when crawling on the ground
-            const frictionRate = (isHopping || isExtending) ? 6.5 : (hasSteer ? (isReverse ? 45.0 : 34.0) : 48.0);
+            // Ground traction: allow free natural arching/contracting without locking feet into the dirt!
+            const frictionRate = (isHopping || isExtending || isBending) ? 8.0 : (hasSteer ? (isReverse ? 45.0 : 34.0) : 48.0);
             let newVt = vt * Math.max(0, 1 - frictionRate * dt);
-            if (!hasSteer && !isHopping && !isExtending && Math.abs(newVt) < 24) {
+            if (!hasSteer && !isHopping && !isExtending && !isBending && Math.abs(newVt) < 24) {
               newVt = 0;
             }
 
             n.vx = cp.nx * newVn + cp.tx * newVt;
             n.vy = cp.ny * newVn + cp.ty * newVt;
-            if (!hasSteer && !isHopping && !isExtending && Math.abs(newVt) === 0 && vn <= 0) {
+            if (!hasSteer && !isHopping && !isExtending && !isBending && Math.abs(newVt) === 0 && vn <= 0) {
               n.vx = 0;
               n.vy = 0;
             }
@@ -1640,8 +1684,8 @@ export class Caterpillar {
         const normS = s / (numSamples - 1);
         const archFactor = Math.sin(normS * Math.PI);
         const omegaMult = (GAMEPLAY_CONFIG.omegaArchVisual !== undefined ? GAMEPLAY_CONFIG.omegaArchVisual : 1.0);
-        const maxArch = 20.0 * this.contraction * omegaMult;
-        const wiggleTremble = Math.sin(time * 30.0 + s * 1.5) * (3.2 * this.contraction * (omegaMult > 0.2 ? 1 : 0.3));
+        const maxArch = 6.0 * this.contraction * omegaMult;
+        const wiggleTremble = Math.sin(time * 30.0 + s * 1.5) * (1.8 * this.contraction * (omegaMult > 0.2 ? 1 : 0.3));
         sx += nx * (archFactor * maxArch + wiggleTremble);
         sy += ny * (archFactor * maxArch + wiggleTremble);
       }
