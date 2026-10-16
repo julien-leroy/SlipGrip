@@ -6,17 +6,17 @@ export const CATERPILLAR_CLASSES = {
     id: 'classique',
     name: 'Chenille Classique',
     subtitle: 'L’Équilibrée',
-    desc: 'L’archétype idéal pour apprendre et maîtriser tous les terrains.',
-    pro: 'Polyvalence absolue, maniement stable, équilibre parfait.',
-    con: 'Aucun domaine extrême (stats standards moyennes).',
+    desc: 'Squelette anatomique 5 segments, maniement naturel de la tête, reptation souple.',
+    pro: 'Corps organique fluide, tête agile, zéro tremblement.',
+    con: 'Reptation passive au sol lente (privilégier l’arpentage).',
     badge: '⚖️ Équilibrée',
-    numNodes: 7,
-    extendedSegLen: 23,
-    contractedSegLen: 14,
-    radii: [13.5, 15.5, 17.0, 17.8, 17.0, 16.0, 17.5],
+    numNodes: 5,
+    extendedSegLen: 34,
+    contractedSegLen: 20,
+    radii: [15.5, 17.5, 18.0, 17.0, 18.0],
     massMult: 1.0,
     reachMult: 1.0,
-    jumpMult: 1.0,
+    jumpMult: 0.88,
     chargeSpeedMult: 1.0,
     agilityMult: 1.0,
     gripExtraDistance: 0
@@ -25,17 +25,17 @@ export const CATERPILLAR_CLASSES = {
     id: 'arpenteuse',
     name: 'Arpenteuse Élastique',
     subtitle: 'La Longue Portée',
-    desc: 'Corps longiligne et souple capable de franchir de gigantesques gouffres.',
-    pro: '+35% de Portée d’extension, s’étire très loin pour agripper.',
-    con: 'Corps plus léger (-25% masse), plus instable sur la mousse.',
+    desc: 'Corps longiligne et souple capable de franchir de grands gouffres.',
+    pro: '+25% d’Extension, excellente portée pour saisir au loin.',
+    con: 'Corps plus fin, glisse davantage sur la mousse.',
     badge: '📏 Longue Portée',
-    numNodes: 9,
-    extendedSegLen: 24,
-    contractedSegLen: 13,
-    radii: [12.0, 13.5, 14.5, 15.0, 15.0, 14.5, 14.0, 13.5, 15.0],
-    massMult: 0.75,
-    reachMult: 1.35,
-    jumpMult: 0.92,
+    numNodes: 5,
+    extendedSegLen: 42,
+    contractedSegLen: 20,
+    radii: [14.0, 15.5, 16.0, 15.5, 16.5],
+    massMult: 0.80,
+    reachMult: 1.25,
+    jumpMult: 0.85,
     chargeSpeedMult: 1.15,
     agilityMult: 1.15,
     gripExtraDistance: 8
@@ -44,17 +44,17 @@ export const CATERPILLAR_CLASSES = {
     id: 'dodue',
     name: 'Larve Dodue (Colosse)',
     subtitle: 'L’Ancre Inébranlable',
-    desc: 'Grosse larve bien rembourrée, lourde et puissante comme un sumo.',
-    pro: '+45% de Masse, ancrage rocheux solide, propulse fort les objets.',
-    con: 'Portée raccourcie (-25%), hissage vertical plus pesant.',
+    desc: 'Grosse chenille trapue bien rembourrée, lourde et stable.',
+    pro: '+40% de Masse, ancrage rocheux solide, inertie puissante.',
+    con: 'Portée raccourcie, levage de tête plus pesant.',
     badge: '🦣 Colosse / Sumo',
-    numNodes: 6,
-    extendedSegLen: 20,
-    contractedSegLen: 13,
-    radii: [17.0, 20.0, 22.5, 23.0, 21.0, 22.0],
-    massMult: 1.45,
-    reachMult: 0.75,
-    jumpMult: 1.25,
+    numNodes: 5,
+    extendedSegLen: 28,
+    contractedSegLen: 18,
+    radii: [19.0, 22.0, 23.5, 21.5, 22.0],
+    massMult: 1.40,
+    reachMult: 0.80,
+    jumpMult: 1.05,
     chargeSpeedMult: 0.85,
     agilityMult: 0.85,
     gripExtraDistance: 2
@@ -63,18 +63,18 @@ export const CATERPILLAR_CLASSES = {
     id: 'voltigeuse',
     name: 'Voltigeuse Aérienne',
     subtitle: 'L’Acrobate Vif',
-    desc: 'Chenille nerveuse et aérodynamique conçue pour les figures et les lancers rapides.',
-    pro: '+35% Vitesse de charge saut, rotation vive et levage instantané.',
-    con: 'Tolérance d’accroche plus étroite (-2px), rebonds plus vifs.',
-    badge: '⚡ Acrobate Nerveux',
-    numNodes: 7,
-    extendedSegLen: 22,
-    contractedSegLen: 13,
-    radii: [13.0, 14.5, 15.8, 16.2, 15.8, 15.0, 16.0],
-    massMult: 0.88,
-    reachMult: 0.95,
-    jumpMult: 1.18,
-    chargeSpeedMult: 1.35,
+    desc: 'Chenille nerveuse et aérodynamique conçue pour l’orientation rapide.',
+    pro: '+25% Vitesse de charge, orientation vive de la tête.',
+    con: 'Plus légère, rebonds plus vifs.',
+    badge: '⚡ Acrobate Vif',
+    numNodes: 5,
+    extendedSegLen: 34,
+    contractedSegLen: 20,
+    radii: [15.0, 16.5, 17.0, 16.5, 17.5],
+    massMult: 0.90,
+    reachMult: 1.0,
+    jumpMult: 1.0,
+    chargeSpeedMult: 1.30,
     agilityMult: 1.30,
     gripExtraDistance: -2
   }
@@ -83,28 +83,29 @@ export const CATERPILLAR_CLASSES = {
 export const GAMEPLAY_PRESETS = {
   arcade_dynamique: {
     name: 'Arcade Dynamique (Recommandé)',
-    desc: 'Tête ultra-réactive, levage aérien souple, contraction vive et détente coup sec d’un vrai caterpillar.',
+    desc: 'Tête agile et réactive, corps suivant naturellement, contraction douce et zéro tremblement.',
     gravity: 490,
-    groundSnapping: 1.4,
-    orientationUpForce: 1750,
-    orientationResponsiveness: 1.4,
-    orientationHeadSpan: 4,
-    orientationRearSpan: 4,
-    jumpBoost: 0.90,
-    jumpUpAngleBonus: 1.30,
-    jumpChargeTime: 4.8,
+    groundSnapping: 1.3,
+    orientationUpForce: 1650,
+    orientationResponsiveness: 1.45,
+    orientationHeadSpan: 2,
+    orientationRearSpan: 2,
+    jumpBoost: 0.82,
+    jumpUpAngleBonus: 1.25,
+    jumpChargeTime: 3.5,
     gripDistance: 26,
     gripAngleTolerance: -0.15,
-    omegaArchVisual: 1.0,
-    wigglePhysicsAmount: 24,
+    omegaArchVisual: 0.75,
+    wigglePhysicsAmount: 4,
+    maxGroundCrawl: 26,
     clawScale: 1.35,
     showBadgesOverlay: true,
     bendCanOrientVertically: true,
-    bendOrientationPower: 0.50,
-    bendContractSpeed: 24.0,
-    unbendExtensionSpeed: 28.0,
+    bendOrientationPower: 0.55,
+    bendContractSpeed: 11.0,
+    unbendExtensionSpeed: 14.0,
     anchorReleaseMomentumWindow: 0.12,
-    groundPushForce: 0.85,
+    groundPushForce: 0.80,
     airborneExtensionOnly: true,
     unbendReachBonus: 1.15,
     preserveShapeOnBend: true
@@ -204,22 +205,22 @@ export const GAMEPLAY_CONFIG = {
   orientationUpForce: 1750,
 
   // Vitesse de réaction à l'orientation des flèches
-  orientationResponsiveness: 1.4,
+  orientationResponsiveness: 1.45,
 
-  // Nombre de segments avant mobilisés pour lever la tête (1 à 5)
-  orientationHeadSpan: 4,
+  // Nombre de segments avant mobilisés pour lever la tête (1 à 3)
+  orientationHeadSpan: 2,
 
-  // Nombre de segments arrière mobilisés pour lever la queue quand l'avant est accroché (1 à 5)
-  orientationRearSpan: 4,
+  // Nombre de segments arrière mobilisés pour lever la queue quand l'avant est accroché
+  orientationRearSpan: 2,
 
   // Multiplicateur général de puissance du bond au relâchement d'Espace (avec vraie inertie)
-  jumpBoost: 0.90,
+  jumpBoost: 0.82,
 
   // Bonus d'impulsion verticale quand on oriente vers le haut
-  jumpUpAngleBonus: 1.30,
+  jumpUpAngleBonus: 1.25,
 
-  // Durée maximale de chargement du saut avec Espace (en secondes, au moins 4s pleines)
-  jumpChargeTime: 4.8,
+  // Durée maximale de chargement du saut avec Espace (en secondes)
+  jumpChargeTime: 3.5,
 
   // Distance maximale d'accroche des ventouses/griffes aux surfaces (en px)
   gripDistance: 26,
@@ -228,10 +229,13 @@ export const GAMEPLAY_CONFIG = {
   gripAngleTolerance: -0.15,
 
   // Intensité de l'arche visuelle Oméga lors de la contraction (0 = tout plat, 1 = normal, 2 = très haut)
-  omegaArchVisual: 1.0,
+  omegaArchVisual: 0.75,
 
-  // Amplitude de l'ondulation physique larvaire naturelle (0 = aucun wiggle, 40 = très ondulant)
-  wigglePhysicsAmount: 24,
+  // Amplitude de l'ondulation physique larvaire naturelle (0 = aucun wiggle, très calme et doux)
+  wigglePhysicsAmount: 4,
+
+  // Vitesse maximale de reptation passive au sol avec les flèches seules (très lente, privilégie l'arpentage)
+  maxGroundCrawl: 26,
 
   // Échelle des paires de griffes en overflow (taille visuelle)
   clawScale: 1.35,
@@ -243,16 +247,16 @@ export const GAMEPLAY_CONFIG = {
   bendCanOrientVertically: true,
 
   // Multiplicateur de puissance d'orientation pendant la charge Espace
-  bendOrientationPower: 0.50,
+  bendOrientationPower: 0.55,
 
-  // Vitesse de contraction vive du corps au clic Espace (marche d'arpenteuse)
-  bendContractSpeed: 24.0,
+  // Vitesse de contraction douce du corps au clic Espace (marche d'arpenteuse)
+  bendContractSpeed: 11.0,
 
-  // Vitesse de déploiement / détente du corps d'un coup sec au relâchement
-  unbendExtensionSpeed: 28.0,
+  // Vitesse de déploiement / détente du corps au relâchement
+  unbendExtensionSpeed: 14.0,
 
   // Poussée sur la surface au décollage avec bonne inertie physique
-  groundPushForce: 0.85,
+  groundPushForce: 0.80,
 
   // En l'air sans appui : déploiement élastique pur sans saut magique
   airborneExtensionOnly: true,
@@ -270,8 +274,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v33';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v33';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v34';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v34';
 
 export function loadSavedGameplayConfig() {
   try {

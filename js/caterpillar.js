@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=33';
-import { sound } from './audio.js?v=33';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=33';
+import { MATERIALS } from './physics.js?v=34';
+import { sound } from './audio.js?v=34';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=34';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -233,7 +233,7 @@ export class Caterpillar {
     this.fullLength = this.extendedSegLen * (this.numNodes - 1);
 
     this.nodes = [];
-    const radii = cls.radii || [13.5, 15.5, 17.0, 17.8, 17.0, 16.0, 17.5];
+    const radii = cls.radii || [15.5, 17.5, 18.0, 17.0, 18.0];
     for (let i = 0; i < this.numNodes; i++) {
       const x = startX + i * this.extendedSegLen;
       const y = startY;
@@ -752,31 +752,25 @@ export class Caterpillar {
         const downForce = 950 * resp * agilityRatio;
         const sideCurlForce = 1250 * resp * agilityRatio;
 
-        const headSpan = Math.max(1, Math.min(N - 1, GAMEPLAY_CONFIG.orientationHeadSpan || 4));
+        const headSpan = Math.max(1, Math.min(N - 1, GAMEPLAY_CONFIG.orientationHeadSpan || 2));
 
         if (!bothAnchored) {
           if (!rearLocked && !frontLocked) {
             // Free caterpillar on the ground:
-            // Full vertical force allows freely orienting, raising the head and curling the spine.
-            // Forward ground crawl is slow and deliberate (0.08x); backward sliding is completely eliminated (0.01x)!
-            const { dx } = this.getFrontVector();
-            const facingDir = dx >= 0 ? 1 : -1;
-            const isReverse = (steerX !== 0) && (Math.sign(steerX) !== facingDir);
-            const crawlMult = isReverse ? 0.01 : 0.055;
-            const groundCrawlForce = sideCurlForce * crawlMult;
-
+            // The player directs the HEAD freely (raise head, look up, reach)
+            // While passive horizontal crawling with arrows alone is slow and deliberate.
             const startIdx = N - headSpan;
             for (let i = startIdx; i < N; i++) {
               const w = Math.pow((i - startIdx + 1) / headSpan, 1.1) * inertiaBoost * dt;
-              if (effSteerY < 0) this.nodes[i].vy -= upForce * 0.75 * w;
+              if (effSteerY < 0) this.nodes[i].vy -= upForce * 0.90 * w;
               else if (effSteerY > 0) this.nodes[i].vy += downForce * w;
 
               if (steerX !== 0) {
-                this.nodes[i].vx += steerX * groundCrawlForce * w;
+                this.nodes[i].vx += steerX * (sideCurlForce * 0.035) * w;
               }
             }
           } else if (rearLocked && !frontLocked) {
-            // Rear is anchored: LIFTING HEAD is very easy, light, and agile!
+            // Rear is anchored: Head can be directed freely anywhere in 2D space, body follows!
             let aimDirX = steerX;
             let aimDirY = effSteerY;
             const aimDist = Math.hypot(aimDirX, aimDirY);
@@ -805,33 +799,38 @@ export class Caterpillar {
               }
             }
           } else if (frontLocked && !rearLocked) {
-            // Front is anchored: LIFTING TAIL is noticeably heavier and more complicated!
-            let aimDirX = steerX;
-            let aimDirY = effSteerY;
-            const aimDist = Math.hypot(aimDirX, aimDirY);
-            if (aimDist > 0.1) {
-              aimDirX /= aimDist;
-              aimDirY /= aimDist;
-            } else {
-              aimDirX = 0; aimDirY = -1;
+            // Front is anchored: The tail cannot be flown or lifted arbitrarily into the sky!
+            // It rests on the surface and can only be pulled closer (ramener) or pushed further (éloigner),
+            // sliding along the ground according to the texture and friction of the surface it rests upon!
+            const tail = this.rear;
+            const matName = tail.groundMaterial || 'dirt';
+            const mat = MATERIALS[matName] || MATERIALS.dirt;
+            const slideEase = Math.max(0.18, 1.15 - mat.friction * 0.75);
+
+            // Vector from tail toward front anchor:
+            const toFrontX = this.frontAnchor.x - tail.x;
+            const toFrontY = this.frontAnchor.y - tail.y;
+            const toFrontDist = Math.hypot(toFrontX, toFrontY) || 1;
+            const dirX = toFrontX / toFrontDist;
+            const dirY = toFrontY / toFrontDist;
+
+            // Project user steering along the tail-to-head direction
+            const steerAlong = steerX * dirX + (effSteerY !== 0 ? effSteerY * dirY : 0);
+            let moveIntensity = 0;
+            if (steerAlong > 0.1 || isBending) {
+              // Ramener la queue vers l'avant (along the surface)
+              moveIntensity = isBending ? 1.0 : steerAlong;
+            } else if (steerAlong < -0.1) {
+              // Éloigner la queue vers l'arrière (along the surface)
+              moveIntensity = steerAlong;
             }
 
-            const freeSpan = N - 1;
-            for (let i = 0; i < freeSpan; i++) {
-              const ratio = (freeSpan - i) / freeSpan;
-              const w = Math.pow(ratio, 1.10) * inertiaBoost * dt;
-              // Much heavier lift on the tail:
-              if (effSteerY < 0) this.nodes[i].vy -= upForce * 0.70 * w;
-              else if (effSteerY > 0) this.nodes[i].vy += downForce * 1.25 * w;
-
-              if (steerX !== 0) {
-                this.nodes[i].vx += steerX * sideCurlForce * 0.80 * w;
-              }
-
-              if (hasSteer) {
-                const reachGuide = 340 * resp * agilityRatio * ratio;
-                this.nodes[i].vx += aimDirX * reachGuide * dt;
-                this.nodes[i].vy += aimDirY * reachGuide * dt;
+            if (moveIntensity !== 0) {
+              const slideForce = 440 * moveIntensity * slideEase * resp * dt;
+              for (let i = 0; i < N - 1; i++) {
+                const ratio = (N - 1 - i) / (N - 1);
+                this.nodes[i].vx += dirX * slideForce * ratio;
+                this.nodes[i].vy += dirY * slideForce * ratio;
               }
             }
           }
@@ -839,8 +838,8 @@ export class Caterpillar {
       }
     }
 
-    // 3. Integrate Heavier Gravity, Viscous Damping & Physical Larval Wiggle
-    const currentGravity = world.gravity || GAMEPLAY_CONFIG.gravity || 550;
+    // 3. Integrate Heavier Gravity, Viscous Damping & Physical Larval Breathing
+    const currentGravity = world.gravity || GAMEPLAY_CONFIG.gravity || 520;
 
     for (let i = 0; i < N; i++) {
       const n = this.nodes[i];
@@ -858,22 +857,22 @@ export class Caterpillar {
       const locNx = segDy / segLen;
       const locNy = -segDx / segLen;
 
-      // Physical larval wiggle (faster and more responsive in normal state)
+      // Subtle, calm physical breathing wave (NO violent shaking!)
       const midWeight = Math.sin((i / (N - 1)) * Math.PI);
-      const wiggleWave = Math.sin(this.wiggleTime * 6.0 - i * 1.1) * (GAMEPLAY_CONFIG.wigglePhysicsAmount || 24) * midWeight;
+      const wiggleWave = Math.sin(this.wiggleTime * 3.5 - i * 0.8) * (GAMEPLAY_CONFIG.wigglePhysicsAmount || 4) * midWeight;
       n.vx += locNx * wiggleWave * dt;
       n.vy += locNy * wiggleWave * dt;
 
       // Natural upward Omega (Ω) arch formation during contraction
       if (isBending) {
-        const archUpForce = 950 * dt;
+        const archUpForce = 850 * dt;
         n.vy -= archUpForce * midWeight;
       }
 
       // Subtle passive rotational drift in the air when doing nothing
       if (isAirborne && !hasSteer) {
         const centeredIdx = i - (N - 1) * 0.5;
-        const passiveSpin = Math.sin(this.wiggleTime * 1.6) * 6.5;
+        const passiveSpin = Math.sin(this.wiggleTime * 1.6) * 5.0;
         n.vx += locNx * centeredIdx * passiveSpin * dt;
         n.vy += locNy * centeredIdx * passiveSpin * dt;
       }
@@ -894,13 +893,12 @@ export class Caterpillar {
         const heightAboveGround = Math.max(0, lowestY - n.y);
         const isAnchoredOnePaw = (rearLocked && !frontLocked) || (frontLocked && !rearLocked);
         // Ground snapping must NEVER drag down the body when anchored by one paw and reaching/lifting
-        const snapMult = (!isAnchoredOnePaw && n.vy >= 0 && heightAboveGround < 50) ? (1.0 + (GAMEPLAY_CONFIG.groundSnapping || 1.4) * 0.35) : 1.0;
-        // Tail is much heavier than head:
+        const snapMult = (!isAnchoredOnePaw && n.vy >= 0 && heightAboveGround < 50) ? (1.0 + (GAMEPLAY_CONFIG.groundSnapping || 1.3) * 0.35) : 1.0;
         const isLifting = effSteerY < 0;
         let liftRelief = 1.0;
         if (isLifting) {
           if (rearLocked && !frontLocked) liftRelief = 0.04; // Head is light and agile
-          else if (frontLocked && !rearLocked) liftRelief = 0.65; // Tail is heavy and weighed down
+          else if (frontLocked && !rearLocked) liftRelief = 0.85; // Tail stays down on surface
           else liftRelief = 0.20;
         } else if (hasSteer) {
           liftRelief = isAnchoredOnePaw ? 0.35 : 0.60;
@@ -912,9 +910,9 @@ export class Caterpillar {
         n.vy = Math.max(0, n.vy) + currentGravity * 0.25 * dt;
       }
 
-      // Calm, controlled crawl speed on ground when just steering with arrows:
+      // Calm, slow crawl speed on ground when just steering with arrows:
       if (!isHopping && !isExtending && anyOnGround) {
-        const maxGroundCrawl = 72;
+        const maxGroundCrawl = GAMEPLAY_CONFIG.maxGroundCrawl || 26;
         if (n.onGround || n.groundMaterial) {
           if (n.vx > maxGroundCrawl) n.vx = maxGroundCrawl;
           else if (n.vx < -maxGroundCrawl) n.vx = -maxGroundCrawl;
@@ -1634,7 +1632,7 @@ export class Caterpillar {
     }
   }
 
-  // ==================== LARVAL CATERPILLAR RENDERING (ZERO TEXTURE FLIPPING!) ====================
+  // ==================== ORGANIC CONTINUOUS CATERPILLAR RENDERING ====================
   draw(ctx, time) {
     const pal = COSMETIC_PALETTES[this.cosmetics.palette] || COSMETIC_PALETTES.emerald;
     const N = this.numNodes;
@@ -1645,8 +1643,9 @@ export class Caterpillar {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
+    // 1. DENSE SMOOTH SPINE SPLINE (24 samples along 5-node skeleton)
     const samples = [];
-    const numSamples = 11;
+    const numSamples = 24;
     for (let s = 0; s < numSamples; s++) {
       const u = (s / (numSamples - 1)) * (N - 1);
       const idx = Math.min(N - 2, Math.floor(u));
@@ -1678,175 +1677,240 @@ export class Caterpillar {
       const ux = tx / tLen;
       const uy = ty / tLen;
 
-      // Dynamic dorsal normal based on dorsalSign (flips when gripping upside-down!)
+      // Dynamic dorsal normal based on dorsalSign (flips when gripping upside-down)
       const nx = uy * this.dorsalSign;
       const ny = -ux * this.dorsalSign;
 
-      const normS = s / (numSamples - 1);
-      const wave = Math.sin(this.crawlPhase - s * 0.65) * 1.1;
-      const profile = Math.sin(normS * Math.PI);
+      const normS = s / (numSamples - 1); // 0 at rear, 1 at head
+      // Natural organic caterpillar profile: tapers at tail and neck, plump abdomen
+      const profile = Math.sin(Math.pow(normS, 0.72) * Math.PI);
       const plump = 1 + this.contraction * 0.14;
-      const r = (14.5 + profile * 4.8 + wave) * plump;
+      const r = (13.5 + profile * 4.6) * plump;
 
-      // Visual Omega (Ω) arch and goofy cartoon charging wiggle during SPACE contraction
+      // Smooth Omega (Ω) arch during SPACE contraction (ZERO trembling noise!)
       let sx = x;
       let sy = y;
       if (this.contraction > 0.02) {
-        const normS = s / (numSamples - 1);
         const archFactor = Math.sin(normS * Math.PI);
-        const omegaMult = (GAMEPLAY_CONFIG.omegaArchVisual !== undefined ? GAMEPLAY_CONFIG.omegaArchVisual : 1.0);
-        const maxArch = 6.0 * this.contraction * omegaMult;
-        const wiggleTremble = Math.sin(time * 30.0 + s * 1.5) * (1.8 * this.contraction * (omegaMult > 0.2 ? 1 : 0.3));
-        sx += nx * (archFactor * maxArch + wiggleTremble);
-        sy += ny * (archFactor * maxArch + wiggleTremble);
+        const omegaMult = (GAMEPLAY_CONFIG.omegaArchVisual !== undefined ? GAMEPLAY_CONFIG.omegaArchVisual : 0.75);
+        const maxArch = 5.0 * this.contraction * omegaMult;
+        sx += nx * (archFactor * maxArch);
+        sy += ny * (archFactor * maxArch);
       }
 
-      samples.push({ x: sx, y: sy, ux, uy, nx, ny, r, normS });
+      const dx = sx + nx * r;
+      const dy = sy + ny * r;
+      const vx = sx - nx * r;
+      const vy = sy - ny * r;
+
+      samples.push({ x: sx, y: sy, ux, uy, nx, ny, r, normS, dx, dy, vx, vy });
     }
 
-    // 2. Cute Little Larval Legs ("petites pattes") along the underside (-nx, -ny)
-    for (let s = 0; s < numSamples - 1; s++) {
-      const seg = samples[s];
-      if (s === 0) {
-        this.drawSuctionFoot(ctx, rear.x, rear.y, seg.ux, seg.uy, seg.nx, seg.ny, this.rearAnchor, false, this.rearCanGrip, pal, time);
-      } else if (s === numSamples - 2) {
-        this.drawSuctionFoot(ctx, head.x, head.y, seg.ux, seg.uy, seg.nx, seg.ny, this.frontAnchor, true, this.frontCanGrip, pal, time);
-      } else {
-        const legSwing = Math.sin(this.crawlPhase * 1.4 - s * 0.9) * 3.2;
-        const bx = seg.x - seg.nx * (seg.r * 0.78);
-        const by = seg.y - seg.ny * (seg.r * 0.78);
-        const tipX = bx - seg.nx * 7.5 + seg.ux * legSwing;
-        const tipY = by - seg.ny * 7.5 + seg.uy * legSwing;
-
-        ctx.strokeStyle = pal.outline;
-        ctx.lineWidth = 7.5;
-        ctx.beginPath();
-        ctx.moveTo(bx, by);
-        ctx.lineTo(tipX, tipY);
-        ctx.stroke();
-
-        ctx.strokeStyle = pal.belly;
-        ctx.lineWidth = 4.2;
-        ctx.beginPath();
-        ctx.moveTo(bx, by);
-        ctx.lineTo(tipX, tipY);
-        ctx.stroke();
-      }
-    }
-
-    // 3. PASS 1: Continuous Dark Cartoon Outline of the Larval Body
-    ctx.fillStyle = pal.outline;
+    // 2. FEET & LEGS UNDERNEATH BODY
+    // 2a. Rear suction foot (anal clasper / Q)
     const tailSeg = samples[0];
-    const tailTipX = tailSeg.x - tailSeg.ux * (tailSeg.r * 0.75) + tailSeg.nx * 2;
-    const tailTipY = tailSeg.y - tailSeg.uy * (tailSeg.r * 0.75) + tailSeg.ny * 2;
-    ctx.beginPath();
-    ctx.arc(tailTipX, tailTipY, 9.5, 0, Math.PI * 2);
-    ctx.fill();
+    this.drawSuctionFoot(ctx, rear.x, rear.y, tailSeg.ux, tailSeg.uy, tailSeg.nx, tailSeg.ny, this.rearAnchor, false, this.rearCanGrip, pal, time);
 
-    for (let s = 0; s < numSamples - 1; s++) {
+    // 2b. Front suction foot (mouth / head clasper / D)
+    const frontSeg = samples[numSamples - 2];
+    this.drawSuctionFoot(ctx, head.x, head.y, frontSeg.ux, frontSeg.uy, frontSeg.nx, frontSeg.ny, this.frontAnchor, true, this.frontCanGrip, pal, time);
+
+    // 2c. Thoracic true legs (3 cute pairs near the front: s = 15, 17, 19)
+    const legIndices = [15, 17, 19];
+    for (let li = 0; li < legIndices.length; li++) {
+      const s = legIndices[li];
       const seg = samples[s];
+      const legSwing = Math.sin(this.crawlPhase * 1.5 - li * 0.9) * 3.2;
+      const bx = seg.x - seg.nx * (seg.r * 0.75);
+      const by = seg.y - seg.ny * (seg.r * 0.75);
+      const tipX = bx - seg.nx * 8.0 + seg.ux * (legSwing + 2);
+      const tipY = by - seg.ny * 8.0 + seg.uy * (legSwing + 2);
+
+      ctx.strokeStyle = pal.outline;
+      ctx.lineWidth = 5.5;
       ctx.beginPath();
-      ctx.arc(seg.x, seg.y, seg.r + 3.8, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+
+      ctx.strokeStyle = pal.belly;
+      ctx.lineWidth = 3.0;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
     }
 
-    // 4. PASS 2: Tail Tip
-    ctx.fillStyle = pal.spots;
-    ctx.beginPath();
-    ctx.arc(tailTipX, tailTipY, 6.2, 0, Math.PI * 2);
+    // 2d. Abdominal prolegs (2 cute fleshy pairs along mid-belly: s = 6, 10)
+    const prolegIndices = [6, 10];
+    for (let pi = 0; pi < prolegIndices.length; pi++) {
+      const s = prolegIndices[pi];
+      const seg = samples[s];
+      const pSwing = Math.sin(this.crawlPhase * 1.2 - pi * 1.1) * 2.4;
+      const bx = seg.x - seg.nx * (seg.r * 0.82);
+      const by = seg.y - seg.ny * (seg.r * 0.82);
+      const tipX = bx - seg.nx * 6.5 + seg.ux * pSwing;
+      const tipY = by - seg.ny * 6.5 + seg.uy * pSwing;
+
+      ctx.strokeStyle = pal.outline;
+      ctx.lineWidth = 6.5;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+
+      ctx.strokeStyle = pal.bodyFill;
+      ctx.lineWidth = 3.8;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(tipX, tipY);
+      ctx.stroke();
+    }
+
+    // 3. CONTINUOUS SMOOTH CATERPILLAR BODY HULL (No overlapping balls!)
+    const buildBodyHullPath = () => {
+      ctx.beginPath();
+      const t0 = samples[0];
+      const tailBackX = t0.x - t0.ux * (t0.r * 0.85);
+      const tailBackY = t0.y - t0.uy * (t0.r * 0.85);
+      ctx.moveTo(tailBackX, tailBackY);
+
+      // Curve around tail to first dorsal point
+      ctx.quadraticCurveTo(t0.x - t0.ux * (t0.r * 0.4) + t0.nx * (t0.r * 0.7), t0.y - t0.uy * (t0.r * 0.4) + t0.ny * (t0.r * 0.7), t0.dx, t0.dy);
+
+      // Smooth spline along dorsal edge to neck
+      for (let s = 1; s < numSamples - 1; s++) {
+        const prev = samples[s - 1];
+        const curr = samples[s];
+        const midX = (prev.dx + curr.dx) * 0.5;
+        const midY = (prev.dy + curr.dy) * 0.5;
+        ctx.quadraticCurveTo(prev.dx, prev.dy, midX, midY);
+      }
+      const tHead = samples[numSamples - 1];
+      ctx.lineTo(tHead.dx, tHead.dy);
+
+      // Rounded neck / head junction
+      ctx.quadraticCurveTo(tHead.x + tHead.ux * 4, tHead.y + tHead.uy * 4, tHead.vx, tHead.vy);
+
+      // Smooth spline along ventral edge back down to tail
+      for (let s = numSamples - 2; s >= 0; s--) {
+        const next = samples[s + 1];
+        const curr = samples[s];
+        const midX = (next.vx + curr.vx) * 0.5;
+        const midY = (next.vy + curr.vy) * 0.5;
+        ctx.quadraticCurveTo(next.vx, next.vy, midX, midY);
+      }
+
+      // Close around tail clasper
+      ctx.quadraticCurveTo(t0.x - t0.ux * (t0.r * 0.4) - t0.nx * (t0.r * 0.7), t0.y - t0.uy * (t0.r * 0.4) - t0.ny * (t0.r * 0.7), tailBackX, tailBackY);
+      ctx.closePath();
+    };
+
+    // PASS A: Solid dark cartoon outline
+    ctx.save();
+    buildBodyHullPath();
+    ctx.strokeStyle = pal.outline;
+    ctx.lineWidth = 4.8;
+    ctx.stroke();
+
+    // PASS B: Body fill with rich skin gradient
+    const midSample = samples[Math.floor(numSamples * 0.5)];
+    const grad = ctx.createLinearGradient(
+      midSample.x + midSample.nx * 20,
+      midSample.y + midSample.ny * 20,
+      midSample.x - midSample.nx * 20,
+      midSample.y - midSample.ny * 20
+    );
+    grad.addColorStop(0, pal.bodyTop);
+    grad.addColorStop(0.55, pal.bodyFill);
+    grad.addColorStop(1, pal.bodyShade);
+    ctx.fillStyle = grad;
     ctx.fill();
 
-    // 5. PASS 3: Plump Larval Segments, Creamy Belly & Glossy Sheen
-    for (let s = 0; s < numSamples - 1; s++) {
+    // PASS C: Creamy soft belly contour clipped to body
+    ctx.save();
+    ctx.clip();
+    ctx.fillStyle = pal.belly;
+    ctx.beginPath();
+    ctx.moveTo(samples[0].vx, samples[0].vy);
+    for (let s = 1; s < numSamples; s++) {
+      ctx.lineTo(samples[s].vx, samples[s].vy);
+    }
+    for (let s = numSamples - 1; s >= 0; s--) {
       const seg = samples[s];
+      const bx = seg.x - seg.nx * (seg.r * 0.28);
+      const by = seg.y - seg.ny * (seg.r * 0.28);
+      ctx.lineTo(bx, by);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
 
-      const grad = ctx.createRadialGradient(
-        seg.x + seg.nx * (seg.r * 0.35),
-        seg.y + seg.ny * (seg.r * 0.35),
-        seg.r * 0.12,
-        seg.x,
-        seg.y,
-        seg.r
-      );
-      grad.addColorStop(0, pal.bodyTop);
-      grad.addColorStop(0.62, pal.bodyFill);
-      grad.addColorStop(1, pal.bodyShade);
+    ctx.restore();
 
-      ctx.fillStyle = grad;
-      ctx.beginPath();
-      ctx.arc(seg.x, seg.y, seg.r, 0, Math.PI * 2);
-      ctx.fill();
+    // 4. SEGMENT ANNULI & FOLDS (Authentic caterpillar segments, not balls!)
+    const foldFractions = [0.22, 0.42, 0.62, 0.80];
+    for (let fi = 0; fi < foldFractions.length; fi++) {
+      const sIdx = Math.floor(foldFractions[fi] * (numSamples - 1));
+      const seg = samples[sIdx];
 
+      // Transverse segment crease from ventral to dorsal
       ctx.save();
+      ctx.strokeStyle = 'rgba(19, 54, 31, 0.30)';
+      ctx.lineWidth = 2.2;
       ctx.beginPath();
-      ctx.arc(seg.x, seg.y, seg.r * 0.95, 0, Math.PI * 2);
-      ctx.clip();
-      ctx.fillStyle = pal.belly;
+      const cMidX = seg.x - seg.ux * 2.2;
+      const cMidY = seg.y - seg.uy * 2.2;
+      ctx.moveTo(seg.vx, seg.vy);
+      ctx.quadraticCurveTo(cMidX, cMidY, seg.dx, seg.dy);
+      ctx.stroke();
+
+      // Subtle light highlight edge on the fold
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
+      ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.arc(seg.x - seg.nx * (seg.r * 0.70), seg.y - seg.ny * (seg.r * 0.70), seg.r * 0.78, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.moveTo(seg.vx + seg.ux * 1.5, seg.vy + seg.uy * 1.5);
+      ctx.quadraticCurveTo(cMidX + seg.ux * 1.5, cMidY + seg.uy * 1.5, seg.dx + seg.ux * 1.5, seg.dy + seg.uy * 1.5);
+      ctx.stroke();
       ctx.restore();
 
-      if (s > 0) {
-        ctx.strokeStyle = 'rgba(20, 54, 31, 0.28)';
-        ctx.lineWidth = 2.0;
-        const baseA = Math.atan2(seg.uy, seg.ux);
-        ctx.beginPath();
-        ctx.arc(seg.x, seg.y, seg.r * 0.92, baseA + Math.PI * 0.62, baseA + Math.PI * 1.38);
-        ctx.stroke();
-      }
-
-      if (s >= 1 && s <= numSamples - 3 && s % 2 === 1) {
-        ctx.fillStyle = pal.spots;
-        ctx.beginPath();
-        ctx.ellipse(
-          seg.x + seg.nx * (seg.r * 0.48),
-          seg.y + seg.ny * (seg.r * 0.48),
-          seg.r * 0.24,
-          seg.r * 0.14,
-          Math.atan2(seg.uy, seg.ux),
-          0,
-          Math.PI * 2
-        );
-        ctx.fill();
-      }
+      // Cute spot on dorsal side of this segment
+      ctx.save();
+      ctx.fillStyle = pal.spots;
+      ctx.beginPath();
+      const spotX = seg.x + seg.nx * (seg.r * 0.52);
+      const spotY = seg.y + seg.ny * (seg.r * 0.52);
+      ctx.ellipse(spotX, spotY, seg.r * 0.22, seg.r * 0.13, Math.atan2(seg.uy, seg.ux), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     }
 
-    // Continuous glossy highlight along the back
+    // 5. GLOSSY BACK HIGHLIGHT RIBBON
     ctx.save();
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
-    ctx.lineWidth = 4.2;
+    ctx.lineWidth = 3.2;
     ctx.beginPath();
-    for (let s = 1; s < numSamples - 2; s++) {
+    for (let s = 2; s < numSamples - 2; s++) {
       const seg = samples[s];
-      const hx = seg.x + seg.nx * (seg.r * 0.66);
-      const hy = seg.y + seg.ny * (seg.r * 0.66);
-      if (s === 1) ctx.moveTo(hx, hy);
+      const hx = seg.x + seg.nx * (seg.r * 0.65);
+      const hy = seg.y + seg.ny * (seg.r * 0.65);
+      if (s === 2) ctx.moveTo(hx, hy);
       else ctx.lineTo(hx, hy);
     }
     ctx.stroke();
     ctx.restore();
 
-    // 6. Draw Cute Larval Head at exact front segment tangent angle
+    // 6. CUTE LARVAL HEAD CAPSULE
     const headSample = samples[numSamples - 1];
     const headAngle = Math.atan2(headSample.uy, headSample.ux);
     this.drawCuteLarvalHead(ctx, head.x, head.y, headAngle, pal, time);
 
-    // 7. Superimposed Visual Badges (Q & D) underneath the feet and claws
+    // 7. SUPERIMPOSED VISUAL BADGES (Q & D)
     if (GAMEPLAY_CONFIG.showBadgesOverlay) {
-      const rearSeg = samples[0];
-      const rearFootX = rear.x - rearSeg.nx * 14;
-      const rearFootY = rear.y - rearSeg.ny * 14;
-
-      const frontSeg = samples[numSamples - 2];
-      const frontFootX = head.x - frontSeg.nx * 14;
-      const frontFootY = head.y - frontSeg.ny * 14;
-
-      // Positioned underneath (below the claws)
-      const rearBadgeX = rearFootX;
-      const rearBadgeY = rearFootY + 22;
-      const frontBadgeX = frontFootX;
-      const frontBadgeY = frontFootY + 22;
+      const rearBadgeX = rear.x - tailSeg.nx * 14;
+      const rearBadgeY = rear.y - tailSeg.ny * 14 + 22;
+      const frontBadgeX = head.x - frontSeg.nx * 14;
+      const frontBadgeY = head.y - frontSeg.ny * 14 + 22;
 
       this.drawAnchorBadge(ctx, rearBadgeX, rearBadgeY, 'Q', this.rearAnchor, this.rearCanGrip, this.rearTargetPt, '#b84eff', time);
       this.drawAnchorBadge(ctx, frontBadgeX, frontBadgeY, 'D', this.frontAnchor, this.frontCanGrip, this.frontTargetPt, '#24bd4c', time);
