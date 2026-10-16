@@ -1,6 +1,6 @@
 // js/physics.js — Stable 2D Physics World with Continuous Terrain & Heavy Boulder Pinecones / Acorns
 
-import { GAMEPLAY_CONFIG } from './gameplayConfig.js?v=30';
+import { GAMEPLAY_CONFIG } from './gameplayConfig.js?v=31';
 
 export const MATERIALS = {
   dirt:    { friction: 0.90, gripSlide: 0.0,  restitution: 0.05, name: 'Terre meuble' },
@@ -503,12 +503,26 @@ export class PhysicsWorld {
     const dist = Math.hypot(distDx, distDy);
 
     const segLen = Math.sqrt(lenSq) || 1;
-    let nx = dy / segLen;
-    let ny = -dx / segLen;
+    const surfNx = dy / segLen;
+    const surfNy = -dx / segLen;
 
-    if (dist > 0.0001) {
-      nx = distDx / dist;
-      ny = distDy / dist;
+    let nx = surfNx;
+    let ny = surfNy;
+
+    if (t <= 0.001 || t >= 0.999) {
+      if (dist > 0.0001) {
+        const vnx = distDx / dist;
+        const vny = distDy / dist;
+        // At vertex corner, point along radial vector as long as it points outward from the surface
+        if (vnx * surfNx + vny * surfNy > -0.05) {
+          nx = vnx;
+          ny = vny;
+        }
+      }
+    } else {
+      // Along the segment span, outward normal is always surfNx, surfNy
+      nx = surfNx;
+      ny = surfNy;
     }
 
     return { cx, cy, dist, nx, ny, t, segLen, tx: dx / segLen, ty: dy / segLen };

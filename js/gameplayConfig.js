@@ -90,8 +90,8 @@ export const GAMEPLAY_PRESETS = {
     orientationResponsiveness: 1.4,
     orientationHeadSpan: 4,
     orientationRearSpan: 4,
-    jumpBoost: 0.45,
-    jumpUpAngleBonus: 1.25,
+    jumpBoost: 0.90,
+    jumpUpAngleBonus: 1.30,
     jumpChargeTime: 4.8,
     gripDistance: 26,
     gripAngleTolerance: -0.15,
@@ -103,9 +103,9 @@ export const GAMEPLAY_PRESETS = {
     bendOrientationPower: 0.50,
     bendContractSpeed: 24.0,
     unbendExtensionSpeed: 28.0,
-    groundPushForce: 0.50,
+    groundPushForce: 0.85,
     airborneExtensionOnly: true,
-    unbendReachBonus: 1.18,
+    unbendReachBonus: 1.15,
     preserveShapeOnBend: true
   },
   visqueux_larvaire: {
@@ -208,11 +208,11 @@ export const GAMEPLAY_CONFIG = {
   // Nombre de segments arrière mobilisés pour lever la queue quand l'avant est accroché (1 à 5)
   orientationRearSpan: 4,
 
-  // Multiplicateur général de puissance du bond au relâchement d'Espace (beaucoup moins de saut)
-  jumpBoost: 0.45,
+  // Multiplicateur général de puissance du bond au relâchement d'Espace (avec vraie inertie)
+  jumpBoost: 0.90,
 
   // Bonus d'impulsion verticale quand on oriente vers le haut
-  jumpUpAngleBonus: 1.25,
+  jumpUpAngleBonus: 1.30,
 
   // Durée maximale de chargement du saut avec Espace (en secondes, au moins 4s pleines)
   jumpChargeTime: 4.8,
@@ -247,14 +247,14 @@ export const GAMEPLAY_CONFIG = {
   // Vitesse de déploiement / détente du corps d'un coup sec au relâchement
   unbendExtensionSpeed: 28.0,
 
-  // Poussée sur la surface au décollage (réduite pour éviter de s'envoler)
-  groundPushForce: 0.50,
+  // Poussée sur la surface au décollage avec bonne inertie physique
+  groundPushForce: 0.85,
 
   // En l'air sans appui : déploiement élastique pur sans saut magique
   airborneExtensionOnly: true,
 
   // Bonus de portée d'extension maximale au déploiement (vrai détente du squelette pour attraper au loin)
-  unbendReachBonus: 1.18,
+  unbendReachBonus: 1.15,
 
   // Préserver la posture et courbure du corps pendant la charge (ne pas écraser en barre droite)
   preserveShapeOnBend: true,
@@ -263,8 +263,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v30';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v30';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v31';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v31';
 
 export function loadSavedGameplayConfig() {
   try {

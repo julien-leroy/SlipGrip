@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=30';
-import { sound } from './audio.js?v=30';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=30';
+import { MATERIALS } from './physics.js?v=31';
+import { sound } from './audio.js?v=31';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=31';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -360,10 +360,10 @@ export class Caterpillar {
         // Releasing anchor while jump extension is active:
         // Carry forward launch velocity to all nodes so the entire caterpillar
         // flies forward smoothly and finishes its expansion without getting stopped!
-        const power = Math.max(this.extensionMomentum.power || 0, this.storedContraction || 0.3);
+        const power = Math.max(this.extensionMomentum.power || 0, this.storedContraction || 0.4);
         const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
-        const pushMult = (GAMEPLAY_CONFIG.groundPushForce || GAMEPLAY_CONFIG.jumpBoost || 0.50) * clsJump;
-        const launchSpeed = (24 + power * 30) * pushMult;
+        const pushMult = (GAMEPLAY_CONFIG.groundPushForce || GAMEPLAY_CONFIG.jumpBoost || 0.85) * clsJump;
+        const launchSpeed = (55 + power * 65) * pushMult;
 
         let aimX = 0;
         let aimY = 0;
@@ -383,8 +383,8 @@ export class Caterpillar {
         }
 
         this.extensionMomentum.consumed = true;
-        this.extensionMomentum.timer = 0.25;
-        sound.playLaunch(0.35 + power * 0.35);
+        this.extensionMomentum.timer = 0.35;
+        sound.playLaunch(0.40 + power * 0.40);
       }
     }
   }
@@ -418,9 +418,9 @@ export class Caterpillar {
     aimX /= len;
     aimY /= len;
 
-    const hopSpeed = (28 + power * 35) * (GAMEPLAY_CONFIG.jumpBoost || 0.45);
+    const hopSpeed = (55 + power * 65) * (GAMEPLAY_CONFIG.jumpBoost || 0.90);
     const vx = aimX * hopSpeed;
-    const upImpulse = steerY < 0 ? (16 + power * 26) : 10;
+    const upImpulse = steerY < 0 ? (35 + power * 50) : 18;
     const vy = aimY * hopSpeed - upImpulse;
 
     for (let i = 0; i < this.numNodes; i++) {
@@ -482,21 +482,21 @@ export class Caterpillar {
       this.bodyRigidity += (0.85 - this.bodyRigidity) * Math.min(1, safeDt * 10.0);
     } else {
       if (this.wasSpaceHeld) {
-        // Space released: snap unbend in one sharp crisp pop ("coup sec")!
+        // Space released: snap unbend with organic spring inertia
         const effectivePower = Math.max(this.storedContraction, this.contraction, 0.20);
         this.rigidityTimer = 0.35;
         this.bodyRigidity = 1.0;
-        this.extensionTimer = 0.28; // Snappy crisp extension
-        this.contraction = 0; // Immediate sharp unbend snap!
+        this.extensionTimer = 0.36; // Active full deployment phase
         this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles);
       }
       this.chargeDuration = 0;
       if (this.extensionTimer > 0) {
         this.extensionTimer = Math.max(0, this.extensionTimer - safeDt);
       }
-      const unbendSpeed = GAMEPLAY_CONFIG.unbendExtensionSpeed || 26.0;
+      const unbendSpeed = GAMEPLAY_CONFIG.unbendExtensionSpeed || 28.0;
       this.contraction += (0 - this.contraction) * Math.min(1, safeDt * unbendSpeed);
-      if (this.contraction < 0.05 && this.extensionTimer <= 0) {
+      if (this.contraction < 0.02 && this.extensionTimer <= 0) {
+        this.contraction = 0;
         this.storedContraction = 0;
         this.hadAnchorDuringContraction = false;
       }
@@ -562,10 +562,10 @@ export class Caterpillar {
         const facingDir = dx >= 0 ? 1 : -1;
 
         if (steerY < 0) {
-          // Clean subtle hop in the aimed direction, NO excessive flight
-          const upHopSpeed = (25 + power * 30) * pushMult;
+          // Clean upward hop with true jump inertia
+          const upHopSpeed = (55 + power * 75) * pushMult;
           const forwardDir = steerX !== 0 ? steerX : facingDir;
-          const forwardSpeed = (14 + power * 20) * pushMult;
+          const forwardSpeed = (20 + power * 35) * pushMult;
 
           for (let i = 0; i < this.numNodes; i++) {
             const ratio = i / (this.numNodes - 1);
@@ -574,11 +574,11 @@ export class Caterpillar {
             this.nodes[i].onGround = false;
           }
 
-          particles.spawnMud(this.rear.x, this.rear.y, -forwardDir, 0.35, 6, power * 0.5);
-          sound.playLaunch(0.35 + power * 0.35);
+          particles.spawnMud(this.rear.x, this.rear.y, -forwardDir, 0.35, 7, power * 0.6);
+          sound.playLaunch(0.40 + power * 0.40);
         } else {
-          // Subtle horizontal scoot along the ground in aimed or facing direction
-          const baseSpeed = (22 + power * 28) * pushMult;
+          // Horizontal scoot along the ground in aimed or facing direction
+          const baseSpeed = (35 + power * 45) * pushMult;
           const aimX = steerX !== 0 ? steerX : facingDir;
           for (let i = 0; i < this.numNodes; i++) {
             const ratio = i / (this.numNodes - 1);
@@ -586,11 +586,10 @@ export class Caterpillar {
           }
         }
       }
-      // In the air without anchors: pure body extension without artificial flight thrust!
       return;
     }
 
-    this.extensionMomentum.timer = 0.30;
+    this.extensionMomentum.timer = 0.38;
     this.extensionMomentum.power = power;
     this.extensionMomentum.consumed = false;
 
@@ -612,7 +611,7 @@ export class Caterpillar {
 
       let aimY = 0;
       if (steerY !== 0) {
-        aimY = (steerY < 0 ? -(GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.25) : 0.65) + surfNy * 0.35;
+        aimY = (steerY < 0 ? -(GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : 0.65) + surfNy * 0.35;
       } else {
         aimY = dy + surfNy * 0.35;
       }
@@ -621,16 +620,16 @@ export class Caterpillar {
       aimX /= len;
       aimY /= len;
 
-      // Gentle guided momentum rather than giant catapult flight
-      const speed = (24 + power * 28) * pushMult;
+      // Satisfying jump velocity and forward flight inertia
+      const speed = (65 + power * 80) * pushMult;
       this.lastLaunchDir = { aimX, aimY, speed };
 
       for (let i = 1; i < this.numNodes; i++) {
         const ratio = i / (this.numNodes - 1);
         this.nodes[i].vx = aimX * speed * ratio;
-        this.nodes[i].vy = aimY * speed * ratio - (steerY < 0 ? 12 * ratio : 4 * ratio);
+        this.nodes[i].vy = aimY * speed * ratio - (steerY < 0 ? 25 * ratio : 8 * ratio);
       }
-      particles.spawnMud(this.rear.x, this.rear.y, -surfNx, -surfNy, 5, power * 0.4);
+      particles.spawnMud(this.rear.x, this.rear.y, -surfNx, -surfNy, 6, power * 0.5);
     } else if (frontLocked && !rearLocked) {
       let { dx, dy } = this.getFrontVector();
       const surfNx = this.frontAnchor.nx || 0;
@@ -645,7 +644,7 @@ export class Caterpillar {
 
       let aimY = 0;
       if (steerY !== 0) {
-        aimY = (steerY < 0 ? -(GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.25) : 0.65) + surfNy * 0.35;
+        aimY = (steerY < 0 ? -(GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : 0.65) + surfNy * 0.35;
       } else {
         aimY = -dy + surfNy * 0.35;
       }
@@ -654,13 +653,14 @@ export class Caterpillar {
       aimX /= len;
       aimY /= len;
 
-      const speed = (24 + power * 28) * pushMult;
+      // Tail launch is noticeably heavier:
+      const speed = (42 + power * 50) * pushMult;
       this.lastLaunchDir = { aimX, aimY, speed };
 
       for (let i = 0; i < this.numNodes - 1; i++) {
         const ratio = 1 - i / (this.numNodes - 1);
         this.nodes[i].vx = aimX * speed * ratio;
-        this.nodes[i].vy = aimY * speed * ratio - (steerY < 0 ? 12 * ratio : 4 * ratio);
+        this.nodes[i].vy = aimY * speed * ratio - (steerY < 0 ? 15 * ratio : 6 * ratio);
       }
       particles.spawnMud(this.head.x, this.head.y, -surfNx, -surfNy, 5, power * 0.4);
     }
@@ -744,13 +744,13 @@ export class Caterpillar {
             const { dx } = this.getFrontVector();
             const facingDir = dx >= 0 ? 1 : -1;
             const isReverse = (steerX !== 0) && (Math.sign(steerX) !== facingDir);
-            const crawlMult = isReverse ? 0.01 : 0.08;
+            const crawlMult = isReverse ? 0.01 : 0.055;
             const groundCrawlForce = sideCurlForce * crawlMult;
 
             const startIdx = N - headSpan;
             for (let i = startIdx; i < N; i++) {
               const w = Math.pow((i - startIdx + 1) / headSpan, 1.1) * inertiaBoost * dt;
-              if (effSteerY < 0) this.nodes[i].vy -= upForce * w;
+              if (effSteerY < 0) this.nodes[i].vy -= upForce * 0.75 * w;
               else if (effSteerY > 0) this.nodes[i].vy += downForce * w;
 
               if (steerX !== 0) {
@@ -758,7 +758,7 @@ export class Caterpillar {
               }
             }
           } else if (rearLocked && !frontLocked) {
-            // Rear is anchored: head lifts easily and spine actively extends toward aim direction to reach higher/farther
+            // Rear is anchored: LIFTING HEAD is very easy, light, and agile!
             let aimDirX = steerX;
             let aimDirY = effSteerY;
             const aimDist = Math.hypot(aimDirX, aimDirY);
@@ -772,22 +772,22 @@ export class Caterpillar {
             for (let i = 1; i < N; i++) {
               const ratio = i / (N - 1);
               const w = Math.pow(ratio, 1.10) * inertiaBoost * dt;
-              if (effSteerY < 0) this.nodes[i].vy -= upForce * 1.65 * w;
+              if (effSteerY < 0) this.nodes[i].vy -= upForce * 1.85 * w;
               else if (effSteerY > 0) this.nodes[i].vy += downForce * w;
 
               if (steerX !== 0) {
                 this.nodes[i].vx += steerX * sideCurlForce * w;
               }
 
-              // Active reaching extension towards aim direction
+              // Active reaching extension towards aim direction (allows stretching with arrows alone!)
               if (hasSteer) {
-                const reachGuide = 520 * resp * agilityRatio * ratio;
+                const reachGuide = 680 * resp * agilityRatio * ratio;
                 this.nodes[i].vx += aimDirX * reachGuide * dt;
                 this.nodes[i].vy += aimDirY * reachGuide * dt;
               }
             }
           } else if (frontLocked && !rearLocked) {
-            // Front is anchored: tail lifts effortlessly and spine actively extends toward aim direction
+            // Front is anchored: LIFTING TAIL is noticeably heavier and more complicated!
             let aimDirX = steerX;
             let aimDirY = effSteerY;
             const aimDist = Math.hypot(aimDirX, aimDirY);
@@ -802,15 +802,16 @@ export class Caterpillar {
             for (let i = 0; i < freeSpan; i++) {
               const ratio = (freeSpan - i) / freeSpan;
               const w = Math.pow(ratio, 1.10) * inertiaBoost * dt;
-              if (effSteerY < 0) this.nodes[i].vy -= upForce * 1.65 * w;
-              else if (effSteerY > 0) this.nodes[i].vy += downForce * w;
+              // Much heavier lift on the tail:
+              if (effSteerY < 0) this.nodes[i].vy -= upForce * 0.70 * w;
+              else if (effSteerY > 0) this.nodes[i].vy += downForce * 1.25 * w;
 
               if (steerX !== 0) {
-                this.nodes[i].vx += steerX * sideCurlForce * w;
+                this.nodes[i].vx += steerX * sideCurlForce * 0.80 * w;
               }
 
               if (hasSteer) {
-                const reachGuide = 520 * resp * agilityRatio * ratio;
+                const reachGuide = 340 * resp * agilityRatio * ratio;
                 this.nodes[i].vx += aimDirX * reachGuide * dt;
                 this.nodes[i].vy += aimDirY * reachGuide * dt;
               }
@@ -869,14 +870,30 @@ export class Caterpillar {
         const isAnchoredOnePaw = (rearLocked && !frontLocked) || (frontLocked && !rearLocked);
         // Ground snapping must NEVER drag down the body when anchored by one paw and reaching/lifting
         const snapMult = (!isAnchoredOnePaw && n.vy >= 0 && heightAboveGround < 50) ? (1.0 + (GAMEPLAY_CONFIG.groundSnapping || 1.4) * 0.35) : 1.0;
-        // Natural caterpillar musculature: zero gravity resistance when lifting to reach higher
+        // Tail is much heavier than head:
         const isLifting = effSteerY < 0;
-        const liftRelief = isLifting ? (isAnchoredOnePaw ? 0.05 : 0.20) : (hasSteer ? (isAnchoredOnePaw ? 0.35 : 0.60) : 1.0);
+        let liftRelief = 1.0;
+        if (isLifting) {
+          if (rearLocked && !frontLocked) liftRelief = 0.04; // Head is light and agile
+          else if (frontLocked && !rearLocked) liftRelief = 0.65; // Tail is heavy and weighed down
+          else liftRelief = 0.20;
+        } else if (hasSteer) {
+          liftRelief = isAnchoredOnePaw ? 0.35 : 0.60;
+        }
         const holdGravityMult = (isBending && (rearLocked || frontLocked)) ? 0.15 : liftRelief;
         n.vy += currentGravity * snapMult * holdGravityMult * dt;
       } else {
         n.vx *= 0.45;
         n.vy = Math.max(0, n.vy) + currentGravity * 0.25 * dt;
+      }
+
+      // Calm, controlled crawl speed on ground when just steering with arrows:
+      if (!isHopping && !isExtending && anyOnGround) {
+        const maxGroundCrawl = 72;
+        if (n.onGround || n.groundMaterial) {
+          if (n.vx > maxGroundCrawl) n.vx = maxGroundCrawl;
+          else if (n.vx < -maxGroundCrawl) n.vx = -maxGroundCrawl;
+        }
       }
 
       // Smooth viscous damping
@@ -909,8 +926,8 @@ export class Caterpillar {
     // Active outward skeletal détente during space release (true unfolding of the spine):
     // Snaps open the entire skeleton along the aim/facing vector to catch distant points!
     if (this.extensionTimer > 0) {
-      const extRatio = Math.pow(this.extensionTimer / 0.35, 0.55);
-      const reachBonus = GAMEPLAY_CONFIG.unbendReachBonus || 1.18;
+      const extRatio = Math.pow(this.extensionTimer / 0.36, 0.65);
+      const reachBonus = GAMEPLAY_CONFIG.unbendReachBonus || 1.15;
       const curExtendedSegLen = this.extendedSegLen * reachBonus;
 
       if (rearLocked && !frontLocked) {
@@ -926,7 +943,7 @@ export class Caterpillar {
           aimY = fv.dy;
         }
 
-        const thrust = 680 * extRatio;
+        const thrust = 640 * extRatio;
         const anchorPt = this.nodes[0];
         for (let i = 1; i < N; i++) {
           const ratio = i / (N - 1);
@@ -934,12 +951,11 @@ export class Caterpillar {
           this.nodes[i].vx += aimX * thrust * ratio * dt;
           this.nodes[i].vy += aimY * thrust * ratio * dt;
 
-          // Directly unroll curled nodes along the extension ray from anchor
+          // Smooth velocity-driven unrolling of curled spine towards full extension (no visual teleport!)
           const idealX = anchorPt.x + aimX * curExtendedSegLen * i;
           const idealY = anchorPt.y + aimY * curExtendedSegLen * i;
-          const straightenFactor = 0.45 * extRatio;
-          this.nodes[i].x += (idealX - this.nodes[i].x) * straightenFactor * ratio;
-          this.nodes[i].y += (idealY - this.nodes[i].y) * straightenFactor * ratio;
+          this.nodes[i].vx += (idealX - this.nodes[i].x) * (20.0 * extRatio) * ratio * dt;
+          this.nodes[i].vy += (idealY - this.nodes[i].y) * (20.0 * extRatio) * ratio * dt;
         }
       } else if (frontLocked && !rearLocked) {
         let aimX = steerX;
@@ -954,7 +970,8 @@ export class Caterpillar {
           aimY = -fv.dy;
         }
 
-        const thrust = 680 * extRatio;
+        // Tail unbending is heavier and slower:
+        const thrust = 380 * extRatio;
         const anchorPt = this.nodes[N - 1];
         for (let i = 0; i < N - 1; i++) {
           const ratio = (N - 1 - i) / (N - 1);
@@ -964,9 +981,8 @@ export class Caterpillar {
           const segCountFromFront = N - 1 - i;
           const idealX = anchorPt.x + aimX * curExtendedSegLen * segCountFromFront;
           const idealY = anchorPt.y + aimY * curExtendedSegLen * segCountFromFront;
-          const straightenFactor = 0.45 * extRatio;
-          this.nodes[i].x += (idealX - this.nodes[i].x) * straightenFactor * ratio;
-          this.nodes[i].y += (idealY - this.nodes[i].y) * straightenFactor * ratio;
+          this.nodes[i].vx += (idealX - this.nodes[i].x) * (14.0 * extRatio) * ratio * dt;
+          this.nodes[i].vy += (idealY - this.nodes[i].y) * (14.0 * extRatio) * ratio * dt;
         }
       } else if (!rearLocked && !frontLocked) {
         let { dx, dy } = this.getFrontVector();
@@ -977,7 +993,7 @@ export class Caterpillar {
             dy = effSteerY / sDist;
           }
         }
-        const thrust = 300 * extRatio;
+        const thrust = 340 * extRatio;
         for (let i = 0; i < N; i++) {
           const ratio = i / (N - 1);
           this.nodes[i].vx += dx * thrust * (ratio - 0.5) * dt;
@@ -988,7 +1004,9 @@ export class Caterpillar {
 
     // 4. SKELETON CONSTRAINTS:
     // Pure longitudinal contraction / full extension to maximum reach
-    const reachBonus = this.extensionTimer > 0 ? (GAMEPLAY_CONFIG.unbendReachBonus || 1.18) : 1.0;
+    // When steering while anchored, extend reach so players can stretch to surfaces with arrows alone:
+    const steerExtensionBonus = (hasSteer && (rearLocked || frontLocked)) ? 1.06 : 1.0;
+    const reachBonus = this.extensionTimer > 0 ? (GAMEPLAY_CONFIG.unbendReachBonus || 1.15) : steerExtensionBonus;
     const targetSegLen =
       (this.extendedSegLen * reachBonus) * (1 - this.contraction) +
       this.contractedSegLen * this.contraction;
@@ -1063,7 +1081,8 @@ export class Caterpillar {
           }
 
           if (seg.material !== 'moss' && slopeGrade <= 0.30 && cp.ny < -0.5) {
-            n.y -= overlap / Math.abs(cp.ny);
+            n.x += cp.nx * overlap;
+            n.y += cp.ny * overlap;
 
             const vn = n.vx * cp.nx + n.vy * cp.ny;
             const vt = n.vx * cp.tx + n.vy * cp.ty;
