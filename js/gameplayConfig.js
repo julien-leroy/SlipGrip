@@ -120,9 +120,9 @@ export const GAMEPLAY_PRESETS = {
     orientationHeadSpan: 2,
     orientationRearSpan: 2,
     jumpBoost: 1.00,
-    maxJumpSpeed: 175,
+    maxJumpSpeed: 320,
     jumpUpAngleBonus: 1.25,
-    jumpChargeTime: 4.0,
+    jumpChargeTime: 2.5,
     gripDistance: 26,
     gripAngleTolerance: -0.15,
     omegaArchVisual: 0.75,
@@ -246,14 +246,14 @@ export const GAMEPLAY_CONFIG = {
   // Multiplicateur général de puissance du bond au relâchement d'Espace (avec vraie inertie)
   jumpBoost: 1.00,
 
-  // Vitesse maximale de base du saut à pleine charge (4s) : calibrée pour représenter 3/4 de la taille de la chenille (~130-135px)
-  maxJumpSpeed: 175,
+  // Vitesse maximale de base du saut à pleine charge
+  maxJumpSpeed: 320,
 
   // Bonus d'impulsion verticale quand on oriente vers le haut
   jumpUpAngleBonus: 1.25,
 
   // Durée maximale de chargement du saut avec Espace (en secondes)
-  jumpChargeTime: 4.0,
+  jumpChargeTime: 2.5,
 
   // Distance maximale d'accroche des ventouses/griffes aux surfaces (en px)
   gripDistance: 26,
@@ -307,8 +307,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v47';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v47';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v48';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v48';
 
 export function loadSavedGameplayConfig() {
   try {

@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=47';
-import { sound } from './audio.js?v=47';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=47';
+import { MATERIALS } from './physics.js?v=48';
+import { sound } from './audio.js?v=48';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=48';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -777,23 +777,22 @@ export class Caterpillar {
     } else {
       if (this.wasSpaceHeld) {
         // Space released: snap unbend with organic spring inertia
-        // STRICT RULE: ZERO push before having charged at least 1.0 second!
-        const canJump = this.chargeDuration >= 1.0 && this.jumpCooldown <= 0;
+        // ANTI-SPAM: Fast tapping Space (chargeDuration < 0.28s) does NOT jump or fly!
+        const canJump = this.chargeDuration >= 0.28 && this.jumpCooldown <= 0;
         if (canJump) {
-          const effectiveChargeTime = this.chargeDuration;
-          const maxChargeTime = Math.max(0.5, GAMEPLAY_CONFIG.jumpChargeTime || 4.0);
-          const p = Math.min(1.0, Math.max(0, (effectiveChargeTime - 1.0) / (maxChargeTime - 1.0)));
-          const quadPower = p * p;
-          this.rigidityTimer = 0.20 + 0.20 * quadPower;
-          this.bodyRigidity = 0.35 + 0.65 * quadPower;
-          this.extensionTimer = 0.12 + 0.26 * quadPower; // Active deployment phase
-          this.jumpCooldown = 0.50;
-          this.onReleaseSpace(effectiveChargeTime, this.hadAnchorDuringContraction, inputs, particles);
+          const maxChargeTime = Math.max(1.0, GAMEPLAY_CONFIG.jumpChargeTime || 2.5);
+          const normPower = Math.min(1.0, Math.max(0, (this.chargeDuration - 0.15) / (maxChargeTime - 0.15)));
+          const effectivePower = 0.25 + 0.75 * Math.pow(normPower, 1.15);
+          this.rigidityTimer = 0.35;
+          this.bodyRigidity = 0.85;
+          this.extensionTimer = 0.32 + 0.12 * effectivePower; // Active deployment phase
+          this.jumpCooldown = 0.40;
+          this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles);
         } else {
-          // Charged less than 1.0 second: ABSOLUTELY ZERO PUSH or jump!
+          // Quick tap: just release contraction without impulse (no spam flying!)
           this.rigidityTimer = 0.15;
           this.bodyRigidity = 0.2;
-          this.extensionTimer = 0.10;
+          this.extensionTimer = 0.12;
           this.extensionMomentum.timer = 0;
           this.extensionMomentum.consumed = true;
           this.extensionMomentum.chargeTime = 0;
@@ -838,8 +837,8 @@ export class Caterpillar {
     this.updateExpressions(safeDt);
   }
 
-  onReleaseSpace(chargeTime, hadAnchor, inputs, particles) {
-    if (this.rearAnchor.stuckCrumb && chargeTime > 1.2) {
+  onReleaseSpace(power, hadAnchor, inputs, particles) {
+    if (this.rearAnchor.stuckCrumb && power > 0.40) {
       const c = this.rearAnchor.stuckCrumb;
       this.rearAnchor.stuckCrumb = null;
       this.rearAnchor.anchored = false;
@@ -847,7 +846,7 @@ export class Caterpillar {
       particles.spawnStickyGoo(c.x, c.y, 8);
       particles.spawnPopup(this.rear.x, this.rear.y, 'LIBÉRÉ !', '#38d84e');
     }
-    if (this.frontAnchor.stuckCrumb && chargeTime > 1.2) {
+    if (this.frontAnchor.stuckCrumb && power > 0.40) {
       const c = this.frontAnchor.stuckCrumb;
       this.frontAnchor.stuckCrumb = null;
       this.frontAnchor.anchored = false;
@@ -857,9 +856,8 @@ export class Caterpillar {
     }
 
     // Ground & anchor check: cannot jump if flying in mid-air!
-    // And rule: ZERO push before having charged at least 1.0 second!
     const anyOnGround = this.nodes.some(n => n.onGround) || hadAnchor || this.rearAnchor.anchored || this.frontAnchor.anchored;
-    if (!anyOnGround || chargeTime < 1.0) {
+    if (!anyOnGround) {
       return;
     }
 
@@ -881,58 +879,36 @@ export class Caterpillar {
     const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength') ? 1.55 : 1.0;
     const speedMult = (this.activePowerUp && this.activePowerUp.type === 'speed') ? 1.35 : 1.0;
 
-    const frontWasAnchored = this.frontAnchor.anchored;
-    const rearWasAnchored = this.rearAnchor.anchored;
-
-    // 1. Spring Impulsion Direction:
-    // If FRONT was anchored on ground and TAIL was free in the air:
-    // The spring uncoils towards where the TAIL is pointing!
-    // If REAR was anchored on ground and HEAD was free in the air:
-    // The spring uncoils towards where the HEAD is pointing!
-    let freeEndDx = 0;
-    let freeEndDy = 0;
-
-    if (frontWasAnchored && !rearWasAnchored) {
-      for (let i = N - 1; i > 0; i--) {
-        const segDx = this.nodes[i - 1].x - this.nodes[i].x;
-        const segDy = this.nodes[i - 1].y - this.nodes[i].y;
-        const len = Math.hypot(segDx, segDy) || 1;
-        freeEndDx += segDx / len;
-        freeEndDy += segDy / len;
-      }
-    } else {
-      for (let i = 0; i < N - 1; i++) {
-        const segDx = this.nodes[i + 1].x - this.nodes[i].x;
-        const segDy = this.nodes[i + 1].y - this.nodes[i].y;
-        const len = Math.hypot(segDx, segDy) || 1;
-        freeEndDx += segDx / len;
-        freeEndDy += segDy / len;
-      }
+    // 1. Average direction of all body segments (organic spine orientation from tail to head)
+    let avgDx = 0;
+    let avgDy = 0;
+    for (let i = 0; i < N - 1; i++) {
+      const segDx = this.nodes[i + 1].x - this.nodes[i].x;
+      const segDy = this.nodes[i + 1].y - this.nodes[i].y;
+      const len = Math.hypot(segDx, segDy) || 1;
+      avgDx += segDx / len;
+      avgDy += segDy / len;
     }
+    const avgLen = Math.hypot(avgDx, avgDy) || 1;
+    avgDx /= avgLen;
+    avgDy /= avgLen;
 
-    const freeLen = Math.hypot(freeEndDx, freeEndDy) || 1;
-    freeEndDx /= freeLen;
-    freeEndDy /= freeLen;
-
-    let aimX = freeEndDx;
-    let aimY = freeEndDy;
+    let aimX = avgDx;
+    let aimY = avgDy;
     if (steerX !== 0 || steerY !== 0) {
       const sDist = Math.hypot(steerX, steerY) || 1;
       const keyAimX = steerX / sDist;
       const keyAimY = (steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist;
       const kLen = Math.hypot(keyAimX, keyAimY) || 1;
-      aimX = freeEndDx * 0.45 + (keyAimX / kLen) * 0.55;
-      aimY = freeEndDy * 0.45 + (keyAimY / kLen) * 0.55;
+      aimX = avgDx * 0.45 + (keyAimX / kLen) * 0.55;
+      aimY = avgDy * 0.45 + (keyAimY / kLen) * 0.55;
       const len = Math.hypot(aimX, aimY) || 1;
       aimX /= len;
       aimY /= len;
     }
 
-    const maxChargeTime = Math.max(0.5, GAMEPLAY_CONFIG.jumpChargeTime || 4.0);
-    const normPower = Math.min(1.0, Math.max(0, (chargeTime - 1.0) / (maxChargeTime - 1.0)));
-    const quadPower = normPower * normPower;
     this.launchSpineDir = { x: aimX, y: aimY };
-    this.launchSpinePower = quadPower;
+    this.launchSpinePower = power;
 
     // If holding a prop/enemy with one paw while the other was anchored to ground:
     // The spring uncoiling catapults the object!
@@ -950,30 +926,25 @@ export class Caterpillar {
       this.releaseAnchor(this.frontAnchor, true, particles);
     }
 
-    // STRICT QUADRATIC JUMP IMPULSE:
-    // Charge < 1.0s -> 0 px/s (zero push)
-    // 1.0s to 2.0s -> nearly zero push (quadPower <= 0.11 -> speed <= 19 px/s)
-    // 4.0s (full charge) -> baseMaxSpeed (175 px/s), representing 3/4 caterpillar length travel (~135px)
-    const baseMaxSpeed = GAMEPLAY_CONFIG.maxJumpSpeed || 175;
-    let jumpSpeed = quadPower * baseMaxSpeed;
-    jumpSpeed *= jumpBoostMult * strengthMult * speedMult;
+    // Dynamic, satisfying jump leap in the direction of the body!
+    // Much less overpowered than the old 600 px/s rocket, but snappy and responsive (130 to 320 px/s)
+    const jumpSpeed = (130 + Math.pow(power, 1.15) * 190) * jumpBoostMult * strengthMult * speedMult;
 
     for (let i = 0; i < N; i++) {
-      const trunkBonus = Math.sin((i / (N - 1)) * Math.PI) * 0.18;
-      const biasIdx = (frontWasAnchored && !rearWasAnchored) ? (N - 1 - i) : i;
-      const frontBonus = 0.88 + 0.12 * (biasIdx / (N - 1)) + trunkBonus;
+      const trunkBonus = Math.sin((i / (N - 1)) * Math.PI) * 0.16;
+      const frontBonus = 0.88 + 0.18 * (i / (N - 1)) + trunkBonus;
       this.nodes[i].vx = aimX * jumpSpeed * frontBonus;
       this.nodes[i].vy = aimY * jumpSpeed * frontBonus;
       this.nodes[i].onGround = false;
     }
 
-    this.hopTimer = 0.42;
-    this.extensionTimer = 0.12 + 0.24 * quadPower;
+    this.hopTimer = 0.45;
+    this.extensionTimer = 0.32 + 0.14 * power;
     this.extensionMomentum.consumed = true;
     this.extensionMomentum.timer = 0;
 
-    particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, 7, quadPower * 0.6);
-    sound.playLaunch(0.35 + quadPower * 0.45);
+    particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, 7, power * 0.7);
+    sound.playLaunch(0.35 + power * 0.55);
   }
 
   // Locked segment alignment: when a paw grabs a surface (rear foot or front foot),
