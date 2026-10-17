@@ -108,6 +108,9 @@ class SlipGripGame {
     document.querySelectorAll('#class-options .class-card').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.class === (cos.bodyType || 'classique'));
     });
+    document.querySelectorAll('#shape-options .cos-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.shape === (cos.bodyShape || 'larve'));
+    });
     document.querySelectorAll('#palette-options .cos-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.palette === cos.palette);
     });
@@ -356,6 +359,14 @@ class SlipGripGame {
         const titleEl = btn.querySelector('.class-title');
         const name = titleEl ? titleEl.textContent.trim() : clsId;
         this.particles.spawnPopup(this.caterpillar.head.x, this.caterpillar.head.y - 30, `MORPHOLOGIE : ${name}`, '#ffd93b');
+      });
+    });
+
+    document.querySelectorAll('#shape-options .cos-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.caterpillar.setBodyShape(btn.dataset.shape);
+        this.syncCosmeticsUI();
+        sound.playGrip(true);
       });
     });
 

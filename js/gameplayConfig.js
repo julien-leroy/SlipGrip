@@ -21,22 +21,24 @@ export const CATERPILLAR_CLASSES = {
     chargeSpeedMult: 1.0,
     agilityMult: 1.0,
     gripExtraDistance: 0,
+    visualScale: 1.0,
     canJump: true
   },
   arpenteuse: {
     id: 'arpenteuse',
     name: 'Arpenteuse Géante',
     subtitle: 'La Longue Portée',
-    desc: 'Corps long à 6 segments capable de franchir de gigantesques gouffres.',
-    pro: '+35% Portée d’extension, saisie lointaine des parois.',
-    con: '-25% Vitesse de reptation (déplacements lents).',
+    desc: 'Corps long et élancé à 6 segments, allonge extrême pour franchir de grands gouffres.',
+    pro: 'Longueur spectaculaire (+40%), saisie lointaine des parois.',
+    con: '-25% Vitesse de reptation, corps plus fin.',
     badge: '📏 Longue Portée',
     numNodes: 6,
-    extendedSegLen: 36,
-    contractedSegLen: 20,
-    radii: [11.0, 12.8, 13.5, 13.5, 12.8, 13.5],
+    extendedSegLen: 42,
+    contractedSegLen: 16,
+    radii: [9.5, 10.8, 11.2, 11.2, 10.8, 11.5],
+    visualScale: 0.82,
     massMult: 0.90,
-    reachMult: 1.35,
+    reachMult: 1.40,
     jumpMult: 0.90,
     speedMult: 0.75,
     chargeSpeedMult: 1.10,
@@ -48,21 +50,22 @@ export const CATERPILLAR_CLASSES = {
     id: 'dodue',
     name: 'Mastodonte (Sumo)',
     subtitle: 'L’Ancre Inébranlable',
-    desc: 'Grosse chenille trapue et ultra-lourde, ancre rocheuse indestructible.',
-    pro: '+70% Masse, résiste aux chocs, projection puissante.',
+    desc: 'Colosse sumo géant (scale x1.6) et ultra-lourd, ancre rocheuse indestructible.',
+    pro: '+70% Masse, gabarit géant x1.6, projection surpuissante.',
     con: 'Incapable de sauter (poids colossal).',
     badge: '🦣 Colosse Inébranlable',
     numNodes: 5,
-    extendedSegLen: 28,
-    contractedSegLen: 18,
-    radii: [14.0, 16.5, 17.5, 16.5, 17.5],
+    extendedSegLen: 34,
+    contractedSegLen: 22,
+    radii: [18.0, 22.0, 24.0, 22.0, 24.0],
+    visualScale: 1.6,
     massMult: 1.70,
     reachMult: 0.85,
     jumpMult: 0.0,
     speedMult: 0.80,
     chargeSpeedMult: 0.80,
     agilityMult: 0.85,
-    gripExtraDistance: 2,
+    gripExtraDistance: 4,
     canJump: false
   },
   voltigeuse: {
@@ -77,6 +80,7 @@ export const CATERPILLAR_CLASSES = {
     extendedSegLen: 34,
     contractedSegLen: 19,
     radii: [11.5, 13.0, 13.5, 12.8, 13.5],
+    visualScale: 0.90,
     massMult: 0.80,
     reachMult: 1.05,
     jumpMult: 1.20,
@@ -98,6 +102,7 @@ export const CATERPILLAR_CLASSES = {
     extendedSegLen: 34,
     contractedSegLen: 20,
     radii: [12.0, 13.5, 14.0, 13.5, 14.0],
+    visualScale: 1.05,
     massMult: 1.05,
     reachMult: 1.0,
     jumpMult: 1.0,
@@ -106,6 +111,33 @@ export const CATERPILLAR_CLASSES = {
     agilityMult: 1.15,
     gripExtraDistance: 4,
     canJump: true
+  }
+};
+
+export const BODY_SHAPES = {
+  larve: {
+    id: 'larve',
+    name: 'Tube Larvaire (Continu)',
+    icon: '🐛',
+    desc: 'Corps souple et lisse avec plis articulés de chenille véritable.'
+  },
+  spheres: {
+    id: 'spheres',
+    name: 'Boules Rétro (V1)',
+    icon: '🟢',
+    desc: 'Boules mignonnes connectées qui se chevauchent, style rétro des premières versions !'
+  },
+  fin: {
+    id: 'fin',
+    name: 'Filiforme Élancé',
+    icon: '🪱',
+    desc: 'Silhouette fine et gracile, profil mince et allongé.'
+  },
+  boudine: {
+    id: 'boudine',
+    name: 'Segments Renflés (Dodue)',
+    icon: '🍡',
+    desc: 'Segments bien bombés en accordéon, silhouette très cartoon.'
   }
 };
 

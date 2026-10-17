@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
 import { MATERIALS } from './physics.js?v=48';
 import { sound } from './audio.js?v=48';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=48';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES, BODY_SHAPES } from './gameplayConfig.js?v=48';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -103,7 +103,8 @@ export class Caterpillar {
       palette: 'emerald',
       hat: 'crown',
       face: 'cute',
-      bodyType: 'classique'
+      bodyType: 'classique',
+      bodyShape: 'larve'
     };
     this.loadCosmetics();
 
@@ -167,23 +168,22 @@ export class Caterpillar {
     const cls = CATERPILLAR_CLASSES[typeId] || CATERPILLAR_CLASSES.classique;
     this.bodyClass = cls;
     this.cosmetics.bodyType = cls.id;
-    this.numNodes = cls.numNodes;
     const reachMult = GAMEPLAY_CONFIG.unbendReachBonus || 1.0;
     this.extendedSegLen = cls.extendedSegLen * reachMult;
     this.contractedSegLen = cls.contractedSegLen;
-    this.fullLength = this.extendedSegLen * (this.numNodes - 1);
+    this.fullLength = this.extendedSegLen * (cls.numNodes - 1);
 
     if (morphExisting && this.nodes && this.nodes.length > 0) {
-      const oldRear = { x: this.rear.x, y: this.rear.y, vx: this.rear.vx, vy: this.rear.vy };
-      const oldHead = { x: this.head.x, y: this.head.y, vx: this.head.vx, vy: this.head.vy };
+      const oldLen = this.nodes.length;
+      const targetNum = cls.numNodes;
       const newNodes = [];
-      for (let i = 0; i < this.numNodes; i++) {
-        const t = i / (this.numNodes - 1);
-        const u = t * (this.nodes.length - 1);
-        const idx = Math.min(this.nodes.length - 2, Math.floor(u));
+      for (let i = 0; i < targetNum; i++) {
+        const t = targetNum > 1 ? (i / (targetNum - 1)) : 0;
+        const u = t * (oldLen - 1);
+        const idx = Math.min(oldLen - 2, Math.floor(u));
         const f = u - idx;
         const nA = this.nodes[idx];
-        const nB = this.nodes[Math.min(this.nodes.length - 1, idx + 1)];
+        const nB = this.nodes[Math.min(oldLen - 1, idx + 1)];
         newNodes.push({
           index: i,
           x: nA.x + (nB.x - nA.x) * f,
@@ -200,20 +200,30 @@ export class Caterpillar {
         });
       }
       this.nodes = newNodes;
+      this.numNodes = targetNum;
       if (this.rearAnchor.anchored) {
-        this.rearAnchor.x = this.rear.x;
-        this.rearAnchor.y = this.rear.y;
+        this.rearAnchor.x = this.nodes[0].x;
+        this.rearAnchor.y = this.nodes[0].y;
       }
       if (this.frontAnchor.anchored) {
-        this.frontAnchor.x = this.head.x;
-        this.frontAnchor.y = this.head.y;
+        this.frontAnchor.x = this.nodes[targetNum - 1].x;
+        this.frontAnchor.y = this.nodes[targetNum - 1].y;
       }
+    } else {
+      this.numNodes = cls.numNodes;
     }
   }
 
   setBodyType(typeId) {
     this.applyBodyClass(typeId, true);
     this.saveCosmetics();
+  }
+
+  setBodyShape(shapeId) {
+    if (BODY_SHAPES[shapeId]) {
+      this.cosmetics.bodyShape = shapeId;
+      this.saveCosmetics();
+    }
   }
 
   createEmptyAnchor(x, y) {
@@ -317,6 +327,7 @@ export class Caterpillar {
         if (parsed.hat) this.cosmetics.hat = parsed.hat;
         if (parsed.face) this.cosmetics.face = parsed.face;
         if (parsed.bodyType && CATERPILLAR_CLASSES[parsed.bodyType]) this.cosmetics.bodyType = parsed.bodyType;
+        if (parsed.bodyShape && BODY_SHAPES[parsed.bodyShape]) this.cosmetics.bodyShape = parsed.bodyShape;
       }
     } catch {
       // Ignore storage error
@@ -415,11 +426,11 @@ export class Caterpillar {
   }
 
   get rear() {
-    return this.nodes[0];
+    return this.nodes && this.nodes.length > 0 ? this.nodes[0] : null;
   }
 
   get head() {
-    return this.nodes[this.numNodes - 1];
+    return this.nodes && this.nodes.length > 0 ? this.nodes[this.nodes.length - 1] : null;
   }
 
   get omegaCharge() {
@@ -2570,7 +2581,9 @@ export class Caterpillar {
     }
 
     const samples = [];
-    const sizeMult = this.sizeScale || 1.0;
+    const classScale = (this.bodyClass && this.bodyClass.visualScale) || 1.0;
+    const sizeMult = (this.sizeScale || 1.0) * classScale;
+    const bodyShape = this.cosmetics.bodyShape || 'larve';
 
     for (let s = 0; s < numSamples; s++) {
       const pt = centerPoints[s];
@@ -2589,10 +2602,20 @@ export class Caterpillar {
       const nx = uy * this.dorsalSign;
       const ny = -ux * this.dorsalSign;
 
-      // Thick, plump, cute caterpillar profile (generous radius completely avoids pinched artifacts)
+      // Body thickness profile tailored to chosen body shape
       const profile = Math.sin(Math.pow(pt.normS, 0.72) * Math.PI);
       const plump = 1 + this.contraction * 0.12;
-      const r = (12.8 + profile * 4.2) * plump * sizeMult;
+
+      let baseR = 12.8 + profile * 4.2;
+      if (bodyShape === 'fin') {
+        // Filiforme & fin
+        baseR = 7.6 + profile * 2.6;
+      } else if (bodyShape === 'boudine') {
+        // Segments renflés en accordéon
+        const lobeWave = Math.sin(pt.normS * (N - 1) * Math.PI);
+        baseR = 11.5 + profile * 3.6 + Math.abs(lobeWave) * 4.5;
+      }
+      const r = baseR * plump * sizeMult;
 
       const dx = pt.x + nx * r;
       const dy = pt.y + ny * r;
@@ -2715,136 +2738,235 @@ export class Caterpillar {
       ctx.closePath();
     };
 
-    // PASS 0: Power-up magical aura glow
-    if (this.activePowerUp && this.activePowerUp.timer > 0) {
-      const auraColors = {
-        speed: '#00d2d3',
-        strength: '#ff9f43',
-        giant: '#ee5253',
-        length: '#10ac84',
-        feather: '#54a0ff'
-      };
-      const auraColor = auraColors[this.activePowerUp.type] || '#ffd93b';
-      const pulse = 1 + Math.sin(time * 12) * 0.15;
+    if (bodyShape === 'spheres') {
+      // 3. RETRO CONNECTED SPHERES (Style V1 des premières versions)
+      for (let i = 0; i < N - 1; i++) {
+        const node = this.nodes[i];
+        const nextNode = this.nodes[i + 1];
+        const segDx = nextNode.x - node.x;
+        const segDy = nextNode.y - node.y;
+        const segLen = Math.hypot(segDx, segDy) || 1;
+        const ux = segDx / segLen;
+        const uy = segDy / segLen;
+        const nx = uy * this.dorsalSign;
+        const ny = -ux * this.dorsalSign;
+
+        const sphereR = (node.r || 16) * sizeMult * (1 + this.contraction * 0.12);
+
+        // Power-up aura glow
+        if (this.activePowerUp && this.activePowerUp.timer > 0) {
+          const auraColors = { speed: '#00d2d3', strength: '#ff9f43', giant: '#ee5253', length: '#10ac84', feather: '#54a0ff' };
+          const auraColor = auraColors[this.activePowerUp.type] || '#ffd93b';
+          ctx.save();
+          ctx.strokeStyle = auraColor;
+          ctx.lineWidth = 10;
+          ctx.globalAlpha = 0.45;
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, sphereR + 5, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Dark cartoon outline
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, sphereR + 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = pal.outline;
+        ctx.fill();
+
+        // 3D Spherical Radial Gradient
+        const sGrad = ctx.createRadialGradient(
+          node.x + nx * (sphereR * 0.35) - ux * (sphereR * 0.2),
+          node.y + ny * (sphereR * 0.35) - uy * (sphereR * 0.2),
+          sphereR * 0.12,
+          node.x,
+          node.y,
+          sphereR
+        );
+        sGrad.addColorStop(0, pal.bodyTop);
+        sGrad.addColorStop(0.55, pal.bodyFill);
+        sGrad.addColorStop(1, pal.bodyShade);
+
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, sphereR, 0, Math.PI * 2);
+        ctx.fillStyle = sGrad;
+        ctx.fill();
+
+        // Creamy ventral belly crescent
+        ctx.save();
+        ctx.clip();
+        ctx.fillStyle = pal.belly;
+        ctx.beginPath();
+        ctx.arc(node.x - nx * (sphereR * 0.55), node.y - ny * (sphereR * 0.55), sphereR * 0.85, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Specular shine reflection dot
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.48)';
+        ctx.beginPath();
+        ctx.arc(
+          node.x + nx * (sphereR * 0.45) - ux * (sphereR * 0.25),
+          node.y + ny * (sphereR * 0.45) - uy * (sphereR * 0.25),
+          sphereR * 0.26,
+          0,
+          Math.PI * 2
+        );
+        ctx.fill();
+
+        // Dorsal spot or monarch zebra stripe
+        if (pal.isStriped) {
+          ctx.strokeStyle = '#1e272e';
+          ctx.lineWidth = 3.8;
+          ctx.beginPath();
+          ctx.moveTo(node.x + nx * (sphereR * 0.2), node.y + ny * (sphereR * 0.2));
+          ctx.lineTo(node.x + nx * sphereR, node.y + ny * sphereR);
+          ctx.stroke();
+
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.8;
+          ctx.beginPath();
+          ctx.moveTo(node.x + nx * (sphereR * 0.25) + ux * 2, node.y + ny * (sphereR * 0.25) + uy * 2);
+          ctx.lineTo(node.x + nx * sphereR + ux * 2, node.y + ny * sphereR + uy * 2);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = pal.spots;
+          ctx.beginPath();
+          ctx.arc(node.x + nx * (sphereR * 0.52), node.y + ny * (sphereR * 0.52), sphereR * 0.20, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+    } else {
+      // PASS 0: Power-up magical aura glow
+      if (this.activePowerUp && this.activePowerUp.timer > 0) {
+        const auraColors = {
+          speed: '#00d2d3',
+          strength: '#ff9f43',
+          giant: '#ee5253',
+          length: '#10ac84',
+          feather: '#54a0ff'
+        };
+        const auraColor = auraColors[this.activePowerUp.type] || '#ffd93b';
+        const pulse = 1 + Math.sin(time * 12) * 0.15;
+        ctx.save();
+        buildBodyHullPath();
+        ctx.strokeStyle = auraColor;
+        ctx.lineWidth = 14 * pulse;
+        ctx.globalAlpha = 0.42 + Math.sin(time * 10) * 0.18;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // PASS A: Solid dark cartoon outline
       ctx.save();
       buildBodyHullPath();
-      ctx.strokeStyle = auraColor;
-      ctx.lineWidth = 14 * pulse;
-      ctx.globalAlpha = 0.42 + Math.sin(time * 10) * 0.18;
+      ctx.strokeStyle = pal.outline;
+      ctx.lineWidth = 4.8;
       ctx.stroke();
-      ctx.restore();
-    }
 
-    // PASS A: Solid dark cartoon outline
-    ctx.save();
-    buildBodyHullPath();
-    ctx.strokeStyle = pal.outline;
-    ctx.lineWidth = 4.8;
-    ctx.stroke();
+      // PASS B: Body fill with rich skin gradient
+      const midSample = samples[Math.floor(numSamples * 0.5)];
+      const grad = ctx.createLinearGradient(
+        midSample.x + midSample.nx * 20,
+        midSample.y + midSample.ny * 20,
+        midSample.x - midSample.nx * 20,
+        midSample.y - midSample.ny * 20
+      );
+      grad.addColorStop(0, pal.bodyTop);
+      grad.addColorStop(0.55, pal.bodyFill);
+      grad.addColorStop(1, pal.bodyShade);
+      ctx.fillStyle = grad;
+      ctx.fill();
 
-    // PASS B: Body fill with rich skin gradient
-    const midSample = samples[Math.floor(numSamples * 0.5)];
-    const grad = ctx.createLinearGradient(
-      midSample.x + midSample.nx * 20,
-      midSample.y + midSample.ny * 20,
-      midSample.x - midSample.nx * 20,
-      midSample.y - midSample.ny * 20
-    );
-    grad.addColorStop(0, pal.bodyTop);
-    grad.addColorStop(0.55, pal.bodyFill);
-    grad.addColorStop(1, pal.bodyShade);
-    ctx.fillStyle = grad;
-    ctx.fill();
-
-    // PASS C: Creamy soft belly contour clipped to body
-    ctx.save();
-    ctx.clip();
-    ctx.fillStyle = pal.belly;
-    ctx.beginPath();
-    ctx.moveTo(samples[0].vx, samples[0].vy);
-    for (let s = 1; s < numSamples; s++) {
-      ctx.lineTo(samples[s].vx, samples[s].vy);
-    }
-    for (let s = numSamples - 1; s >= 0; s--) {
-      const seg = samples[s];
-      const bx = seg.x - seg.nx * (seg.r * 0.28);
-      const by = seg.y - seg.ny * (seg.r * 0.28);
-      ctx.lineTo(bx, by);
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.restore();
-
-    ctx.restore();
-
-    // 4. SEGMENT ANNULI & FOLDS (Authentic caterpillar segments, not balls!)
-    const foldFractions = [0.22, 0.42, 0.62, 0.80];
-    for (let fi = 0; fi < foldFractions.length; fi++) {
-      const sIdx = Math.floor(foldFractions[fi] * (numSamples - 1));
-      const seg = samples[sIdx];
-
-      // Transverse segment crease from ventral to dorsal
+      // PASS C: Creamy soft belly contour clipped to body
       ctx.save();
-      ctx.strokeStyle = 'rgba(19, 54, 31, 0.30)';
-      ctx.lineWidth = 2.2;
+      ctx.clip();
+      ctx.fillStyle = pal.belly;
       ctx.beginPath();
-      const cMidX = seg.x - seg.ux * 2.2;
-      const cMidY = seg.y - seg.uy * 2.2;
-      ctx.moveTo(seg.vx, seg.vy);
-      ctx.quadraticCurveTo(cMidX, cMidY, seg.dx, seg.dy);
-      ctx.stroke();
-
-      // Subtle light highlight edge on the fold
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
-      ctx.lineWidth = 1.4;
-      ctx.beginPath();
-      ctx.moveTo(seg.vx + seg.ux * 1.5, seg.vy + seg.uy * 1.5);
-      ctx.quadraticCurveTo(cMidX + seg.ux * 1.5, cMidY + seg.uy * 1.5, seg.dx + seg.ux * 1.5, seg.dy + seg.uy * 1.5);
-      ctx.stroke();
-      ctx.restore();
-
-      // Cute spot or monarch stripes on dorsal side of this segment
-      ctx.save();
-      if (pal.isStriped) {
-        // Monarch butterfly caterpillar distinctive zebra tiger stripes
-        ctx.strokeStyle = '#1e272e';
-        ctx.lineWidth = 4.2;
-        ctx.beginPath();
-        ctx.moveTo(seg.x + seg.nx * (seg.r * 0.15), seg.y + seg.ny * (seg.r * 0.15));
-        ctx.lineTo(seg.dx, seg.dy);
-        ctx.stroke();
-
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2.0;
-        ctx.beginPath();
-        ctx.moveTo(seg.x + seg.nx * (seg.r * 0.20) + seg.ux * 2, seg.y + seg.ny * (seg.r * 0.20) + seg.uy * 2);
-        ctx.lineTo(seg.dx + seg.ux * 2, seg.dy + seg.uy * 2);
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = pal.spots;
-        ctx.beginPath();
-        const spotX = seg.x + seg.nx * (seg.r * 0.52);
-        const spotY = seg.y + seg.ny * (seg.r * 0.52);
-        ctx.ellipse(spotX, spotY, seg.r * 0.22, seg.r * 0.13, Math.atan2(seg.uy, seg.ux), 0, Math.PI * 2);
-        ctx.fill();
+      ctx.moveTo(samples[0].vx, samples[0].vy);
+      for (let s = 1; s < numSamples; s++) {
+        ctx.lineTo(samples[s].vx, samples[s].vy);
       }
+      for (let s = numSamples - 1; s >= 0; s--) {
+        const seg = samples[s];
+        const bx = seg.x - seg.nx * (seg.r * 0.28);
+        const by = seg.y - seg.ny * (seg.r * 0.28);
+        ctx.lineTo(bx, by);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      ctx.restore();
+
+      // 4. SEGMENT ANNULI & FOLDS (Authentic caterpillar segments)
+      const foldFractions = [0.22, 0.42, 0.62, 0.80];
+      for (let fi = 0; fi < foldFractions.length; fi++) {
+        const sIdx = Math.floor(foldFractions[fi] * (numSamples - 1));
+        const seg = samples[sIdx];
+
+        // Transverse segment crease from ventral to dorsal
+        ctx.save();
+        ctx.strokeStyle = 'rgba(19, 54, 31, 0.30)';
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        const cMidX = seg.x - seg.ux * 2.2;
+        const cMidY = seg.y - seg.uy * 2.2;
+        ctx.moveTo(seg.vx, seg.vy);
+        ctx.quadraticCurveTo(cMidX, cMidY, seg.dx, seg.dy);
+        ctx.stroke();
+
+        // Subtle light highlight edge on the fold
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(seg.vx + seg.ux * 1.5, seg.vy + seg.uy * 1.5);
+        ctx.quadraticCurveTo(cMidX + seg.ux * 1.5, cMidY + seg.uy * 1.5, seg.dx + seg.ux * 1.5, seg.dy + seg.uy * 1.5);
+        ctx.stroke();
+        ctx.restore();
+
+        // Cute spot or monarch stripes on dorsal side of this segment
+        ctx.save();
+        if (pal.isStriped) {
+          ctx.strokeStyle = '#1e272e';
+          ctx.lineWidth = 4.2;
+          ctx.beginPath();
+          ctx.moveTo(seg.x + seg.nx * (seg.r * 0.15), seg.y + seg.ny * (seg.r * 0.15));
+          ctx.lineTo(seg.dx, seg.dy);
+          ctx.stroke();
+
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2.0;
+          ctx.beginPath();
+          ctx.moveTo(seg.x + seg.nx * (seg.r * 0.20) + seg.ux * 2, seg.y + seg.ny * (seg.r * 0.20) + seg.uy * 2);
+          ctx.lineTo(seg.dx + seg.ux * 2, seg.dy + seg.uy * 2);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = pal.spots;
+          ctx.beginPath();
+          const spotX = seg.x + seg.nx * (seg.r * 0.52);
+          const spotY = seg.y + seg.ny * (seg.r * 0.52);
+          ctx.ellipse(spotX, spotY, seg.r * 0.22, seg.r * 0.13, Math.atan2(seg.uy, seg.ux), 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      // 5. GLOSSY BACK HIGHLIGHT RIBBON
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
+      ctx.lineWidth = 3.2;
+      ctx.beginPath();
+      for (let s = 2; s < numSamples - 2; s++) {
+        const seg = samples[s];
+        const hx = seg.x + seg.nx * (seg.r * 0.65);
+        const hy = seg.y + seg.ny * (seg.r * 0.65);
+        if (s === 2) ctx.moveTo(hx, hy);
+        else ctx.lineTo(hx, hy);
+      }
+      ctx.stroke();
       ctx.restore();
     }
-
-    // 5. GLOSSY BACK HIGHLIGHT RIBBON
-    ctx.save();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
-    ctx.lineWidth = 3.2;
-    ctx.beginPath();
-    for (let s = 2; s < numSamples - 2; s++) {
-      const seg = samples[s];
-      const hx = seg.x + seg.nx * (seg.r * 0.65);
-      const hy = seg.y + seg.ny * (seg.r * 0.65);
-      if (s === 2) ctx.moveTo(hx, hy);
-      else ctx.lineTo(hx, hy);
-    }
-    ctx.stroke();
-    ctx.restore();
 
     // 6. CUTE LARVAL HEAD CAPSULE
     const headSample = samples[numSamples - 1];
@@ -2981,7 +3103,8 @@ export class Caterpillar {
     };
 
     // Draw opposing claws on each side (-1: left/rear, +1: right/front)
-    const scaleFactor = (GAMEPLAY_CONFIG.clawScale !== undefined ? GAMEPLAY_CONFIG.clawScale : 1.35) / 1.35;
+    const classScale = (this.bodyClass && this.bodyClass.visualScale) || 1.0;
+    const scaleFactor = ((GAMEPLAY_CONFIG.clawScale !== undefined ? GAMEPLAY_CONFIG.clawScale : 1.35) / 1.35) * classScale;
     for (const dir of [-1, 1]) {
       // Main gripping claw (lower, contacts ground horizontally)
       const mainBaseX = dir * (6.5 - gripT * 2.2);
@@ -3006,7 +3129,8 @@ export class Caterpillar {
       ctx.scale(1, -1);
     }
 
-    const headR = 23.5 * (this.sizeScale || 1.0);
+    const classScale = (this.bodyClass && this.bodyClass.visualScale) || 1.0;
+    const headR = 23.5 * (this.sizeScale || 1.0) * classScale;
 
     const bob = Math.sin(time * 7) * 2.0;
     ctx.strokeStyle = pal.outline;
