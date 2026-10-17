@@ -13,7 +13,7 @@ export const CATERPILLAR_CLASSES = {
     numNodes: 5,
     extendedSegLen: 34,
     contractedSegLen: 20,
-    radii: [12.5, 14.2, 14.8, 13.8, 14.8],
+    radii: [14.0, 16.5, 17.5, 16.5, 17.5],
     massMult: 1.0,
     reachMult: 1.0,
     jumpMult: 1.0,
@@ -32,7 +32,7 @@ export const CATERPILLAR_CLASSES = {
     numNodes: 5,
     extendedSegLen: 42,
     contractedSegLen: 20,
-    radii: [11.0, 12.5, 13.0, 12.2, 13.2],
+    radii: [12.5, 14.5, 15.5, 14.5, 15.5],
     massMult: 0.80,
     reachMult: 1.25,
     jumpMult: 0.95,
@@ -51,7 +51,7 @@ export const CATERPILLAR_CLASSES = {
     numNodes: 5,
     extendedSegLen: 28,
     contractedSegLen: 18,
-    radii: [15.5, 18.0, 19.0, 17.5, 18.0],
+    radii: [17.5, 20.5, 21.5, 20.0, 21.0],
     massMult: 1.40,
     reachMult: 0.80,
     jumpMult: 1.10,
@@ -70,7 +70,7 @@ export const CATERPILLAR_CLASSES = {
     numNodes: 5,
     extendedSegLen: 34,
     contractedSegLen: 20,
-    radii: [12.0, 13.5, 14.0, 13.2, 14.2],
+    radii: [13.5, 15.5, 16.0, 15.0, 16.0],
     massMult: 0.90,
     reachMult: 1.0,
     jumpMult: 1.05,
@@ -274,8 +274,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v44';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v44';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v45';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v45';
 
 export function loadSavedGameplayConfig() {
   try {

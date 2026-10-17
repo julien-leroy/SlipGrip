@@ -242,17 +242,17 @@ export class Caterpillar {
     };
 
     const cls = this.bodyClass || CATERPILLAR_CLASSES[this.cosmetics.bodyType] || CATERPILLAR_CLASSES.classique;
-    const baseRadii = cls.radii || [12.5, 14.2, 14.8, 13.8, 14.8];
+    const baseRadii = cls.radii || [14.0, 16.5, 17.5, 16.5, 17.5];
 
     if (type === 'giant') {
       this.sizeScale = 1.45;
       for (let i = 0; i < this.numNodes; i++) {
-        if (this.nodes[i]) this.nodes[i].r = (baseRadii[i] || 14) * 1.45;
+        if (this.nodes[i]) this.nodes[i].r = (baseRadii[i] || 16) * 1.45;
       }
     } else {
       this.sizeScale = 1.0;
       for (let i = 0; i < this.numNodes; i++) {
-        if (this.nodes[i]) this.nodes[i].r = baseRadii[i] || 14;
+        if (this.nodes[i]) this.nodes[i].r = baseRadii[i] || 16;
       }
     }
 
@@ -321,7 +321,7 @@ export class Caterpillar {
     this.jumpCooldown = 0;
 
     this.nodes = [];
-    const radii = cls.radii || [12.5, 14.2, 14.8, 13.8, 14.8];
+    const radii = cls.radii || [14.0, 16.5, 17.5, 16.5, 17.5];
     for (let i = 0; i < this.numNodes; i++) {
       const x = startX + i * this.extendedSegLen;
       const y = startY;
@@ -331,7 +331,7 @@ export class Caterpillar {
         y,
         vx: 0,
         vy: 0,
-        r: radii[i] || 14,
+        r: radii[i] || 16,
         mass: cls.massMult || 1.0,
         onGround: false,
         groundSlopeGrade: 0,
@@ -514,14 +514,21 @@ export class Caterpillar {
 
     const otherAnchor = isFront ? this.rearAnchor : this.frontAnchor;
     if (!otherAnchor.anchored) {
-      if (this.extensionMomentum.timer > 0 && !this.extensionMomentum.consumed) {
-        // Releasing anchor within the snap window after releasing Space:
-        // Carry forward launch velocity to all nodes so the entire caterpillar
-        // flies forward smoothly with momentum!
-        const power = this.extensionMomentum.power || 0.4;
+      if (this.extensionMomentum.timer > 0 && !this.extensionMomentum.consumed && (this.extensionMomentum.chargeTime || 0) >= 1.0) {
+        const chargeTime = this.extensionMomentum.chargeTime;
+        let launchSpeed = 0;
+        if (chargeTime < 3.0) {
+          const t = (chargeTime - 1.0) / 2.0;
+          launchSpeed = 115 + t * 55;
+        } else {
+          const t = Math.min(1.0, (chargeTime - 3.0) / 1.0);
+          launchSpeed = 170 + t * 65;
+        }
         const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
-        const jumpMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.25) * clsJump;
-        const launchSpeed = (200 + power * 240) * jumpMult;
+        const jumpMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.00) * clsJump;
+        const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength') ? 1.55 : 1.0;
+        const speedMult = (this.activePowerUp && this.activePowerUp.type === 'speed') ? 1.35 : 1.0;
+        launchSpeed *= jumpMult * strengthMult * speedMult;
 
         let aimX = 0;
         let aimY = 0;
@@ -547,7 +554,7 @@ export class Caterpillar {
         this.extensionMomentum.consumed = true;
         this.extensionMomentum.timer = 0;
         this.hopTimer = 0.45;
-        sound.playLaunch(0.40 + power * 0.40);
+        sound.playLaunch(0.40);
       }
     }
   }
@@ -677,9 +684,9 @@ export class Caterpillar {
       this.chargeDuration = Math.min(maxChargeTime, this.chargeDuration + safeDt * chargeSpeed);
       const chargeRatio = this.chargeDuration / maxChargeTime;
 
-      // Subtle concentration tension shaking/tremor at the end of the 4s charge
-      if (chargeRatio > 0.75) {
-        this.chargeShake = (chargeRatio - 0.75) / 0.25;
+      // Subtle concentration tension shaking/tremor at the end of the charge (from 2.6s to 4.0s)
+      if (this.chargeDuration >= 2.6) {
+        this.chargeShake = Math.min(1.0, (this.chargeDuration - 2.6) / 1.4);
       } else {
         this.chargeShake = 0;
       }
@@ -704,20 +711,23 @@ export class Caterpillar {
     } else {
       if (this.wasSpaceHeld) {
         // Space released: snap unbend with organic spring inertia
-        // ANTI-SPAM: Fast tapping Space (chargeDuration < 0.35s or chargeRatio < 0.12) does NOT jump or launch!
-        const canJump = this.chargeDuration >= 0.35 && this.storedContraction >= 0.12 && this.jumpCooldown <= 0;
+        // STRICT RULE: ZERO push before having charged at least 1.0 second!
+        const canJump = this.chargeDuration >= 1.0 && this.jumpCooldown <= 0;
         if (canJump) {
-          const effectivePower = Math.min(1.0, this.storedContraction);
+          const effectiveChargeTime = this.chargeDuration;
           this.rigidityTimer = 0.40;
           this.bodyRigidity = 1.0;
-          this.extensionTimer = 0.42; // Active full deployment phase
-          this.jumpCooldown = 0.45;
-          this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles);
+          this.extensionTimer = 0.38; // Active full deployment phase
+          this.jumpCooldown = 0.50;
+          this.onReleaseSpace(effectiveChargeTime, this.hadAnchorDuringContraction, inputs, particles);
         } else {
-          // Quick tap: just release contraction without any impulse
+          // Charged less than 1.0 second: ABSOLUTELY ZERO PUSH or jump!
           this.rigidityTimer = 0.15;
           this.bodyRigidity = 0.2;
-          this.extensionTimer = 0.15;
+          this.extensionTimer = 0.12;
+          this.extensionMomentum.timer = 0;
+          this.extensionMomentum.consumed = true;
+          this.extensionMomentum.chargeTime = 0;
         }
       }
       this.chargeDuration = 0;
@@ -759,8 +769,8 @@ export class Caterpillar {
     this.updateExpressions(safeDt);
   }
 
-  onReleaseSpace(power, hadAnchor, inputs, particles) {
-    if (this.rearAnchor.stuckCrumb && power > 0.35) {
+  onReleaseSpace(chargeTime, hadAnchor, inputs, particles) {
+    if (this.rearAnchor.stuckCrumb && chargeTime > 1.2) {
       const c = this.rearAnchor.stuckCrumb;
       this.rearAnchor.stuckCrumb = null;
       this.rearAnchor.anchored = false;
@@ -768,7 +778,7 @@ export class Caterpillar {
       particles.spawnStickyGoo(c.x, c.y, 8);
       particles.spawnPopup(this.rear.x, this.rear.y, 'LIBÉRÉ !', '#38d84e');
     }
-    if (this.frontAnchor.stuckCrumb && power > 0.35) {
+    if (this.frontAnchor.stuckCrumb && chargeTime > 1.2) {
       const c = this.frontAnchor.stuckCrumb;
       this.frontAnchor.stuckCrumb = null;
       this.frontAnchor.anchored = false;
@@ -778,8 +788,9 @@ export class Caterpillar {
     }
 
     // Ground & anchor check: cannot jump if flying in mid-air!
+    // And rule: ZERO push before having charged at least 1.0 second!
     const anyOnGround = this.nodes.some(n => n.onGround) || hadAnchor || this.rearAnchor.anchored || this.frontAnchor.anchored;
-    if (!anyOnGround) {
+    if (!anyOnGround || chargeTime < 1.0) {
       return;
     }
 
@@ -820,8 +831,9 @@ export class Caterpillar {
       aimY /= len;
     }
 
+    const normPower = Math.min(1.0, Math.max(0, (chargeTime - 1.0) / 3.0));
     this.launchSpineDir = { x: aimX, y: aimY };
-    this.launchSpinePower = power;
+    this.launchSpinePower = normPower;
 
     // Release any anchor grips so the caterpillar can jump into the air with momentum
     if (this.rearAnchor.anchored) {
@@ -831,20 +843,34 @@ export class Caterpillar {
       this.releaseAnchor(this.frontAnchor, true, particles);
     }
 
-    // Softened, controlled jump leap in the direction of the body!
-    const jumpSpeed = (85 + Math.pow(power, 1.25) * 165) * jumpBoostMult * strengthMult * speedMult;
+    // Rule:
+    // chargeTime < 3.0s -> jump is at most half the caterpillar length (≤ ~90px travel)
+    // 3.0s to 4.0s (full charge) -> jump is almost exactly 1 caterpillar length (~180px travel)
+    let jumpSpeed = 0;
+    if (chargeTime < 3.0) {
+      const t = (chargeTime - 1.0) / 2.0; // 0 at 1s, 1 at 3s
+      jumpSpeed = 115 + t * 55; // 115 to 170 px/s
+    } else {
+      const t = Math.min(1.0, (chargeTime - 3.0) / 1.0); // 0 at 3s, 1 at 4s
+      jumpSpeed = 170 + t * 65; // 170 to 235 px/s
+    }
+    jumpSpeed *= jumpBoostMult * strengthMult * speedMult;
+
     for (let i = 0; i < N; i++) {
-      const frontBonus = 0.88 + 0.24 * (i / (N - 1));
+      const trunkBonus = Math.sin((i / (N - 1)) * Math.PI) * 0.18;
+      const frontBonus = 0.88 + 0.12 * (i / (N - 1)) + trunkBonus;
       this.nodes[i].vx = aimX * jumpSpeed * frontBonus;
       this.nodes[i].vy = aimY * jumpSpeed * frontBonus;
       this.nodes[i].onGround = false;
     }
 
-    this.hopTimer = 0.50;
-    this.extensionTimer = 0.42;
+    this.hopTimer = 0.42;
+    this.extensionTimer = 0.35;
+    this.extensionMomentum.consumed = true;
+    this.extensionMomentum.timer = 0;
 
-    particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, 8, power * 0.7);
-    sound.playLaunch(0.40 + power * 0.60);
+    particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, 7, normPower * 0.6);
+    sound.playLaunch(0.35 + normPower * 0.45);
   }
 
   stepPhysics(dt, world, particles, inputs, isFirstSubstep) {
@@ -1424,18 +1450,19 @@ export class Caterpillar {
           aimY = fv.dy;
         }
 
-        const thrust = 480 * extRatio;
+        const thrust = 35 * extRatio;
         const root = this.nodes[0];
         for (let i = 1; i < N; i++) {
-          const ratio = i / (N - 1);
+          const trunkWeight = Math.sin((i / (N - 1)) * Math.PI);
+          const ratio = 0.35 * (i / (N - 1)) + 0.65 * trunkWeight;
           this.nodes[i].vx += aimX * thrust * ratio * dt;
           this.nodes[i].vy += aimY * thrust * ratio * dt;
 
-          // Spring uncoiling: straightens the entire spine along the jump direction!
+          // Spring uncoiling: straightens the entire spine along the jump direction, concentrated on the trunk!
           const idealX = root.x + aimX * (curExtendedSegLen * i);
           const idealY = root.y + aimY * (curExtendedSegLen * i);
-          this.nodes[i].vx += (idealX - this.nodes[i].x) * (30.0 * extRatio) * ratio * dt;
-          this.nodes[i].vy += (idealY - this.nodes[i].y) * (30.0 * extRatio) * ratio * dt;
+          this.nodes[i].vx += (idealX - this.nodes[i].x) * (18.0 * extRatio) * ratio * dt;
+          this.nodes[i].vy += (idealY - this.nodes[i].y) * (18.0 * extRatio) * ratio * dt;
         }
       }
     }
@@ -2225,17 +2252,11 @@ export class Caterpillar {
       ctx.globalAlpha = 0.35;
     }
 
-    // Subtle concentration tension shaking/tremor at the end of the 4s charge
-    if (this.chargeShake > 0) {
-      const shakeAmp = this.chargeShake * 1.15;
-      const sx = Math.sin(time * 65.0) * shakeAmp;
-      const sy = Math.cos(time * 80.0) * shakeAmp;
-      ctx.translate(sx, sy);
-    }
-
     // 1. DENSE SMOOTH SPINE SPLINE (24 samples along 5-node skeleton)
-    const samples = [];
     const numSamples = 24;
+    const centerPoints = [];
+
+    // Pass 1: Catmull-Rom spline positions + concentrated trunk tension tremor
     for (let s = 0; s < numSamples; s++) {
       const u = (s / (numSamples - 1)) * (N - 1);
       const idx = Math.min(N - 2, Math.floor(u));
@@ -2248,59 +2269,86 @@ export class Caterpillar {
 
       const t2 = frac * frac;
       const t3 = t2 * frac;
-      const x = 0.5 * (
+      let sx = 0.5 * (
         (2 * p1.x) +
         (-p0.x + p2.x) * frac +
         (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
         (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3
       );
-      const y = 0.5 * (
+      let sy = 0.5 * (
         (2 * p1.y) +
         (-p0.y + p2.y) * frac +
         (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
         (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3
       );
 
-      const tx = p2.x - p1.x;
-      const ty = p2.y - p1.y;
+      const normS = s / (numSamples - 1); // 0 at rear, 1 at head
+      const trunkWeight = Math.sin(normS * Math.PI); // 0 at feet and head, peak at midsection
+
+      // Concentrated trunk tension tremor during maximum bend/charge
+      // (Feet and head remain planted and calm: trembling is purely in the muscular trunk!)
+      if (this.chargeShake > 0) {
+        const trunkTremorAmp = this.chargeShake * 1.5 * trunkWeight;
+        const txShake = Math.sin(time * 50.0 + s * 1.5) * trunkTremorAmp;
+        const tyShake = Math.cos(time * 65.0 + s * 1.5) * trunkTremorAmp;
+        sx += txShake;
+        sy += tyShake;
+      }
+
+      centerPoints.push({ x: sx, y: sy, normS, trunkWeight });
+    }
+
+    // Pass 2: Calculate smooth tangents & true perpendicular normals on the bent spine
+    // (Prevents any self-intersection, pinching, or polygon tearing artifacts!)
+    const samples = [];
+    const sizeMult = this.sizeScale || 1.0;
+
+    for (let s = 0; s < numSamples; s++) {
+      const pt = centerPoints[s];
+      const prev = centerPoints[Math.max(0, s - 1)];
+      const next = centerPoints[Math.min(numSamples - 1, s + 1)];
+
+      let tx = next.x - prev.x;
+      let ty = next.y - prev.y;
+      if (s === 0) {
+        tx = next.x - pt.x;
+        ty = next.y - pt.y;
+      } else if (s === numSamples - 1) {
+        tx = pt.x - prev.x;
+        ty = pt.y - prev.y;
+      }
       const tLen = Math.hypot(tx, ty) || 1;
       const ux = tx / tLen;
       const uy = ty / tLen;
 
-      // Dynamic dorsal normal based on dorsalSign (flips when gripping upside-down)
+      // True perpendicular dorsal/ventral normal along the actual curved spine
       const nx = uy * this.dorsalSign;
       const ny = -ux * this.dorsalSign;
 
-      const normS = s / (numSamples - 1); // 0 at rear, 1 at head
-      const sizeMult = this.sizeScale || 1.0;
-      // Authentic plump caterpillar profile: rounded segments, chubby tail and neck
-      const profile = Math.sin(Math.pow(normS, 0.72) * Math.PI);
-      const plump = 1 + this.contraction * 0.12;
-      const r = (10.5 + profile * 3.6) * plump * sizeMult;
+      // Thick, plump, cute caterpillar profile (generous radius completely avoids pinched artifacts)
+      const profile = Math.sin(Math.pow(pt.normS, 0.72) * Math.PI);
+      const plump = 1 + this.contraction * 0.14;
+      const r = (13.5 + profile * 4.8) * plump * sizeMult;
 
-      // Smooth Omega (Ω) arch during SPACE contraction (ZERO trembling noise!)
-      // Note: Tail segment (normS <= 1/(N-1)) NEVER arches so it stays firmly planted on surface!
-      let sx = x;
-      let sy = y;
-      if (this.contraction > 0.02) {
-        const tailThreshold = 1 / (N - 1);
-        if (normS > tailThreshold) {
-          const bodyNormS = (normS - tailThreshold) / (1 - tailThreshold);
-          const archFactor = Math.sin(Math.pow(bodyNormS, 0.82) * Math.PI);
-          const omegaMult = (GAMEPLAY_CONFIG.omegaArchVisual !== undefined ? GAMEPLAY_CONFIG.omegaArchVisual : 1.25);
-          const shapeMult = (GAMEPLAY_CONFIG.preserveShapeOnBend === false) ? 0.0 : 1.0;
-          const maxArch = 28.0 * this.contraction * omegaMult * shapeMult;
-          sx += nx * (archFactor * maxArch);
-          sy += ny * (archFactor * maxArch);
-        }
-      }
+      const dx = pt.x + nx * r;
+      const dy = pt.y + ny * r;
+      const vx = pt.x - nx * r;
+      const vy = pt.y - ny * r;
 
-      const dx = sx + nx * r;
-      const dy = sy + ny * r;
-      const vx = sx - nx * r;
-      const vy = sy - ny * r;
-
-      samples.push({ x: sx, y: sy, ux, uy, nx, ny, r, normS, dx, dy, vx, vy });
+      samples.push({
+        x: pt.x,
+        y: pt.y,
+        ux,
+        uy,
+        nx,
+        ny,
+        r,
+        normS: pt.normS,
+        dx,
+        dy,
+        vx,
+        vy
+      });
     }
 
     // 2. FEET & LEGS UNDERNEATH BODY
@@ -2677,7 +2725,7 @@ export class Caterpillar {
       ctx.scale(1, -1);
     }
 
-    const headR = 20.5 * (this.sizeScale || 1.0);
+    const headR = 23.5 * (this.sizeScale || 1.0);
 
     const bob = Math.sin(time * 7) * 2.0;
     ctx.strokeStyle = pal.outline;
