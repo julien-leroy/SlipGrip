@@ -90,7 +90,7 @@ export const GAMEPLAY_PRESETS = {
     orientationResponsiveness: 1.45,
     orientationHeadSpan: 2,
     orientationRearSpan: 2,
-    jumpBoost: 1.05,
+    jumpBoost: 1.10,
     jumpUpAngleBonus: 1.25,
     jumpChargeTime: 3.5,
     gripDistance: 26,
@@ -104,10 +104,10 @@ export const GAMEPLAY_PRESETS = {
     bendOrientationPower: 0.55,
     bendContractSpeed: 11.0,
     unbendExtensionSpeed: 14.0,
-    anchorReleaseMomentumWindow: 0.22,
-    groundPushForce: 1.05,
+    anchorReleaseMomentumWindow: 0.30,
+    groundPushForce: 1.10,
     airborneExtensionOnly: true,
-    unbendReachBonus: 1.15,
+    unbendReachBonus: 1.20,
     preserveShapeOnBend: true
   },
   visqueux_larvaire: {
@@ -214,7 +214,7 @@ export const GAMEPLAY_CONFIG = {
   orientationRearSpan: 2,
 
   // Multiplicateur général de puissance du bond au relâchement d'Espace (avec vraie inertie)
-  jumpBoost: 1.05,
+  jumpBoost: 1.10,
 
   // Bonus d'impulsion verticale quand on oriente vers le haut
   jumpUpAngleBonus: 1.25,
@@ -256,16 +256,16 @@ export const GAMEPLAY_CONFIG = {
   unbendExtensionSpeed: 14.0,
 
   // Poussée sur la surface au décollage avec bonne inertie physique
-  groundPushForce: 1.05,
+  groundPushForce: 1.10,
 
   // En l'air sans appui : déploiement élastique pur sans saut magique
   airborneExtensionOnly: true,
 
   // Bonus de portée d'extension maximale au déploiement (vrai détente du squelette pour attraper au loin)
-  unbendReachBonus: 1.15,
+  unbendReachBonus: 1.20,
 
   // Fenêtre de tolérance (sec) pour relâcher l'accroche et bénéficier de l'élan de détente
-  anchorReleaseMomentumWindow: 0.22,
+  anchorReleaseMomentumWindow: 0.30,
 
   // Préserver la posture et courbure du corps pendant la charge (ne pas écraser en barre droite)
   preserveShapeOnBend: true,
@@ -274,8 +274,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v38';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v38';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v39';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v39';
 
 export function loadSavedGameplayConfig() {
   try {
