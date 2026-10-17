@@ -645,14 +645,14 @@ export class Caterpillar {
       let aimX = spineDx;
       let aimY = spineDy;
 
-      // Blend with player arrow steering if provided
+      // Blend with player arrow steering if provided (gives player direct control over jump direction)
       if (steerX !== 0 || steerY !== 0) {
         const sDist = Math.hypot(steerX, steerY) || 1;
         const keyAimX = steerX / sDist;
         const keyAimY = (steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist;
         const kLen = Math.hypot(keyAimX, keyAimY) || 1;
-        aimX = spineDx * 0.35 + (keyAimX / kLen) * 0.65;
-        aimY = spineDy * 0.35 + (keyAimY / kLen) * 0.65;
+        aimX = spineDx * 0.20 + (keyAimX / kLen) * 0.80;
+        aimY = spineDy * 0.20 + (keyAimY / kLen) * 0.80;
         const len = Math.hypot(aimX, aimY) || 1;
         aimX /= len;
         aimY /= len;
@@ -951,22 +951,39 @@ export class Caterpillar {
               this.head.vx += (headTargetX - this.head.x) * 45.0 * dt;
               this.head.vy += (headTargetY - this.head.y) * 45.0 * dt;
 
-              // Pull inward towards prop center so head clings firmly to the pinecone contour
+              // Pull inward towards prop center so head and body cling firmly to the round contour
               const inDx = (rearProp.x - this.head.x) / effPropR;
               const inDy = (rearProp.y - this.head.y) / effPropR;
-              this.head.vx += inDx * 480 * dt;
-              this.head.vy += inDy * 480 * dt;
+              this.head.vx += inDx * 560 * dt;
+              this.head.vy += inDy * 560 * dt;
+              const inDx2 = (rearProp.x - this.nodes[N - 2].x) / effPropR;
+              const inDy2 = (rearProp.y - this.nodes[N - 2].y) / effPropR;
+              this.nodes[N - 2].vx += inDx2 * 360 * dt;
+              this.nodes[N - 2].vy += inDy2 * 360 * dt;
 
+              // Tangent vector along circumference of the round prop
+              const headWrapAngle = rearAngleOnProp + facingSign * ((N - 1) * (bodySegLen / effPropR));
+              const tangX = -Math.sin(headWrapAngle) * facingSign;
+              const tangY = Math.cos(headWrapAngle) * facingSign;
+
+              if (isPressingDown) {
+                // DOWN ARROW: wraps all the way around the circumference along the contour!
+                this.head.vx += tangX * 420 * dt;
+                this.head.vy += tangY * 420 * dt;
+                if (this.head.y < rearProp.y) {
+                  this.head.vy += 250 * dt;
+                }
+              }
               if (isPressingRight) {
                 this.head.vx += 380 * dt;
               } else if (isPressingLeft) {
                 this.head.vx -= 380 * dt;
               }
-              if (isPressingDown) {
-                this.head.vy += 450 * dt;
-                this.nodes[N - 2].vy += 280 * dt;
-              }
             } else if (isPressingDown) {
+              if (this.head.onGround && this.head.groundNx !== undefined) {
+                this.head.vx -= this.head.groundNx * 350 * dt;
+                this.head.vy -= this.head.groundNy * 350 * dt;
+              }
               this.head.vy += 450 * dt;
               this.nodes[N - 2].vy += 300 * dt;
             }
