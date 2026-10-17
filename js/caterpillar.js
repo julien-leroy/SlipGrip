@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=39';
-import { sound } from './audio.js?v=39';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=39';
+import { MATERIALS } from './physics.js?v=40';
+import { sound } from './audio.js?v=40';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=40';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -238,7 +238,7 @@ export class Caterpillar {
     this.fullLength = this.extendedSegLen * (this.numNodes - 1);
 
     this.nodes = [];
-    const radii = cls.radii || [15.5, 17.0, 18.0, 18.5, 18.0, 17.0, 18.0];
+    const radii = cls.radii || [15.5, 17.5, 18.0, 17.0, 18.0];
     for (let i = 0; i < this.numNodes; i++) {
       const x = startX + i * this.extendedSegLen;
       const y = startY;
@@ -379,8 +379,8 @@ export class Caterpillar {
         // flies forward smoothly with momentum!
         const power = this.extensionMomentum.power || 0.4;
         const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
-        const pushMult = (GAMEPLAY_CONFIG.groundPushForce || GAMEPLAY_CONFIG.jumpBoost || 1.10) * clsJump;
-        const launchSpeed = (160 + power * 190) * pushMult;
+        const jumpMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.10) * clsJump;
+        const launchSpeed = (160 + power * 190) * jumpMult;
 
         let aimX = 0;
         let aimY = 0;
@@ -415,7 +415,7 @@ export class Caterpillar {
   getFrontVector() {
     const N = this.numNodes;
     const rear = this.nodes[0];
-    const neck = this.nodes[N - 3];
+    const neck = this.nodes[Math.max(1, N - 2)];
     const head = this.nodes[N - 1];
     let dx = head.x - rear.x;
     let dy = head.y - rear.y;
@@ -446,8 +446,8 @@ export class Caterpillar {
     }
 
     const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
-    const pushMult = (GAMEPLAY_CONFIG.groundPushForce || GAMEPLAY_CONFIG.jumpBoost || 1.10) * clsJump;
-    const hopSpeed = (160 + power * 190) * pushMult;
+    const jumpMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.10) * clsJump;
+    const hopSpeed = (160 + power * 190) * jumpMult;
     const vx = aimX * hopSpeed;
     const vy = aimY * hopSpeed;
 
@@ -501,7 +501,7 @@ export class Caterpillar {
       this.extensionTimer = 0; // Never allow extension to fight contraction
       this.extensionMomentum.timer = 0;
       this.extensionMomentum.consumed = false;
-      const maxChargeTime = Math.max(4.0, GAMEPLAY_CONFIG.jumpChargeTime || 4.8);
+      const maxChargeTime = Math.max(0.5, GAMEPLAY_CONFIG.jumpChargeTime || 3.0);
       const chargeSpeed = (this.bodyClass && this.bodyClass.chargeSpeedMult) || 1.0;
       this.chargeDuration = Math.min(maxChargeTime, this.chargeDuration + safeDt * chargeSpeed);
       const chargeRatio = this.chargeDuration / maxChargeTime;
@@ -589,7 +589,8 @@ export class Caterpillar {
     const steerY = (inputs.up ? -1 : 0) + (inputs.down ? 1 : 0);
 
     const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
-    const pushMult = (GAMEPLAY_CONFIG.groundPushForce || GAMEPLAY_CONFIG.jumpBoost || 1.05) * clsJump;
+    const groundPushMult = (GAMEPLAY_CONFIG.groundPushForce !== undefined ? GAMEPLAY_CONFIG.groundPushForce : 1.10) * clsJump;
+    const jumpBoostMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.10) * clsJump;
 
     if (!rearLocked && !frontLocked && !hadAnchor) {
       if (anyOnGround) {
@@ -598,14 +599,14 @@ export class Caterpillar {
         let aimY = dy;
         if (steerX !== 0 || steerY !== 0) {
           const sDist = Math.hypot(steerX, steerY) || 1;
-          aimX = dx * 0.35 + (steerX / sDist) * 0.65;
-          aimY = dy * 0.35 + ((steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist) * 0.65;
+          aimX = dx * 0.20 + (steerX / sDist) * 0.80;
+          aimY = dy * 0.20 + ((steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist) * 0.80;
           const aLen = Math.hypot(aimX, aimY) || 1;
           aimX /= aLen;
           aimY /= aLen;
         }
 
-        const pushSpeed = (150 + power * 180) * pushMult;
+        const pushSpeed = (150 + power * 180) * groundPushMult;
         for (let i = 0; i < this.numNodes; i++) {
           const ratio = 0.85 + 0.30 * (i / (this.numNodes - 1));
           this.nodes[i].vx = aimX * pushSpeed * ratio;
@@ -616,6 +617,27 @@ export class Caterpillar {
 
         particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, 6, power * 0.5);
         sound.playLaunch(0.40 + power * 0.40);
+      } else if (GAMEPLAY_CONFIG.airborneExtensionOnly === false) {
+        // Air-dash in mid-air allowed when airborneExtensionOnly is disabled!
+        let { dx, dy } = this.getFrontVector();
+        let aimX = dx;
+        let aimY = dy;
+        if (steerX !== 0 || steerY !== 0) {
+          const sDist = Math.hypot(steerX, steerY) || 1;
+          aimX = steerX / sDist;
+          aimY = (steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist;
+          const aLen = Math.hypot(aimX, aimY) || 1;
+          aimX /= aLen;
+          aimY /= aLen;
+        }
+        const airDashSpeed = (140 + power * 160) * jumpBoostMult;
+        for (let i = 0; i < this.numNodes; i++) {
+          this.nodes[i].vx = aimX * airDashSpeed;
+          this.nodes[i].vy = aimY * airDashSpeed;
+          this.nodes[i].onGround = false;
+        }
+        this.hopTimer = 0.40;
+        sound.playLaunch(0.55 + power * 0.35);
       }
       return;
     }
@@ -659,7 +681,7 @@ export class Caterpillar {
       }
 
       // Satisfying jump velocity and forward flight inertia
-      const speed = (160 + power * 190) * pushMult;
+      const speed = (160 + power * 190) * jumpBoostMult;
       this.lastLaunchDir = { aimX, aimY, speed };
       this.extensionMomentum.aimX = aimX;
       this.extensionMomentum.aimY = aimY;
@@ -784,8 +806,8 @@ export class Caterpillar {
               aimDirX = steerX / aimDist;
               aimDirY = effSteerY / aimDist;
 
-              // Full reaching authority on the head:
-              const headReachForce = (GAMEPLAY_CONFIG.headReachForce || 1600) * resp * agilityRatio;
+              // Full reaching authority on the head (directly tuned by orientationUpForce):
+              const headReachForce = (GAMEPLAY_CONFIG.orientationUpForce || 1600) * resp * agilityRatio;
               this.head.vx += aimDirX * headReachForce * dt;
               this.head.vy += aimDirY * headReachForce * dt;
 
@@ -884,7 +906,7 @@ export class Caterpillar {
             let curAngleDiff = targetAimAngle - this.rearingSmoothedAngle;
             while (curAngleDiff > Math.PI) curAngleDiff -= Math.PI * 2;
             while (curAngleDiff < -Math.PI) curAngleDiff += Math.PI * 2;
-            this.rearingSmoothedAngle += curAngleDiff * Math.min(1, dt * 9.5);
+            this.rearingSmoothedAngle += curAngleDiff * Math.min(1, dt * 6.5 * (GAMEPLAY_CONFIG.orientationResponsiveness || 1.45));
 
             // 3. Construct target spine positions:
             const tx = new Float32Array(N);
@@ -1955,9 +1977,9 @@ export class Caterpillar {
         const tailThreshold = 1 / (N - 1);
         if (normS > tailThreshold) {
           const bodyNormS = (normS - tailThreshold) / (1 - tailThreshold);
-          const archFactor = Math.sin(bodyNormS * Math.PI);
-          const omegaMult = (GAMEPLAY_CONFIG.omegaArchVisual !== undefined ? GAMEPLAY_CONFIG.omegaArchVisual : 0.75);
-          const maxArch = 5.5 * this.contraction * omegaMult;
+          const omegaMult = (GAMEPLAY_CONFIG.omegaArchVisual !== undefined ? GAMEPLAY_CONFIG.omegaArchVisual : 1.0);
+          const shapeMult = (GAMEPLAY_CONFIG.preserveShapeOnBend === false) ? 0.0 : 1.0;
+          const maxArch = 18.0 * this.contraction * omegaMult * shapeMult;
           sx += nx * (archFactor * maxArch);
           sy += ny * (archFactor * maxArch);
         }
@@ -2300,16 +2322,17 @@ export class Caterpillar {
     };
 
     // Draw opposing claws on each side (-1: left/rear, +1: right/front)
+    const scaleFactor = (GAMEPLAY_CONFIG.clawScale !== undefined ? GAMEPLAY_CONFIG.clawScale : 1.35) / 1.35;
     for (const dir of [-1, 1]) {
       // Main gripping claw (lower, contacts ground horizontally)
       const mainBaseX = dir * (6.5 - gripT * 2.2);
       const mainBaseY = 1.0;
-      drawSideClaw(dir, mainBaseX, mainBaseY, 12.0, 4.2, 1.05, -0.55);
+      drawSideClaw(dir, mainBaseX, mainBaseY, 12.0 * scaleFactor, 4.2 * scaleFactor, 1.05, -0.55);
 
       // Secondary upper claw (cute layered proleg hook)
       const secBaseX = dir * (5.2 - gripT * 1.8);
       const secBaseY = -2.2;
-      drawSideClaw(dir, secBaseX, secBaseY, 8.8, 3.2, 1.25, -0.38);
+      drawSideClaw(dir, secBaseX, secBaseY, 8.8 * scaleFactor, 3.2 * scaleFactor, 1.25, -0.38);
     }
 
     ctx.restore();
