@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=37';
-import { sound } from './audio.js?v=37';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=37';
+import { MATERIALS } from './physics.js?v=38';
+import { sound } from './audio.js?v=38';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=38';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -380,7 +380,7 @@ export class Caterpillar {
         const power = this.extensionMomentum.power || 0.4;
         const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
         const pushMult = (GAMEPLAY_CONFIG.groundPushForce || GAMEPLAY_CONFIG.jumpBoost || 0.85) * clsJump;
-        const launchSpeed = (55 + power * 65) * pushMult;
+        const launchSpeed = (150 + power * 190) * pushMult;
 
         let aimX = 0;
         let aimY = 0;
@@ -394,14 +394,15 @@ export class Caterpillar {
         }
 
         for (let i = 0; i < this.numNodes; i++) {
-          this.nodes[i].vx = aimX * launchSpeed;
-          this.nodes[i].vy = aimY * launchSpeed;
+          const frontRatio = 0.85 + 0.30 * (i / (this.numNodes - 1));
+          this.nodes[i].vx = aimX * launchSpeed * frontRatio + this.nodes[i].vx * 0.40;
+          this.nodes[i].vy = aimY * launchSpeed * frontRatio + this.nodes[i].vy * 0.40;
           this.nodes[i].onGround = false;
         }
 
         this.extensionMomentum.consumed = true;
         this.extensionMomentum.timer = 0;
-        this.hopTimer = 0.35;
+        this.hopTimer = 0.45;
         sound.playLaunch(0.40 + power * 0.40);
       }
     }
@@ -846,7 +847,18 @@ export class Caterpillar {
             let aimY = surfTy;
             let hasAimInput = false;
 
-            if (steerX !== 0 || steerY !== 0) {
+            const isPressingDown = inputs.down || steerY > 0;
+            const isPressingUp = inputs.up || steerY < 0;
+
+            if (isPressingDown) {
+              // DOWN ARROW: Lower head to hug the surface, terrain, or round pinecone!
+              hasAimInput = true;
+              aimX = steerX !== 0 ? steerX * 0.8 : surfTx * 0.5;
+              aimY = 1.0;
+              const aLen = Math.hypot(aimX, aimY) || 1;
+              aimX /= aLen;
+              aimY /= aLen;
+            } else if (steerX !== 0 || isPressingUp) {
               hasAimInput = true;
               const sDist = Math.hypot(steerX, steerY) || 1;
               const rawAimX = steerX / sDist;
@@ -871,10 +883,20 @@ export class Caterpillar {
 
             const targetAimAngle = Math.atan2(aimY, aimX);
 
-            // 3. Smooth rearing & bending progress (0 = resting along surface, 1 = fully bent / reared)
-            const wantBend = isBending || inputs.up || (hasAimInput && (aimX * surfTx + aimY * surfTy < 0.85));
-            const targetProg = isBending ? 1.0 : (inputs.up ? 1.0 : (hasAimInput ? 0.65 : 0.08));
-            const rearRate = (wantBend || isBending) ? 5.5 : 3.2;
+            // 3. Smooth rearing & bending progress
+            // When pressing Down: drops to 0.0 so the body completely flattens/hugs down to the surface/prop!
+            let targetProg = 0.08;
+            if (isBending) {
+              targetProg = 1.0;
+            } else if (isPressingDown) {
+              targetProg = 0.0;
+            } else if (isPressingUp) {
+              targetProg = 1.0;
+            } else if (hasAimInput) {
+              targetProg = 0.45;
+            }
+
+            const rearRate = (isBending || isPressingUp || isPressingDown) ? 5.8 : 3.2;
             this.rearingProgress += (targetProg - this.rearingProgress) * Math.min(1, dt * rearRate);
 
             // Smooth angle interpolation toward target aim angle (shortest angular distance)
@@ -891,9 +913,30 @@ export class Caterpillar {
             tx[0] = this.rear.x;
             ty[0] = this.rear.y;
 
-            // Tail segment (Node 0 to 1) remains at full extended length along surface:
-            tx[1] = tx[0] + surfTx * this.extendedSegLen;
-            ty[1] = ty[0] + surfTy * this.extendedSegLen;
+            // Segment lengths for i >= 1 contract during SPACE bend
+            const bodySegLen = (this.extendedSegLen * (this.extensionTimer > 0 ? (GAMEPLAY_CONFIG.unbendReachBonus || 1.15) : 1.0)) * (1 - this.contraction) +
+                               this.contractedSegLen * this.contraction;
+
+            // If anchored on a round prop (pinecone / acorn), compute circumference wrap positions
+            const rearProp = this.rearAnchor.propRef;
+            let rearAngleOnProp = 0;
+            let effPropR = 0;
+            if (rearProp) {
+              const rdx = this.rear.x - rearProp.x;
+              const rdy = this.rear.y - rearProp.y;
+              rearAngleOnProp = Math.atan2(rdy, rdx);
+              effPropR = rearProp.radius * 0.95 + this.rear.r * 0.85;
+            }
+
+            // Tail segment (Node 0 to 1):
+            if (rearProp) {
+              const tailWrapAngle = rearAngleOnProp + facingSign * (this.extendedSegLen / effPropR);
+              tx[1] = rearProp.x + Math.cos(tailWrapAngle) * effPropR;
+              ty[1] = rearProp.y + Math.sin(tailWrapAngle) * effPropR;
+            } else {
+              tx[1] = tx[0] + surfTx * this.extendedSegLen;
+              ty[1] = ty[0] + surfTy * this.extendedSegLen;
+            }
 
             // Guide Node 1 firmly along surface to guarantee solid visual & physical appui
             const tErrX = tx[1] - this.nodes[1].x;
@@ -902,10 +945,6 @@ export class Caterpillar {
             this.nodes[1].vy += (tErrY * 45.0 - this.nodes[1].vy * 14.0) * dt;
 
             // From Node 2 to Head (N-1): Bending and articulation along aimed direction!
-            // Segment lengths for i >= 1 contract during SPACE bend
-            const bodySegLen = (this.extendedSegLen * (this.extensionTimer > 0 ? (GAMEPLAY_CONFIG.unbendReachBonus || 1.15) : 1.0)) * (1 - this.contraction) +
-                               this.contractedSegLen * this.contraction;
-
             let spinalDiff = this.rearingSmoothedAngle - surfAngle;
             while (spinalDiff > Math.PI) spinalDiff -= Math.PI * 2;
             while (spinalDiff < -Math.PI) spinalDiff += Math.PI * 2;
@@ -918,8 +957,21 @@ export class Caterpillar {
               const spineCurve = 0.25 + 0.75 * t;
               const segAngle = surfAngle + spinalDiff * (segProg * spineCurve);
 
-              tx[i] = tx[i - 1] + Math.cos(segAngle) * bodySegLen;
-              ty[i] = ty[i - 1] + Math.sin(segAngle) * bodySegLen;
+              const rearedX = tx[i - 1] + Math.cos(segAngle) * bodySegLen;
+              const rearedY = ty[i - 1] + Math.sin(segAngle) * bodySegLen;
+
+              if (rearProp) {
+                // When on a pinecone/acorn, blend smoothly between hugging the prop circumference (segProg=0)
+                // and rearing into the air (segProg=1)
+                const nodeWrapAngle = rearAngleOnProp + facingSign * (i * (bodySegLen / effPropR));
+                const wrapX = rearProp.x + Math.cos(nodeWrapAngle) * effPropR;
+                const wrapY = rearProp.y + Math.sin(nodeWrapAngle) * effPropR;
+                tx[i] = wrapX * (1 - segProg) + rearedX * segProg;
+                ty[i] = wrapY * (1 - segProg) + rearedY * segProg;
+              } else {
+                tx[i] = rearedX;
+                ty[i] = rearedY;
+              }
 
               const errX = tx[i] - this.nodes[i].x;
               const errY = ty[i] - this.nodes[i].y;
@@ -929,8 +981,17 @@ export class Caterpillar {
               this.nodes[i].vy += (errY * stiff - this.nodes[i].vy * damp) * dt;
             }
 
+            // DOWN ARROW: Actively push head down onto the pinecone or ground!
+            if (isPressingDown) {
+              const headTargetX = tx[N - 1];
+              const headTargetY = ty[N - 1];
+              this.head.vx += (headTargetX - this.head.x) * 45.0 * dt;
+              this.head.vy += (headTargetY - this.head.y) * 45.0 * dt + 500 * dt;
+              this.nodes[N - 2].vy += 350 * dt;
+            }
+
             // Peeling force if head touches a surface while aiming away
-            if (this.head.onGround && this.head.groundNx !== undefined) {
+            if (this.head.onGround && this.head.groundNx !== undefined && !isPressingDown) {
               const hAimX = Math.cos(this.rearingSmoothedAngle);
               const hAimY = Math.sin(this.rearingSmoothedAngle);
               const dotAway = hAimX * this.head.groundNx + hAimY * this.head.groundNy;
