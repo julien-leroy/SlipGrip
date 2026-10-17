@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=42';
-import { sound } from './audio.js?v=42';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=42';
+import { MATERIALS } from './physics.js?v=43';
+import { sound } from './audio.js?v=43';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=43';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -291,6 +291,12 @@ export class Caterpillar {
     this.wasSpaceHeld = false;
     this.storedContraction = 0;
     this.hadAnchorDuringContraction = false;
+    this.chargeDuration = 0;
+    this.chargeShake = 0;
+    this.wasFullyCharged = false;
+    this.launchSpineDir = null;
+    this.launchSpinePower = 0;
+    this.flipCooldown = 0;
     this.bodyRigidity = 0;
     this.rigidityTimer = 0;
     this.dorsalSign = 1;
@@ -329,9 +335,8 @@ export class Caterpillar {
   }
 
   get omegaCharge() {
-    const maxChargeTime = GAMEPLAY_CONFIG.jumpChargeTime || 3.0;
-    const durRatio = this.chargeDuration / maxChargeTime;
-    return Math.min(1.0, Math.max(this.contraction, durRatio));
+    const maxChargeTime = Math.max(0.5, GAMEPLAY_CONFIG.jumpChargeTime || 4.0);
+    return Math.min(1.0, this.chargeDuration / maxChargeTime);
   }
 
   get centerOfMass() {
@@ -558,6 +563,9 @@ export class Caterpillar {
     if (this.hopTimer > 0) {
       this.hopTimer = Math.max(0, this.hopTimer - safeDt);
     }
+    if (this.flipCooldown > 0) {
+      this.flipCooldown = Math.max(0, this.flipCooldown - safeDt);
+    }
 
     // Live surface proximity detection for Q and D visual aids
     const extraGrip = (this.bodyClass && this.bodyClass.gripExtraDistance) || 0;
@@ -587,10 +595,25 @@ export class Caterpillar {
       this.extensionTimer = 0; // Never allow extension to fight contraction
       this.extensionMomentum.timer = 0;
       this.extensionMomentum.consumed = false;
-      const maxChargeTime = Math.max(0.5, GAMEPLAY_CONFIG.jumpChargeTime || 3.0);
+      const maxChargeTime = Math.max(0.5, GAMEPLAY_CONFIG.jumpChargeTime || 4.0);
       const chargeSpeed = (this.bodyClass && this.bodyClass.chargeSpeedMult) || 1.0;
       this.chargeDuration = Math.min(maxChargeTime, this.chargeDuration + safeDt * chargeSpeed);
       const chargeRatio = this.chargeDuration / maxChargeTime;
+
+      // Subtle concentration tension shaking/tremor at the end of the 4s charge
+      if (chargeRatio > 0.65) {
+        this.chargeShake = (chargeRatio - 0.65) / 0.35;
+      } else {
+        this.chargeShake = 0;
+      }
+
+      if (chargeRatio >= 0.98 && !this.wasFullyCharged) {
+        this.wasFullyCharged = true;
+        sound.playCheckpoint();
+        if (particles) {
+          particles.spawnPopup(this.head.x, this.head.y - 25, 'MAX ! ⚡🚀', '#ffd93b');
+        }
+      }
 
       // Clean, solid contraction into bent pose like an inchworm walking
       const bendSpeed = GAMEPLAY_CONFIG.bendContractSpeed || 20.0;
@@ -605,12 +628,14 @@ export class Caterpillar {
       if (this.wasSpaceHeld) {
         // Space released: snap unbend with organic spring inertia
         const effectivePower = Math.max(this.storedContraction, this.contraction, 0.20);
-        this.rigidityTimer = 0.35;
+        this.rigidityTimer = 0.40;
         this.bodyRigidity = 1.0;
-        this.extensionTimer = 0.36; // Active full deployment phase
+        this.extensionTimer = 0.42; // Active full deployment phase
         this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles);
       }
       this.chargeDuration = 0;
+      this.chargeShake = 0;
+      this.wasFullyCharged = false;
       if (this.extensionTimer > 0) {
         this.extensionTimer = Math.max(0, this.extensionTimer - safeDt);
       }
@@ -648,8 +673,6 @@ export class Caterpillar {
   }
 
   onReleaseSpace(power, hadAnchor, inputs, particles) {
-    sound.playLaunch(0.3 + power * 0.50);
-
     if (this.rearAnchor.stuckCrumb && power > 0.35) {
       const c = this.rearAnchor.stuckCrumb;
       this.rearAnchor.stuckCrumb = null;
@@ -667,132 +690,66 @@ export class Caterpillar {
       particles.spawnPopup(this.head.x, this.head.y, 'LIBÉRÉ !', '#38d84e');
     }
 
-    const rearLocked = this.rearAnchor.anchored && !this.rearAnchor.slipping;
-    const frontLocked = this.frontAnchor.anchored && !this.frontAnchor.slipping;
-    const anyOnGround = this.nodes.some(n => n.onGround);
-
+    const N = this.numNodes;
     const steerX = (inputs.right ? 1 : 0) - (inputs.left ? 1 : 0);
     const steerY = (inputs.up ? -1 : 0) + (inputs.down ? 1 : 0);
 
     const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
-    const groundPushMult = (GAMEPLAY_CONFIG.groundPushForce !== undefined ? GAMEPLAY_CONFIG.groundPushForce : 1.10) * clsJump;
     const jumpBoostMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.10) * clsJump;
 
-    if (!rearLocked && !frontLocked && !hadAnchor) {
-      if (anyOnGround) {
-        // Forward extension leap straight along the body spine
-        let { dx, dy } = this.getFrontVector();
-        let aimX = dx;
-        let aimY = dy;
-        if (steerX !== 0 || steerY !== 0) {
-          const sDist = Math.hypot(steerX, steerY) || 1;
-          aimX = dx * 0.40 + (steerX / sDist) * 0.60;
-          aimY = dy * 0.40 + ((steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist) * 0.60;
-          const aLen = Math.hypot(aimX, aimY) || 1;
-          aimX /= aLen;
-          aimY /= aLen;
-        }
-
-        const pushSpeed = (180 + power * 220) * groundPushMult;
-        for (let i = 0; i < this.numNodes; i++) {
-          const ratio = 0.85 + 0.30 * (i / (this.numNodes - 1));
-          this.nodes[i].vx = aimX * pushSpeed * ratio;
-          this.nodes[i].vy = aimY * pushSpeed * ratio;
-          this.nodes[i].onGround = false;
-        }
-        this.hopTimer = 0.45;
-
-        particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, 6, power * 0.5);
-        sound.playLaunch(0.40 + power * 0.40);
-      }
-      // Completely airborne: NO velocity impulse! Naturally relaxes springs without mid-air flight spam.
-      return;
+    // 1. Average direction of all body segments (organic spine orientation)
+    let avgDx = 0;
+    let avgDy = 0;
+    for (let i = 0; i < N - 1; i++) {
+      const segDx = this.nodes[i + 1].x - this.nodes[i].x;
+      const segDy = this.nodes[i + 1].y - this.nodes[i].y;
+      const len = Math.hypot(segDx, segDy) || 1;
+      avgDx += segDx / len;
+      avgDy += segDy / len;
     }
+    const avgLen = Math.hypot(avgDx, avgDy) || 1;
+    avgDx /= avgLen;
+    avgDy /= avgLen;
 
-    this.extensionMomentum.timer = GAMEPLAY_CONFIG.anchorReleaseMomentumWindow || 0.30;
-    this.extensionMomentum.power = power;
-    this.extensionMomentum.consumed = false;
-
-    if (!rearLocked && !frontLocked && hadAnchor) {
-      this.triggerNaturalHop(power, particles);
-      this.extensionMomentum.consumed = true;
-      this.extensionMomentum.timer = 0;
-    } else if (rearLocked && !frontLocked) {
-      let surfNx = this.rearAnchor.nx || 0;
-      let surfNy = this.rearAnchor.ny !== undefined ? this.rearAnchor.ny : -1;
-      const surfLen = Math.hypot(surfNx, surfNy) || 1;
-      surfNx /= surfLen;
-      surfNy /= surfLen;
-
-      // True spine vector pointing from rear towards head
-      let spineDx = this.head.x - this.rear.x;
-      let spineDy = this.head.y - this.rear.y;
-      const spineDist = Math.hypot(spineDx, spineDy) || 1;
-      spineDx /= spineDist;
-      spineDy /= spineDist;
-
-      let aimX = spineDx;
-      let aimY = spineDy;
-
-      // Straight extension along body, optionally biased by player arrow steering
-      if (steerX !== 0 || steerY !== 0) {
-        const sDist = Math.hypot(steerX, steerY) || 1;
-        const keyAimX = steerX / sDist;
-        const keyAimY = (steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist;
-        const kLen = Math.hypot(keyAimX, keyAimY) || 1;
-        aimX = spineDx * 0.60 + (keyAimX / kLen) * 0.40;
-        aimY = spineDy * 0.60 + (keyAimY / kLen) * 0.40;
-        const len = Math.hypot(aimX, aimY) || 1;
-        aimX /= len;
-        aimY /= len;
-      }
-
-      // Athletic jump velocity and forward extension inertia
-      const speed = (200 + power * 230) * jumpBoostMult;
-      this.lastLaunchDir = { aimX, aimY, speed };
-      this.extensionMomentum.aimX = aimX;
-      this.extensionMomentum.aimY = aimY;
-
-      for (let i = 1; i < this.numNodes; i++) {
-        const ratio = i / (this.numNodes - 1);
-        this.nodes[i].vx = aimX * speed * ratio;
-        this.nodes[i].vy = aimY * speed * ratio;
-      }
-      particles.spawnMud(this.rear.x, this.rear.y, -surfNx, -surfNy, 6, power * 0.5);
-    } else if (frontLocked && !rearLocked) {
-      let { dx, dy } = this.getFrontVector();
-      const surfNx = this.frontAnchor.nx || 0;
-      const surfNy = this.frontAnchor.ny !== undefined ? this.frontAnchor.ny : -1;
-
-      let aimX = 0;
-      if (steerX !== 0) {
-        aimX = steerX * 0.90 + surfNx * 0.35;
-      } else {
-        aimX = -dx + surfNx * 0.35;
-      }
-
-      let aimY = 0;
-      if (steerY !== 0) {
-        aimY = (steerY < 0 ? -(GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : 0.65) + surfNy * 0.35;
-      } else {
-        aimY = -dy + surfNy * 0.35;
-      }
-
+    let aimX = avgDx;
+    let aimY = avgDy;
+    if (steerX !== 0 || steerY !== 0) {
+      const sDist = Math.hypot(steerX, steerY) || 1;
+      const keyAimX = steerX / sDist;
+      const keyAimY = (steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist;
+      const kLen = Math.hypot(keyAimX, keyAimY) || 1;
+      aimX = avgDx * 0.55 + (keyAimX / kLen) * 0.45;
+      aimY = avgDy * 0.55 + (keyAimY / kLen) * 0.45;
       const len = Math.hypot(aimX, aimY) || 1;
       aimX /= len;
       aimY /= len;
-
-      // Tail launch is noticeably heavier:
-      const speed = (42 + power * 50) * pushMult;
-      this.lastLaunchDir = { aimX, aimY, speed };
-
-      for (let i = 0; i < this.numNodes - 1; i++) {
-        const ratio = 1 - i / (this.numNodes - 1);
-        this.nodes[i].vx = aimX * speed * ratio;
-        this.nodes[i].vy = aimY * speed * ratio - (steerY < 0 ? 15 * ratio : 6 * ratio);
-      }
-      particles.spawnMud(this.head.x, this.head.y, -surfNx, -surfNy, 5, power * 0.4);
     }
+
+    this.launchSpineDir = { x: aimX, y: aimY };
+    this.launchSpinePower = power;
+
+    // Release any anchor grips so the caterpillar can jump into the air with momentum
+    if (this.rearAnchor.anchored) {
+      this.releaseAnchor(this.rearAnchor, false, particles);
+    }
+    if (this.frontAnchor.anchored) {
+      this.releaseAnchor(this.frontAnchor, true, particles);
+    }
+
+    // Real jump leap in the direction of the body!
+    const jumpSpeed = (240 + power * 360) * jumpBoostMult;
+    for (let i = 0; i < N; i++) {
+      const frontBonus = 0.88 + 0.24 * (i / (N - 1));
+      this.nodes[i].vx = aimX * jumpSpeed * frontBonus;
+      this.nodes[i].vy = aimY * jumpSpeed * frontBonus;
+      this.nodes[i].onGround = false;
+    }
+
+    this.hopTimer = 0.50;
+    this.extensionTimer = 0.42;
+
+    particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, 8, power * 0.7);
+    sound.playLaunch(0.40 + power * 0.60);
   }
 
   stepPhysics(dt, world, particles, inputs, isFirstSubstep) {
@@ -806,26 +763,6 @@ export class Caterpillar {
 
     const bothAnchored = this.rearAnchor.anchored && this.frontAnchor.anchored;
     const bothOnSameProp = bothAnchored && this.rearAnchor.propRef && this.frontAnchor.propRef && (this.rearAnchor.propRef === this.frontAnchor.propRef);
-
-    // 1b. Texture / belly flip is ONLY evaluated when BOTH front and rear feet are anchored simultaneously:
-    if (bothAnchored && isFirstSubstep) {
-      const rearNy = this.rearAnchor.ny !== undefined ? this.rearAnchor.ny : -1;
-      const frontNy = this.frontAnchor.ny !== undefined ? this.frontAnchor.ny : -1;
-
-      // When both feet are anchored on a ceiling / underside (both normals point downward, ny > 0.35):
-      if (rearNy > 0.35 && frontNy > 0.35) {
-        if (this.dorsalSign !== -1) {
-          this.dorsalSign = -1;
-          sound.playLaunch(0.4);
-        }
-      } else if (rearNy < -0.35 && frontNy < -0.35) {
-        // Both feet anchored on floor / ground (both normals point upward, ny < -0.35):
-        if (this.dorsalSign !== 1) {
-          this.dorsalSign = 1;
-          sound.playLaunch(0.4);
-        }
-      }
-    }
 
     const rearLocked = this.rearAnchor.anchored && !this.rearAnchor.slipping;
     const frontLocked = this.frontAnchor.anchored && !this.frontAnchor.slipping && (!this.frontAnchor.propRef || this.frontAnchor.propRef.mass >= 15 || bothOnSameProp || this.rearAnchor.anchored);
@@ -1378,19 +1315,29 @@ export class Caterpillar {
           this.nodes[i].vy += (idealY - this.nodes[i].y) * (14.0 * extRatio) * ratio * dt;
         }
       } else if (!rearLocked && !frontLocked) {
-        let { dx, dy } = this.getFrontVector();
-        if (hasSteer) {
-          const sDist = Math.hypot(steerX, effSteerY);
-          if (sDist > 0.1) {
-            dx = steerX / sDist;
-            dy = effSteerY / sDist;
-          }
+        let aimX = 0;
+        let aimY = 0;
+        if (this.launchSpineDir) {
+          aimX = this.launchSpineDir.x;
+          aimY = this.launchSpineDir.y;
+        } else {
+          const fv = this.getFrontVector();
+          aimX = fv.dx;
+          aimY = fv.dy;
         }
-        const thrust = 340 * extRatio;
-        for (let i = 0; i < N; i++) {
+
+        const thrust = 480 * extRatio;
+        const root = this.nodes[0];
+        for (let i = 1; i < N; i++) {
           const ratio = i / (N - 1);
-          this.nodes[i].vx += dx * thrust * (ratio - 0.5) * dt;
-          this.nodes[i].vy += dy * thrust * (ratio - 0.5) * dt;
+          this.nodes[i].vx += aimX * thrust * ratio * dt;
+          this.nodes[i].vy += aimY * thrust * ratio * dt;
+
+          // Spring uncoiling: straightens the entire spine along the jump direction!
+          const idealX = root.x + aimX * (curExtendedSegLen * i);
+          const idealY = root.y + aimY * (curExtendedSegLen * i);
+          this.nodes[i].vx += (idealX - this.nodes[i].x) * (30.0 * extRatio) * ratio * dt;
+          this.nodes[i].vy += (idealY - this.nodes[i].y) * (30.0 * extRatio) * ratio * dt;
         }
       }
     }
@@ -1473,6 +1420,55 @@ export class Caterpillar {
 
     // 5. Handle World Collisions
     this.handleWorldCollisions(dt, world, particles, inputs, isFirstSubstep);
+
+    // 6. Sprite / Texture Flip:
+    // Only flip when landed mostly on its back (dorsal side in contact with surface),
+    // with at least half the segments touching on the back and at least one foot touching on the back.
+    if (isFirstSubstep && this.flipCooldown <= 0) {
+      let dorsalTouches = 0;
+      let footOnDorsal = false;
+
+      for (let i = 0; i < N; i++) {
+        const n = this.nodes[i];
+        if (!n.onGround) continue;
+
+        let tx = 0, ty = 0;
+        if (i < N - 1) {
+          tx = this.nodes[i + 1].x - this.nodes[i].x;
+          ty = this.nodes[i + 1].y - this.nodes[i].y;
+        } else {
+          tx = this.nodes[i].x - this.nodes[i - 1].x;
+          ty = this.nodes[i].y - this.nodes[i - 1].y;
+        }
+        const tLen = Math.hypot(tx, ty) || 1;
+        const ux = tx / tLen;
+        const uy = ty / tLen;
+
+        const dNx = uy * this.dorsalSign;
+        const dNy = -ux * this.dorsalSign;
+
+        // Ground normal n.groundNx, n.groundNy points outward from surface to node center.
+        // Surface is in direction (-n.groundNx, -n.groundNy) from node center.
+        // If surface contact is in direction of the dorsal side (back against surface):
+        const dot = n.groundNx * dNx + n.groundNy * dNy;
+        if (dot < -0.25) {
+          dorsalTouches++;
+          if (i === 0 || i === N - 1) {
+            footOnDorsal = true;
+          }
+        }
+      }
+
+      const minDorsalSegments = Math.ceil(N / 2);
+      if (dorsalTouches >= minDorsalSegments && footOnDorsal) {
+        this.dorsalSign = -this.dorsalSign;
+        this.flipCooldown = 0.50;
+        sound.playLaunch(0.35);
+        if (particles) {
+          particles.spawnPopup(head.x, head.y - 20, 'RETOURNÉE ! 🔄', '#ffd93b');
+        }
+      }
+    }
   }
 
   handleWorldCollisions(dt, world, particles, inputs, isFirstSubstep) {
@@ -2112,6 +2108,14 @@ export class Caterpillar {
     // Damage invulnerability blinking (i-frames visual feedback)
     if (this.invulnerableTimer > 0 && Math.floor(time * 24) % 2 === 0) {
       ctx.globalAlpha = 0.35;
+    }
+
+    // Subtle concentration tension shaking/tremor at the end of the 4s charge
+    if (this.chargeShake > 0) {
+      const shakeAmp = this.chargeShake * 3.2;
+      const sx = Math.sin(time * 65.0) * shakeAmp;
+      const sy = Math.cos(time * 80.0) * shakeAmp;
+      ctx.translate(sx, sy);
     }
 
     // 1. DENSE SMOOTH SPINE SPLINE (24 samples along 5-node skeleton)

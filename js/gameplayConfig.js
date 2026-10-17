@@ -92,7 +92,7 @@ export const GAMEPLAY_PRESETS = {
     orientationRearSpan: 2,
     jumpBoost: 1.10,
     jumpUpAngleBonus: 1.25,
-    jumpChargeTime: 3.5,
+    jumpChargeTime: 4.0,
     gripDistance: 26,
     gripAngleTolerance: -0.15,
     omegaArchVisual: 0.75,
@@ -220,7 +220,7 @@ export const GAMEPLAY_CONFIG = {
   jumpUpAngleBonus: 1.25,
 
   // Durée maximale de chargement du saut avec Espace (en secondes)
-  jumpChargeTime: 3.5,
+  jumpChargeTime: 4.0,
 
   // Distance maximale d'accroche des ventouses/griffes aux surfaces (en px)
   gripDistance: 26,
@@ -274,8 +274,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v42';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v42';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v43';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v43';
 
 export function loadSavedGameplayConfig() {
   try {
