@@ -129,7 +129,8 @@ export class PhysicsWorld {
       // Heavy boulder masses so they never glitch or fly away when gripped
       mass: isPinecone ? 36.0 : 6.5,
       localPoints: this.buildPropLocalPolygon(type, radius),
-      onGround: false
+      onGround: false,
+      isHeld: false
     };
 
     this.props.push(prop);
@@ -502,6 +503,9 @@ export class PhysicsWorld {
     for (let i = 0; i < this.props.length; i++) {
       const p = this.props[i];
       p.onGround = false;
+      if (p.isHeld) {
+        continue;
+      }
 
       p.vy += this.gravity * dt;
       // Heavy damping so pinecones act like massive stable boulders
