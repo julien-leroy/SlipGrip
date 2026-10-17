@@ -516,14 +516,14 @@ export class Caterpillar {
     if (!otherAnchor.anchored) {
       if (this.extensionMomentum.timer > 0 && !this.extensionMomentum.consumed && (this.extensionMomentum.chargeTime || 0) >= 1.0) {
         const chargeTime = this.extensionMomentum.chargeTime;
-        let launchSpeed = 0;
-        if (chargeTime < 3.0) {
-          const t = (chargeTime - 1.0) / 2.0;
-          launchSpeed = 115 + t * 55;
-        } else {
-          const t = Math.min(1.0, (chargeTime - 3.0) / 1.0);
-          launchSpeed = 170 + t * 65;
-        }
+        const maxChargeTime = Math.max(0.5, GAMEPLAY_CONFIG.jumpChargeTime || 4.0);
+        // Normalized power over [1.0s, maxChargeTime]
+        const p = Math.min(1.0, Math.max(0, (chargeTime - 1.0) / (maxChargeTime - 1.0)));
+        // Strictly quadratic scaling (power = p^2): almost zero push at 1-2s, max at 4s
+        const quadPower = p * p;
+        const baseMaxSpeed = GAMEPLAY_CONFIG.maxJumpSpeed || 175;
+        let launchSpeed = quadPower * baseMaxSpeed;
+
         const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
         const jumpMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.00) * clsJump;
         const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength') ? 1.55 : 1.0;
@@ -715,16 +715,19 @@ export class Caterpillar {
         const canJump = this.chargeDuration >= 1.0 && this.jumpCooldown <= 0;
         if (canJump) {
           const effectiveChargeTime = this.chargeDuration;
-          this.rigidityTimer = 0.40;
-          this.bodyRigidity = 1.0;
-          this.extensionTimer = 0.38; // Active full deployment phase
+          const maxChargeTime = Math.max(0.5, GAMEPLAY_CONFIG.jumpChargeTime || 4.0);
+          const p = Math.min(1.0, Math.max(0, (effectiveChargeTime - 1.0) / (maxChargeTime - 1.0)));
+          const quadPower = p * p;
+          this.rigidityTimer = 0.20 + 0.20 * quadPower;
+          this.bodyRigidity = 0.35 + 0.65 * quadPower;
+          this.extensionTimer = 0.12 + 0.26 * quadPower; // Active deployment phase
           this.jumpCooldown = 0.50;
           this.onReleaseSpace(effectiveChargeTime, this.hadAnchorDuringContraction, inputs, particles);
         } else {
           // Charged less than 1.0 second: ABSOLUTELY ZERO PUSH or jump!
           this.rigidityTimer = 0.15;
           this.bodyRigidity = 0.2;
-          this.extensionTimer = 0.12;
+          this.extensionTimer = 0.10;
           this.extensionMomentum.timer = 0;
           this.extensionMomentum.consumed = true;
           this.extensionMomentum.chargeTime = 0;
@@ -831,9 +834,11 @@ export class Caterpillar {
       aimY /= len;
     }
 
-    const normPower = Math.min(1.0, Math.max(0, (chargeTime - 1.0) / 3.0));
+    const maxChargeTime = Math.max(0.5, GAMEPLAY_CONFIG.jumpChargeTime || 4.0);
+    const normPower = Math.min(1.0, Math.max(0, (chargeTime - 1.0) / (maxChargeTime - 1.0)));
+    const quadPower = normPower * normPower;
     this.launchSpineDir = { x: aimX, y: aimY };
-    this.launchSpinePower = normPower;
+    this.launchSpinePower = quadPower;
 
     // Release any anchor grips so the caterpillar can jump into the air with momentum
     if (this.rearAnchor.anchored) {
@@ -843,17 +848,12 @@ export class Caterpillar {
       this.releaseAnchor(this.frontAnchor, true, particles);
     }
 
-    // Rule:
-    // chargeTime < 3.0s -> jump is at most half the caterpillar length (≤ ~90px travel)
-    // 3.0s to 4.0s (full charge) -> jump is almost exactly 1 caterpillar length (~180px travel)
-    let jumpSpeed = 0;
-    if (chargeTime < 3.0) {
-      const t = (chargeTime - 1.0) / 2.0; // 0 at 1s, 1 at 3s
-      jumpSpeed = 115 + t * 55; // 115 to 170 px/s
-    } else {
-      const t = Math.min(1.0, (chargeTime - 3.0) / 1.0); // 0 at 3s, 1 at 4s
-      jumpSpeed = 170 + t * 65; // 170 to 235 px/s
-    }
+    // STRICT QUADRATIC JUMP IMPULSE:
+    // Charge < 1.0s -> 0 px/s (zero push)
+    // 1.0s to 2.0s -> nearly zero push (quadPower <= 0.11 -> speed <= 19 px/s)
+    // 4.0s (full charge) -> baseMaxSpeed (175 px/s), representing 3/4 caterpillar length travel (~135px)
+    const baseMaxSpeed = GAMEPLAY_CONFIG.maxJumpSpeed || 175;
+    let jumpSpeed = quadPower * baseMaxSpeed;
     jumpSpeed *= jumpBoostMult * strengthMult * speedMult;
 
     for (let i = 0; i < N; i++) {
@@ -865,12 +865,109 @@ export class Caterpillar {
     }
 
     this.hopTimer = 0.42;
-    this.extensionTimer = 0.35;
+    this.extensionTimer = 0.12 + 0.24 * quadPower;
     this.extensionMomentum.consumed = true;
     this.extensionMomentum.timer = 0;
 
-    particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, 7, normPower * 0.6);
-    sound.playLaunch(0.35 + normPower * 0.45);
+    particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, 7, quadPower * 0.6);
+    sound.playLaunch(0.35 + quadPower * 0.45);
+  }
+
+  // Locked segment alignment: when a paw grabs a surface (rear foot or front foot),
+  // that segment (0-1 for rear, N-2 to N-1 for front) remains glued flat against the surface.
+  // It cannot rotate; rotations and steering are performed exclusively on the other segments!
+  // When released, the segment unpins and smoothly blends back into the soft-body dynamics.
+  enforceGrippedSegmentLocks(curSegLen = this.extendedSegLen) {
+    const N = this.numNodes;
+    if (N < 3) return;
+
+    // 1. Rear gripped segment lock (Segment 0 between Node 0 and Node 1)
+    if (this.rearAnchor.anchored && !this.rearAnchor.slipping) {
+      if (this.rearAnchor.propRef) {
+        const prop = this.rearAnchor.propRef;
+        const rdx = this.rearAnchor.x - prop.x;
+        const rdy = this.rearAnchor.y - prop.y;
+        const rAng = Math.atan2(rdy, rdx);
+        const effR = prop.radius * 0.95 + this.nodes[0].r * 0.80;
+
+        const hAng = Math.atan2(this.head.y - prop.y, this.head.x - prop.x);
+        let diff = hAng - rAng;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        const sign = diff >= 0 ? 1 : -1;
+
+        const wrapAngle = rAng + sign * (curSegLen / Math.max(10, effR));
+        this.nodes[1].x = prop.x + Math.cos(wrapAngle) * effR;
+        this.nodes[1].y = prop.y + Math.sin(wrapAngle) * effR;
+        this.nodes[1].vx = prop.vx || 0;
+        this.nodes[1].vy = prop.vy || 0;
+      } else {
+        let tx = this.rearAnchor.tx;
+        let ty = this.rearAnchor.ty;
+        if (tx === undefined || (tx === 0 && ty === 0)) {
+          const nx = this.rearAnchor.nx || 0;
+          const ny = this.rearAnchor.ny !== undefined ? this.rearAnchor.ny : -1;
+          tx = -ny;
+          ty = nx;
+        }
+        const toHeadX = this.head.x - this.nodes[0].x;
+        const toHeadY = this.head.y - this.nodes[0].y;
+        const dot = toHeadX * tx + toHeadY * ty;
+        const sign = dot >= 0 ? 1 : -1;
+
+        this.nodes[1].x = this.nodes[0].x + tx * sign * curSegLen;
+        this.nodes[1].y = this.nodes[0].y + ty * sign * curSegLen;
+        this.nodes[1].vx = 0;
+        this.nodes[1].vy = 0;
+      }
+    }
+
+    // 2. Front gripped segment lock (Segment N-2 between Node N-2 and Node N-1)
+    const bothOnSameProp = this.rearAnchor.anchored && this.frontAnchor.anchored && this.rearAnchor.propRef && (this.rearAnchor.propRef === this.frontAnchor.propRef);
+    const frontLocked = this.frontAnchor.anchored && !this.frontAnchor.slipping && (!this.frontAnchor.propRef || this.frontAnchor.propRef.mass >= 15 || bothOnSameProp || this.rearAnchor.anchored);
+
+    if (frontLocked) {
+      const headIdx = N - 1;
+      const neckIdx = N - 2;
+
+      if (this.frontAnchor.propRef) {
+        const prop = this.frontAnchor.propRef;
+        const fdx = this.frontAnchor.x - prop.x;
+        const fdy = this.frontAnchor.y - prop.y;
+        const fAng = Math.atan2(fdy, fdx);
+        const effR = prop.radius * 0.95 + this.nodes[headIdx].r * 0.80;
+
+        const rAng = Math.atan2(this.rear.y - prop.y, this.rear.x - prop.x);
+        let diff = rAng - fAng;
+        while (diff > Math.PI) diff -= Math.PI * 2;
+        while (diff < -Math.PI) diff += Math.PI * 2;
+        const sign = diff >= 0 ? 1 : -1;
+
+        const wrapAngle = fAng + sign * (curSegLen / Math.max(10, effR));
+        this.nodes[neckIdx].x = prop.x + Math.cos(wrapAngle) * effR;
+        this.nodes[neckIdx].y = prop.y + Math.sin(wrapAngle) * effR;
+        this.nodes[neckIdx].vx = prop.vx || 0;
+        this.nodes[neckIdx].vy = prop.vy || 0;
+      } else {
+        let tx = this.frontAnchor.tx;
+        let ty = this.frontAnchor.ty;
+        if (tx === undefined || (tx === 0 && ty === 0)) {
+          const nx = this.frontAnchor.nx || 0;
+          const ny = this.frontAnchor.ny !== undefined ? this.frontAnchor.ny : -1;
+          tx = -ny;
+          ty = nx;
+        }
+        const toRearX = this.rear.x - this.nodes[headIdx].x;
+        const toRearY = this.rear.y - this.nodes[headIdx].y;
+        const dot = toRearX * tx + toRearY * ty;
+        const sign = dot >= 0 ? 1 : -1;
+
+        this.nodes[neckIdx].x = this.nodes[headIdx].x + tx * sign * curSegLen;
+        this.nodes[neckIdx].y = this.nodes[headIdx].y + ty * sign * curSegLen;
+        this.nodes[neckIdx].vx = 0;
+        this.nodes[neckIdx].vy = 0;
+      }
+    }
   }
 
   stepPhysics(dt, world, particles, inputs, isFirstSubstep) {
@@ -887,6 +984,8 @@ export class Caterpillar {
 
     const rearLocked = this.rearAnchor.anchored && !this.rearAnchor.slipping;
     const frontLocked = this.frontAnchor.anchored && !this.frontAnchor.slipping && (!this.frontAnchor.propRef || this.frontAnchor.propRef.mass >= 15 || bothOnSameProp || this.rearAnchor.anchored);
+
+    this.enforceGrippedSegmentLocks(this.extendedSegLen);
     const isHopping = this.hopTimer > 0;
     const isExtending = !inputs.space && this.contraction > 0.08;
     const anyOnGround = this.nodes.some(n => n.onGround) || rearLocked || frontLocked;
@@ -1075,10 +1174,10 @@ export class Caterpillar {
               ty[1] = ty[0] + surfTy * this.extendedSegLen;
             }
 
-            const tErrX = tx[1] - this.nodes[1].x;
-            const tErrY = ty[1] - this.nodes[1].y;
-            this.nodes[1].vx += (tErrX * 45.0 - this.nodes[1].vx * 14.0) * dt;
-            this.nodes[1].vy += (tErrY * 45.0 - this.nodes[1].vy * 14.0) * dt;
+            this.nodes[1].x = tx[1];
+            this.nodes[1].y = ty[1];
+            this.nodes[1].vx = rearProp ? rearProp.vx : 0;
+            this.nodes[1].vy = rearProp ? rearProp.vy : 0;
 
             // Nodes 2 to N-1:
             let spinalDiff = this.rearingSmoothedAngle - surfAngle;
@@ -1205,8 +1304,8 @@ export class Caterpillar {
             // Allows player to swing, slide, or sway the tail onto ledges or away/closer!
             if (steerX !== 0) {
               const tailHorizontalForce = 620 * slideEase * resp * dt;
-              for (let i = 0; i < N - 1; i++) {
-                const ratio = (N - 1 - i) / (N - 1);
+              for (let i = 0; i < N - 2; i++) {
+                const ratio = (N - 2 - i) / (N - 2);
                 this.nodes[i].vx += steerX * tailHorizontalForce * ratio;
               }
             }
@@ -1215,8 +1314,8 @@ export class Caterpillar {
             if (isBending) {
               // Holding Space draws the tail smoothly toward the front anchor
               const pullForce = 580 * slideEase * resp * dt;
-              for (let i = 0; i < N - 1; i++) {
-                const ratio = (N - 1 - i) / (N - 1);
+              for (let i = 0; i < N - 2; i++) {
+                const ratio = (N - 2 - i) / (N - 2);
                 this.nodes[i].vx += dirX * pullForce * ratio;
                 this.nodes[i].vy += dirY * pullForce * ratio;
               }
@@ -1229,15 +1328,15 @@ export class Caterpillar {
             if (effSteerY > 0) {
               // Press tail down
               const downForce = 550 * resp * dt;
-              for (let i = 0; i < N - 1; i++) {
-                const ratio = (N - 1 - i) / (N - 1);
+              for (let i = 0; i < N - 2; i++) {
+                const ratio = (N - 2 - i) / (N - 2);
                 this.nodes[i].vy += downForce * ratio;
               }
             } else if (effSteerY < 0 && frontSupportRatio > 0.3) {
               // Lift tail slightly, scaled by support ratio
               const liftForce = 420 * frontSupportRatio * resp * dt;
-              for (let i = 0; i < N - 1; i++) {
-                const ratio = Math.pow((N - 1 - i) / (N - 1), 1.25);
+              for (let i = 0; i < N - 2; i++) {
+                const ratio = Math.pow((N - 2 - i) / (N - 2), 1.25);
                 this.nodes[i].vy -= liftForce * ratio;
               }
               // Strict ceiling clamp: tail can NEVER rise higher than a small gentle arch (~32px above front anchor)
@@ -1260,11 +1359,11 @@ export class Caterpillar {
 
     for (let i = 0; i < N; i++) {
       const n = this.nodes[i];
-      if ((i === 0 && rearLocked) || (i === N - 1 && frontLocked)) {
-        if (i === 0 && this.rearAnchor.propRef) {
+      if ((i === 0 && rearLocked) || (i === 1 && rearLocked) || (i === N - 1 && frontLocked) || (i === N - 2 && frontLocked)) {
+        if (i <= 1 && this.rearAnchor.propRef) {
           n.vx = this.rearAnchor.propRef.vx;
           n.vy = this.rearAnchor.propRef.vy;
-        } else if (i === N - 1 && this.frontAnchor.propRef) {
+        } else if (i >= N - 2 && this.frontAnchor.propRef) {
           n.vx = this.frontAnchor.propRef.vx;
           n.vy = this.frontAnchor.propRef.vy;
         } else {
@@ -1362,8 +1461,8 @@ export class Caterpillar {
     for (let i = 0; i < N - 1; i++) {
       const a = this.nodes[i];
       const b = this.nodes[i + 1];
-      const aPinned = (i === 0 && rearLocked);
-      const bPinned = (i + 1 === N - 1 && frontLocked);
+      const aPinned = (i === 0 && rearLocked) || (i === 1 && rearLocked);
+      const bPinned = (i + 1 === N - 1 && frontLocked) || (i + 1 === N - 2 && frontLocked);
       const dvx = (b.vx - a.vx) * 0.14;
       const dvy = (b.vy - a.vy) * 0.14;
       if (!aPinned) {
@@ -1398,16 +1497,16 @@ export class Caterpillar {
         }
 
         const thrust = 750 * extRatio;
-        const anchorPt = this.nodes[0];
-        for (let i = 1; i < N; i++) {
-          const ratio = i / (N - 1);
+        const anchorPt = this.nodes[1];
+        for (let i = 2; i < N; i++) {
+          const ratio = (i - 1) / (N - 2);
           // Outward skeletal velocity thrust along true aimed spine
           this.nodes[i].vx += aimX * thrust * ratio * dt;
           this.nodes[i].vy += aimY * thrust * ratio * dt;
 
           // Smooth velocity-driven unrolling of curled spine towards full extension
-          const idealX = anchorPt.x + aimX * curExtendedSegLen * i;
-          const idealY = anchorPt.y + aimY * curExtendedSegLen * i;
+          const idealX = anchorPt.x + aimX * curExtendedSegLen * (i - 1);
+          const idealY = anchorPt.y + aimY * curExtendedSegLen * (i - 1);
           this.nodes[i].vx += (idealX - this.nodes[i].x) * (26.0 * extRatio) * ratio * dt;
           this.nodes[i].vy += (idealY - this.nodes[i].y) * (26.0 * extRatio) * ratio * dt;
         }
@@ -1426,13 +1525,13 @@ export class Caterpillar {
 
         // Tail unbending is heavier and slower:
         const thrust = 380 * extRatio;
-        const anchorPt = this.nodes[N - 1];
-        for (let i = 0; i < N - 1; i++) {
-          const ratio = (N - 1 - i) / (N - 1);
+        const anchorPt = this.nodes[N - 2];
+        for (let i = 0; i < N - 2; i++) {
+          const ratio = (N - 2 - i) / (N - 2);
           this.nodes[i].vx += aimX * thrust * ratio * dt;
           this.nodes[i].vy += aimY * thrust * ratio * dt;
 
-          const segCountFromFront = N - 1 - i;
+          const segCountFromFront = N - 2 - i;
           const idealX = anchorPt.x + aimX * curExtendedSegLen * segCountFromFront;
           const idealY = anchorPt.y + aimY * curExtendedSegLen * segCountFromFront;
           this.nodes[i].vx += (idealX - this.nodes[i].x) * (14.0 * extRatio) * ratio * dt;
@@ -1450,7 +1549,7 @@ export class Caterpillar {
           aimY = fv.dy;
         }
 
-        const thrust = 35 * extRatio;
+        const thrust = (30 * (this.launchSpinePower || 0)) * extRatio;
         const root = this.nodes[0];
         for (let i = 1; i < N; i++) {
           const trunkWeight = Math.sin((i / (N - 1)) * Math.PI);
@@ -1487,15 +1586,15 @@ export class Caterpillar {
         const dy = b.y - a.y;
         const d = Math.hypot(dx, dy) || 0.0001;
 
-        // Tail segment (i === 0) when rear is anchored does NOT contract!
-        const curTargetSegLen = (i === 0 && (rearLocked || this.rearAnchor.anchored))
+        // Tail segment (i === 0) and head segment (i === N - 2) when anchored do NOT contract!
+        const curTargetSegLen = ((i === 0 && rearLocked) || (i === N - 2 && frontLocked))
           ? this.extendedSegLen
           : targetSegLen;
 
         const diff = (d - curTargetSegLen) / d;
 
-        const aPinned = (i === 0 && (rearLocked || this.rearAnchor.anchored));
-        const bPinned = (i + 1 === N - 1 && (frontLocked || this.frontAnchor.anchored));
+        const aPinned = (i === 0 && rearLocked) || (i === 1 && rearLocked);
+        const bPinned = (i + 1 === N - 1 && frontLocked) || (i + 1 === N - 2 && frontLocked);
 
         const stiff = this.extensionTimer > 0 ? 0.95 : (0.55 + this.bodyRigidity * 0.20);
         if (aPinned && !bPinned) {
@@ -1519,13 +1618,13 @@ export class Caterpillar {
         const dx = c.x - a.x;
         const dy = c.y - a.y;
         const d = Math.hypot(dx, dy) || 0.0001;
-        const minSkipDist = (i === 0 && (rearLocked || this.rearAnchor.anchored))
+        const minSkipDist = ((i === 0 && rearLocked) || (i + 2 === N - 1 && frontLocked))
           ? (this.extendedSegLen + targetSegLen) * 0.84
           : targetSegLen * 1.68;
         if (d < minSkipDist) {
           const diff = (d - minSkipDist) / d; // negative
-          const aPinned = (i === 0 && (rearLocked || this.rearAnchor.anchored));
-          const cPinned = (i + 2 === N - 1 && (frontLocked || this.frontAnchor.anchored));
+          const aPinned = (i === 0 && rearLocked) || (i === 1 && rearLocked);
+          const cPinned = (i + 2 === N - 1 && frontLocked) || (i + 2 === N - 2 && frontLocked);
           const skipStiff = 0.65;
 
           if (aPinned && !cPinned) {
@@ -1542,6 +1641,8 @@ export class Caterpillar {
           }
         }
       }
+
+      this.enforceGrippedSegmentLocks(this.extendedSegLen);
     }
 
     // 5. Handle World Collisions
@@ -1633,48 +1734,53 @@ export class Caterpillar {
             world.applyPlatformForce(seg.plat, cp.cx, cp.cy, -cp.nx * pushForce, -cp.ny * pushForce, dt);
           }
 
-          if (seg.material !== 'moss' && slopeGrade <= 0.30 && cp.ny < -0.5) {
-            n.x += cp.nx * overlap;
-            n.y += cp.ny * overlap;
+          const isPinned = (i === 0 && this.rearAnchor.anchored) || (i === 1 && this.rearAnchor.anchored) ||
+                           (i === N - 1 && this.frontAnchor.anchored) || (i === N - 2 && this.frontAnchor.anchored);
 
-            const vn = n.vx * cp.nx + n.vy * cp.ny;
-            const vt = n.vx * cp.tx + n.vy * cp.ty;
-            const newVn = vn < 0 ? -vn * mat.restitution * 0.3 : vn;
+          if (!isPinned) {
+            if (seg.material !== 'moss' && slopeGrade <= 0.30 && cp.ny < -0.5) {
+              n.x += cp.nx * overlap;
+              n.y += cp.ny * overlap;
 
-            // Ground traction: allow free natural arching/contracting without locking feet into the dirt!
-            const isHead = (i === N - 1);
-            const frictionRate = (isHead && hasSteer) ? 2.5 : ((isHopping || isExtending || isBending) ? 8.0 : (hasSteer ? (isReverse ? 45.0 : 34.0) : 48.0));
-            let newVt = vt * Math.max(0, 1 - frictionRate * dt);
-            if (!hasSteer && !isHopping && !isExtending && !isBending && Math.abs(newVt) < 24) {
-              newVt = 0;
-            }
+              const vn = n.vx * cp.nx + n.vy * cp.ny;
+              const vt = n.vx * cp.tx + n.vy * cp.ty;
+              const newVn = vn < 0 ? -vn * mat.restitution * 0.3 : vn;
 
-            n.vx = cp.nx * newVn + cp.tx * newVt;
-            n.vy = cp.ny * newVn + cp.ty * newVt;
-            if (!hasSteer && !isHopping && !isExtending && !isBending && Math.abs(newVt) === 0 && vn <= 0) {
-              n.vx = 0;
-              n.vy = 0;
-            }
-          } else {
-            n.x += cp.nx * overlap;
-            n.y += cp.ny * overlap;
-
-            const vn = n.vx * cp.nx + n.vy * cp.ny;
-            const vt = n.vx * cp.tx + n.vy * cp.ty;
-            const newVn = vn < 0 ? -vn * mat.restitution : vn;
-
-            let newVt = vt;
-            if (seg.material === 'moss') {
-              newVt = vt * Math.max(0, 1 - 1.2 * dt);
-            } else {
-              const excessSlope = Math.max(0, slopeGrade - 0.30);
+              // Ground traction: allow free natural arching/contracting without locking feet into the dirt!
               const isHead = (i === N - 1);
-              const damping = (isHead && hasSteer) ? 1.5 : (hasSteer ? 5.5 : Math.max(2.0, 18.0 - excessSlope * 20.0));
-              newVt = vt * Math.max(0, 1 - damping * dt);
-            }
+              const frictionRate = (isHead && hasSteer) ? 2.5 : ((isHopping || isExtending || isBending) ? 8.0 : (hasSteer ? (isReverse ? 45.0 : 34.0) : 48.0));
+              let newVt = vt * Math.max(0, 1 - frictionRate * dt);
+              if (!hasSteer && !isHopping && !isExtending && !isBending && Math.abs(newVt) < 24) {
+                newVt = 0;
+              }
 
-            n.vx = cp.nx * newVn + cp.tx * newVt;
-            n.vy = cp.ny * newVn + cp.ty * newVt;
+              n.vx = cp.nx * newVn + cp.tx * newVt;
+              n.vy = cp.ny * newVn + cp.ty * newVt;
+              if (!hasSteer && !isHopping && !isExtending && !isBending && Math.abs(newVt) === 0 && vn <= 0) {
+                n.vx = 0;
+                n.vy = 0;
+              }
+            } else {
+              n.x += cp.nx * overlap;
+              n.y += cp.ny * overlap;
+
+              const vn = n.vx * cp.nx + n.vy * cp.ny;
+              const vt = n.vx * cp.tx + n.vy * cp.ty;
+              const newVn = vn < 0 ? -vn * mat.restitution : vn;
+
+              let newVt = vt;
+              if (seg.material === 'moss') {
+                newVt = vt * Math.max(0, 1 - 1.2 * dt);
+              } else {
+                const excessSlope = Math.max(0, slopeGrade - 0.30);
+                const isHead = (i === N - 1);
+                const damping = (isHead && hasSteer) ? 1.5 : (hasSteer ? 5.5 : Math.max(2.0, 18.0 - excessSlope * 20.0));
+                newVt = vt * Math.max(0, 1 - damping * dt);
+              }
+
+              n.vx = cp.nx * newVn + cp.tx * newVt;
+              n.vy = cp.ny * newVn + cp.ty * newVt;
+            }
           }
         }
       }
@@ -1682,8 +1788,8 @@ export class Caterpillar {
       // Solid Collision with Heavy Boulder Pinecones & Acorns
       for (const prop of world.props) {
         if (
-          (i === 0 && this.rearAnchor.anchored && this.rearAnchor.propRef === prop) ||
-          (i === N - 1 && this.frontAnchor.anchored && this.frontAnchor.propRef === prop)
+          ((i === 0 || i === 1) && this.rearAnchor.anchored && this.rearAnchor.propRef === prop) ||
+          ((i === N - 1 || i === N - 2) && this.frontAnchor.anchored && this.frontAnchor.propRef === prop)
         ) {
           continue;
         }
