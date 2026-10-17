@@ -857,8 +857,8 @@ export class Caterpillar {
     }
     this.wasSpaceHeld = spaceHeld;
 
-    // Sub-stepped soft-body physics (8 substeps)
-    const subSteps = 8;
+    // Sub-stepped soft-body physics (6 substeps: optimal balance of stability and high framerate)
+    const subSteps = 6;
     const subDt = safeDt / subSteps;
     for (let step = 0; step < subSteps; step++) {
       this.stepPhysics(subDt, world, particles, inputs, step === 0);
@@ -1792,7 +1792,7 @@ export class Caterpillar {
       (this.extendedSegLen * reachBonus * lengthMult) * (1 - this.contraction) +
       (this.contractedSegLen * lengthMult) * this.contraction;
 
-    const constraintIterations = this.extensionTimer > 0 ? 8 : 4;
+    const constraintIterations = 4;
     for (let iter = 0; iter < constraintIterations; iter++) {
       // 1. Neighbor distance constraints
       for (let i = 0; i < N - 1; i++) {
@@ -1812,7 +1812,7 @@ export class Caterpillar {
         const aPinned = (i === 0 && rearLocked) || (i === 1 && rearLocked);
         const bPinned = (i + 1 === N - 1 && frontLocked) || (i + 1 === N - 2 && frontLocked);
 
-        const stiff = this.extensionTimer > 0 ? 0.95 : (0.55 + this.bodyRigidity * 0.20);
+        const stiff = this.extensionTimer > 0 ? 0.90 : (0.55 + this.bodyRigidity * 0.20);
         if (aPinned && !bPinned) {
           b.x -= dx * diff * stiff;
           b.y -= dy * diff * stiff;
@@ -1834,14 +1834,15 @@ export class Caterpillar {
         const dx = c.x - a.x;
         const dy = c.y - a.y;
         const d = Math.hypot(dx, dy) || 0.0001;
+        // Clean skip distance scaled smoothly so curled ball pose never buzzes or glitches
         const minSkipDist = ((i === 0 && rearLocked) || (i + 2 === N - 1 && frontLocked))
-          ? (this.extendedSegLen + targetSegLen) * 0.84
-          : targetSegLen * 1.68;
+          ? (this.extendedSegLen + targetSegLen) * 0.76
+          : targetSegLen * 1.52;
         if (d < minSkipDist) {
           const diff = (d - minSkipDist) / d; // negative
           const aPinned = (i === 0 && rearLocked) || (i === 1 && rearLocked);
           const cPinned = (i + 2 === N - 1 && frontLocked) || (i + 2 === N - 2 && frontLocked);
-          const skipStiff = 0.65;
+          const skipStiff = 0.50;
 
           if (aPinned && !cPinned) {
             c.x -= dx * diff * skipStiff;
@@ -1857,37 +1858,10 @@ export class Caterpillar {
           }
         }
       }
-
-      // 3. Anti-Curling / Anti-Ring Constraint:
-      // Prevents the caterpillar from accidentally curling into a closed circle / "round parfait"!
-      // When not actively bending with space, head and tail must maintain healthy lengthwise separation.
-      if (!inputs.space) {
-        const headNode = this.nodes[N - 1];
-        const tailNode = this.nodes[0];
-        const htdx = headNode.x - tailNode.x;
-        const htdy = headNode.y - tailNode.y;
-        const htDist = Math.hypot(htdx, htdy) || 0.0001;
-        const minHeadTailDist = targetSegLen * (N - 1) * 0.58;
-        if (htDist < minHeadTailDist) {
-          const push = (minHeadTailDist - htDist) / htDist;
-          const stiff = 0.50;
-          if (!rearLocked && !frontLocked) {
-            tailNode.x -= htdx * push * stiff * 0.5;
-            tailNode.y -= htdy * push * stiff * 0.5;
-            headNode.x += htdx * push * stiff * 0.5;
-            headNode.y += htdy * push * stiff * 0.5;
-          } else if (rearLocked && !frontLocked) {
-            headNode.x += htdx * push * stiff;
-            headNode.y += htdy * push * stiff;
-          } else if (frontLocked && !rearLocked) {
-            tailNode.x -= htdx * push * stiff;
-            tailNode.y -= htdy * push * stiff;
-          }
-        }
-      }
-
-      this.enforceGrippedSegmentLocks(this.extendedSegLen);
     }
+
+    // Run gripped segment lock once per substep (smooth, no redundant velocity killing)
+    this.enforceGrippedSegmentLocks(this.extendedSegLen);
 
     // 5. Handle World Collisions
     this.handleWorldCollisions(dt, world, particles, inputs, isFirstSubstep);
@@ -2032,8 +2006,9 @@ export class Caterpillar {
       // Solid Collision with Heavy Boulder Pinecones & Acorns
       for (const prop of world.props) {
         if (
-          ((i === 0 || i === 1) && this.rearAnchor.anchored && this.rearAnchor.propRef === prop) ||
-          ((i === N - 1 || i === N - 2) && this.frontAnchor.anchored && this.frontAnchor.propRef === prop)
+          prop.isHeld ||
+          (this.rearAnchor.anchored && this.rearAnchor.propRef === prop) ||
+          (this.frontAnchor.anchored && this.frontAnchor.propRef === prop)
         ) {
           continue;
         }
