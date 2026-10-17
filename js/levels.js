@@ -25,6 +25,23 @@ export const LEVEL_DEFINITIONS = [
         [1110, 420], [1240, 415], [1420, 425], [1575, 465]
       ], 'root', { thickness: 26, isGroundMass: false });
 
+      // Moving cabbage leaf platform across the hollow!
+      world.addDynamicPlatform({
+        type: 'leaf',
+        material: 'leaf',
+        pivotX: 1350,
+        pivotY: 330,
+        moveX: 120,
+        moveY: 25,
+        moveSpeed: 1.1,
+        localPoints: [[-90, 0], [-30, -6], [30, -6], [90, 0]],
+        baseAngle: 0,
+        stiffness: 18,
+        damping: 2.8,
+        thickness: 18
+      });
+      world.addPowerUp(1350, 220, 'speed');
+
       world.addMushroom(1380, 605, 40, 380, 0.12);
 
       // Grabbable Acorns & Pinecones in Section 1!
@@ -62,6 +79,23 @@ export const LEVEL_DEFINITIONS = [
         [2500, 455], [2700, 410], [2920, 425], [3120, 395], [3430, 440]
       ], 'root', { thickness: 26, isGroundMass: false });
 
+      // Moving canopy leaf platform high above the moss valley!
+      world.addDynamicPlatform({
+        type: 'leaf',
+        material: 'leaf',
+        pivotX: 2850,
+        pivotY: 320,
+        moveX: 140,
+        moveY: -30,
+        moveSpeed: 1.2,
+        localPoints: [[-95, 0], [-30, -6], [30, -6], [95, 0]],
+        baseAngle: 0.04,
+        stiffness: 18,
+        damping: 2.8,
+        thickness: 18
+      });
+      world.addPowerUp(2850, 200, 'strength');
+
       world.addMushroom(3120, 530, 38, 370, 0.1);
 
       // Acorns & Pinecones obstructing the branch & valley
@@ -88,6 +122,8 @@ export const LEVEL_DEFINITIONS = [
         [4120, 360], [4300, 425], [4480, 495]
       ], 'moss', { thickness: 24, isGroundMass: true });
 
+      world.addPowerUp(4400, 260, 'feather');
+
       world.addPolyline([
         [4470, 495], [4690, 505], [4870, 455], [5200, 455]
       ], 'dirt', { thickness: 24, isGroundMass: true });
@@ -109,6 +145,8 @@ export const LEVEL_DEFINITIONS = [
       world.addPolyline([
         [5190, 455], [5380, 395], [5560, 385]
       ], 'dirt', { thickness: 24, isGroundMass: true });
+
+      world.addPowerUp(5500, 240, 'giant');
 
       world.addPolyline([
         [5550, 385], [5740, 465], [5900, 490]
@@ -174,6 +212,7 @@ export const LEVEL_DEFINITIONS = [
 
       world.addAphid(1160, 305, 22, 1070, 1250);
       world.addProp('pinecone', 1450, 340, 1.05);
+      world.addPowerUp(1160, 230, 'strength');
 
       world.addDecoration('tomato', 990, 380, 1.1);
       world.addDecoration('flower', 260, 590, 1.1);
@@ -203,6 +242,9 @@ export const LEVEL_DEFINITIONS = [
         material: 'hose',
         pivotX: 2300,
         pivotY: 410,
+        moveX: 90,
+        moveY: 20,
+        moveSpeed: 1.0,
         localPoints: [[-145, 6], [-50, -12], [50, -12], [145, 6]],
         baseAngle: -0.04,
         stiffness: 16,
@@ -213,6 +255,7 @@ export const LEVEL_DEFINITIONS = [
         inertia: 15000,
         thickness: 28
       });
+      world.addPowerUp(2140, 280, 'length');
 
       world.addPolyline([
         [1820, 380], [1900, 620], [2440, 620], [2540, 420], [2860, 420]
@@ -237,6 +280,9 @@ export const LEVEL_DEFINITIONS = [
         material: 'leaf',
         pivotX: 3390,
         pivotY: 220,
+        moveX: 130,
+        moveY: 25,
+        moveSpeed: 1.2,
         localPoints: [[-145, 8], [0, -10], [145, 8]],
         baseAngle: 0.05,
         stiffness: 18,
@@ -245,12 +291,16 @@ export const LEVEL_DEFINITIONS = [
         inertia: 16000,
         thickness: 22
       });
+      world.addPowerUp(3390, 110, 'giant');
 
       world.addDynamicPlatform({
         type: 'leaf',
         material: 'leaf',
         pivotX: 3710,
         pivotY: 270,
+        moveX: -120,
+        moveY: 20,
+        moveSpeed: 1.1,
         localPoints: [[-145, 8], [0, -10], [145, 8]],
         baseAngle: 0.04,
         stiffness: 18,
@@ -259,6 +309,7 @@ export const LEVEL_DEFINITIONS = [
         inertia: 16000,
         thickness: 22
       });
+      world.addPowerUp(3710, 150, 'speed');
 
       world.addPolyline([
         [2850, 420], [3350, 480], [3850, 480], [3980, 340], [4330, 340]
@@ -287,6 +338,7 @@ export const LEVEL_DEFINITIONS = [
         inertia: 15000,
         thickness: 28
       });
+      world.addPowerUp(4490, 240, 'feather');
 
       world.addPolyline([
         [4320, 340], [4450, 560], [4680, 420], [4920, 450], [5180, 350], [5450, 350], [5750, 540], [5900, 360], [6750, 360], [6750, 140]
@@ -583,6 +635,13 @@ export class LevelRenderer {
     // 8b. Draw Hedgehogs (Hérissons)
     for (const h of world.hedgehogs) {
       this.drawHedgehog(ctx, h, time);
+    }
+
+    // 8c. Draw Power-Up Collectibles (Speed, Strength, Giant, Length, Feather)
+    if (world.powerUps) {
+      for (const p of world.powerUps) {
+        this.drawPowerUp(ctx, p, time);
+      }
     }
 
     // 9. Draw Grabbable Dynamic Acorns (Glands) & Pinecones (Pommes de pin)!
@@ -1357,6 +1416,61 @@ export class LevelRenderer {
       ctx.arc(r * 0.55, -r * 0.2, 2.5, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    ctx.restore();
+  }
+
+  drawPowerUp(ctx, p, time) {
+    if (p.collected) return;
+    ctx.save();
+
+    const bob = Math.sin(time * 3.8 + p.x * 0.05) * 6;
+    const px = p.x;
+    const py = p.y + bob;
+    const r = p.radius || 18;
+
+    const conf = {
+      speed: { bg: '#00d2d3', rim: '#48dbfb', glow: 'rgba(0, 210, 211, 0.45)', icon: '⚡' },
+      strength: { bg: '#ff9f43', rim: '#feca57', glow: 'rgba(255, 159, 67, 0.45)', icon: '💪' },
+      giant: { bg: '#ee5253', rim: '#ff6b6b', glow: 'rgba(238, 82, 83, 0.45)', icon: '🎈' },
+      length: { bg: '#10ac84', rim: '#1dd1a1', glow: 'rgba(16, 172, 132, 0.45)', icon: '📏' },
+      feather: { bg: '#54a0ff', rim: '#70a1ff', glow: 'rgba(84, 160, 255, 0.45)', icon: '🪶' }
+    }[p.type] || { bg: '#ffd93b', rim: '#ffeaa7', glow: 'rgba(255, 217, 59, 0.45)', icon: '⭐' };
+
+    // Pulsing outer aura ring
+    const pulse = 1.0 + Math.sin(time * 6.0 + p.x) * 0.12;
+    ctx.fillStyle = conf.glow;
+    ctx.beginPath();
+    ctx.arc(px, py, r * 1.55 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Outer cartoon border
+    ctx.fillStyle = conf.bg;
+    ctx.strokeStyle = '#222f3e';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.arc(px, py, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Inner bright rim
+    ctx.strokeStyle = conf.rim;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(px, py, r - 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Specular shine
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.beginPath();
+    ctx.arc(px - r * 0.35, py - r * 0.35, r * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Icon emoji
+    ctx.font = `${Math.round(r * 1.15)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(conf.icon, px, py + 1);
 
     ctx.restore();
   }

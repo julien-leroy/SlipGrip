@@ -23,6 +23,7 @@ export class PhysicsWorld {
     this.mushrooms = [];
     this.aphids = [];
     this.hedgehogs = [];
+    this.powerUps = [];
     this.stickyCrumbs = [];
     this.props = [];
     this.checkpoints = [];
@@ -46,11 +47,28 @@ export class PhysicsWorld {
     this.mushrooms = [];
     this.aphids = [];
     this.hedgehogs = [];
+    this.powerUps = [];
     this.stickyCrumbs = [];
     this.props = [];
     this.checkpoints = [];
     this.decorations = [];
     this.nextSegId = 1;
+  }
+
+  addPowerUp(x, y, type = 'speed') {
+    const powerUp = {
+      id: this.nextSegId++,
+      x,
+      y,
+      baseY: y,
+      type,
+      radius: 22,
+      collected: false,
+      respawnTimer: 0,
+      time: Math.random() * 10
+    };
+    this.powerUps.push(powerUp);
+    return powerUp;
   }
 
   addCheckpoint(x, y, label = '') {
@@ -154,6 +172,13 @@ export class PhysicsWorld {
       material: config.material || (config.type === 'hose' ? 'hose' : 'leaf'),
       pivotX: config.pivotX,
       pivotY: config.pivotY,
+      basePivotX: config.pivotX,
+      basePivotY: config.pivotY,
+      moveX: config.moveX || 0,
+      moveY: config.moveY || 0,
+      moveSpeed: config.moveSpeed || 1.2,
+      pivotVx: 0,
+      pivotVy: 0,
       baseAngle: config.baseAngle || 0,
       angle: config.baseAngle || 0,
       angVel: 0,
@@ -283,9 +308,20 @@ export class PhysicsWorld {
   }
 
   update(dt) {
-    // 1. Dynamic platforms
+    // 1. Dynamic platforms (including moving translation)
     for (const plat of this.dynamicPlatforms) {
       plat.time += dt;
+
+      if (plat.moveX || plat.moveY) {
+        const prevX = plat.pivotX;
+        const prevY = plat.pivotY;
+        const phase = Math.sin(plat.time * plat.moveSpeed);
+        plat.pivotX = plat.basePivotX + (plat.moveX || 0) * phase;
+        plat.pivotY = plat.basePivotY + (plat.moveY || 0) * phase;
+        plat.pivotVx = (plat.pivotX - prevX) / Math.max(0.0001, dt);
+        plat.pivotVy = (plat.pivotY - prevY) / Math.max(0.0001, dt);
+      }
+
       let targetAngle = plat.baseAngle;
       if (plat.wobbleFreq > 0) {
         targetAngle += Math.sin(plat.time * plat.wobbleFreq * 0.65) * plat.wobbleAmp;
@@ -305,6 +341,19 @@ export class PhysicsWorld {
       }
 
       this.updatePlatformWorldSegments(plat);
+    }
+
+    // 1b. Power-Ups
+    if (this.powerUps) {
+      for (const p of this.powerUps) {
+        p.time += dt;
+        if (p.collected) {
+          p.respawnTimer -= dt;
+          if (p.respawnTimer <= 0) {
+            p.collected = false;
+          }
+        }
+      }
     }
 
     // 2. Mushrooms

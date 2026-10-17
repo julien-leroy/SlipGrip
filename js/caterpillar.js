@@ -209,6 +209,12 @@ export class Caterpillar {
   }
 
   takeDamage(amount, knockX = 0, knockY = -180, particles = null, sound = null) {
+    if (this.activePowerUp && this.activePowerUp.type === 'giant') {
+      if (particles) {
+        particles.spawnPopup(this.head.x, this.head.y - 28, 'INVULNÉRABLE ! 🛡️', '#ffd93b');
+      }
+      return false;
+    }
     if (this.invulnerableTimer > 0 || this.hp <= 0) return false;
     this.hp = Math.max(0, this.hp - amount);
     this.invulnerableTimer = 1.3;
@@ -226,6 +232,49 @@ export class Caterpillar {
       particles.spawnMud(this.head.x, this.head.y, 0, -1, 8, 0.75);
     }
     return true;
+  }
+
+  applyPowerUp(type, duration = 15.0, particles = null, sound = null) {
+    this.activePowerUp = {
+      type,
+      timer: duration,
+      duration
+    };
+
+    const cls = this.bodyClass || CATERPILLAR_CLASSES[this.cosmetics.bodyType] || CATERPILLAR_CLASSES.classique;
+    const baseRadii = cls.radii || [12.5, 14.2, 14.8, 13.8, 14.8];
+
+    if (type === 'giant') {
+      this.sizeScale = 1.45;
+      for (let i = 0; i < this.numNodes; i++) {
+        if (this.nodes[i]) this.nodes[i].r = (baseRadii[i] || 14) * 1.45;
+      }
+    } else {
+      this.sizeScale = 1.0;
+      for (let i = 0; i < this.numNodes; i++) {
+        if (this.nodes[i]) this.nodes[i].r = baseRadii[i] || 14;
+      }
+    }
+
+    if (sound) sound.playCheckpoint();
+    if (particles) {
+      const labels = {
+        speed: '⚡ VITESSE MAX !',
+        strength: '💪 SUPER FORCE !',
+        giant: '🎈 TAILLE COLOSSALE !',
+        length: '📏 LONGUEUR MAX !',
+        feather: '🪶 VOLTIGE LÉGÈRE !'
+      };
+      const colors = {
+        speed: '#00d2d3',
+        strength: '#ff9f43',
+        giant: '#ee5253',
+        length: '#10ac84',
+        feather: '#54a0ff'
+      };
+      particles.spawnPopup(this.head.x, this.head.y - 36, labels[type] || 'BONUS !', colors[type] || '#ffd93b');
+      particles.spawnConfetti(this.head.x, this.head.y - 10, 16);
+    }
   }
 
   loadCosmetics() {
@@ -263,8 +312,16 @@ export class Caterpillar {
     this.hp = 100;
     this.invulnerableTimer = 0;
 
+    this.activePowerUp = {
+      type: null,
+      timer: 0,
+      duration: 15.0
+    };
+    this.sizeScale = 1.0;
+    this.jumpCooldown = 0;
+
     this.nodes = [];
-    const radii = cls.radii || [8.5, 9.8, 10.2, 9.5, 10.2];
+    const radii = cls.radii || [12.5, 14.2, 14.8, 13.8, 14.8];
     for (let i = 0; i < this.numNodes; i++) {
       const x = startX + i * this.extendedSegLen;
       const y = startY;
@@ -274,7 +331,7 @@ export class Caterpillar {
         y,
         vx: 0,
         vy: 0,
-        r: radii[i] || 10,
+        r: radii[i] || 14,
         mass: cls.massMult || 1.0,
         onGround: false,
         groundSlopeGrade: 0,
@@ -557,6 +614,26 @@ export class Caterpillar {
     if (this.invulnerableTimer > 0) {
       this.invulnerableTimer = Math.max(0, this.invulnerableTimer - safeDt);
     }
+    if (this.jumpCooldown > 0) {
+      this.jumpCooldown = Math.max(0, this.jumpCooldown - safeDt);
+    }
+    if (this.activePowerUp && this.activePowerUp.timer > 0) {
+      this.activePowerUp.timer = Math.max(0, this.activePowerUp.timer - safeDt);
+      if (this.activePowerUp.timer <= 0) {
+        if (this.activePowerUp.type === 'giant') {
+          this.sizeScale = 1.0;
+          const cls = this.bodyClass || CATERPILLAR_CLASSES[this.cosmetics.bodyType] || CATERPILLAR_CLASSES.classique;
+          const baseRadii = cls.radii || [12.5, 14.2, 14.8, 13.8, 14.8];
+          for (let i = 0; i < this.numNodes; i++) {
+            if (this.nodes[i]) this.nodes[i].r = baseRadii[i] || 14;
+          }
+        }
+        this.activePowerUp.type = null;
+        if (particles) {
+          particles.spawnPopup(this.head.x, this.head.y - 25, 'FIN DU BONUS', '#b2bec3');
+        }
+      }
+    }
     if (this.extensionMomentum.timer > 0) {
       this.extensionMomentum.timer = Math.max(0, this.extensionMomentum.timer - safeDt);
     }
@@ -601,8 +678,8 @@ export class Caterpillar {
       const chargeRatio = this.chargeDuration / maxChargeTime;
 
       // Subtle concentration tension shaking/tremor at the end of the 4s charge
-      if (chargeRatio > 0.65) {
-        this.chargeShake = (chargeRatio - 0.65) / 0.35;
+      if (chargeRatio > 0.75) {
+        this.chargeShake = (chargeRatio - 0.75) / 0.25;
       } else {
         this.chargeShake = 0;
       }
@@ -627,11 +704,21 @@ export class Caterpillar {
     } else {
       if (this.wasSpaceHeld) {
         // Space released: snap unbend with organic spring inertia
-        const effectivePower = Math.max(this.storedContraction, this.contraction, 0.20);
-        this.rigidityTimer = 0.40;
-        this.bodyRigidity = 1.0;
-        this.extensionTimer = 0.42; // Active full deployment phase
-        this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles);
+        // ANTI-SPAM: Fast tapping Space (chargeDuration < 0.35s or chargeRatio < 0.12) does NOT jump or launch!
+        const canJump = this.chargeDuration >= 0.35 && this.storedContraction >= 0.12 && this.jumpCooldown <= 0;
+        if (canJump) {
+          const effectivePower = Math.min(1.0, this.storedContraction);
+          this.rigidityTimer = 0.40;
+          this.bodyRigidity = 1.0;
+          this.extensionTimer = 0.42; // Active full deployment phase
+          this.jumpCooldown = 0.45;
+          this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles);
+        } else {
+          // Quick tap: just release contraction without any impulse
+          this.rigidityTimer = 0.15;
+          this.bodyRigidity = 0.2;
+          this.extensionTimer = 0.15;
+        }
       }
       this.chargeDuration = 0;
       this.chargeShake = 0;
@@ -690,12 +777,20 @@ export class Caterpillar {
       particles.spawnPopup(this.head.x, this.head.y, 'LIBÉRÉ !', '#38d84e');
     }
 
+    // Ground & anchor check: cannot jump if flying in mid-air!
+    const anyOnGround = this.nodes.some(n => n.onGround) || hadAnchor || this.rearAnchor.anchored || this.frontAnchor.anchored;
+    if (!anyOnGround) {
+      return;
+    }
+
     const N = this.numNodes;
     const steerX = (inputs.right ? 1 : 0) - (inputs.left ? 1 : 0);
     const steerY = (inputs.up ? -1 : 0) + (inputs.down ? 1 : 0);
 
     const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
-    const jumpBoostMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.10) * clsJump;
+    const jumpBoostMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.00) * clsJump;
+    const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength') ? 1.55 : 1.0;
+    const speedMult = (this.activePowerUp && this.activePowerUp.type === 'speed') ? 1.35 : 1.0;
 
     // 1. Average direction of all body segments (organic spine orientation)
     let avgDx = 0;
@@ -736,8 +831,8 @@ export class Caterpillar {
       this.releaseAnchor(this.frontAnchor, true, particles);
     }
 
-    // Real jump leap in the direction of the body!
-    const jumpSpeed = (240 + power * 360) * jumpBoostMult;
+    // Softened, controlled jump leap in the direction of the body!
+    const jumpSpeed = (85 + Math.pow(power, 1.25) * 165) * jumpBoostMult * strengthMult * speedMult;
     for (let i = 0; i < N; i++) {
       const frontBonus = 0.88 + 0.24 * (i / (N - 1));
       this.nodes[i].vx = aimX * jumpSpeed * frontBonus;
@@ -1132,7 +1227,10 @@ export class Caterpillar {
     }
 
     // 3. Integrate Heavier Gravity, Viscous Damping & Physical Larval Breathing
-    const currentGravity = world.gravity || GAMEPLAY_CONFIG.gravity || 740;
+    let currentGravity = world.gravity || GAMEPLAY_CONFIG.gravity || 740;
+    if (this.activePowerUp && this.activePowerUp.type === 'feather') {
+      currentGravity *= 0.35;
+    }
 
     for (let i = 0; i < N; i++) {
       const n = this.nodes[i];
@@ -1347,9 +1445,10 @@ export class Caterpillar {
     // When steering while anchored, extend reach so players can stretch to surfaces with arrows alone:
     const steerExtensionBonus = (hasSteer && (rearLocked || frontLocked)) ? 1.06 : 1.0;
     const reachBonus = this.extensionTimer > 0 ? (GAMEPLAY_CONFIG.unbendReachBonus || 1.15) : steerExtensionBonus;
+    const lengthMult = (this.activePowerUp && this.activePowerUp.type === 'length') ? 1.45 : 1.0;
     const targetSegLen =
-      (this.extendedSegLen * reachBonus) * (1 - this.contraction) +
-      this.contractedSegLen * this.contraction;
+      (this.extendedSegLen * reachBonus * lengthMult) * (1 - this.contraction) +
+      (this.contractedSegLen * lengthMult) * this.contraction;
 
     const constraintIterations = this.extensionTimer > 0 ? 8 : 4;
     for (let iter = 0; iter < constraintIterations; iter++) {
@@ -1735,6 +1834,22 @@ export class Caterpillar {
           }
         }
       }
+
+      // Collectible Power-ups Check
+      if (world.powerUps && world.powerUps.length > 0) {
+        for (const p of world.powerUps) {
+          if (p.collected) continue;
+          const dx = n.x - p.x;
+          const dy = n.y - p.y;
+          const dist = Math.hypot(dx, dy);
+          if (dist < n.r + p.radius) {
+            p.collected = true;
+            p.respawnTimer = 20.0;
+            this.applyPowerUp(p.type, 15.0, particles, sound);
+            break;
+          }
+        }
+      }
     }
 
     // Sticky Crumbs
@@ -2112,7 +2227,7 @@ export class Caterpillar {
 
     // Subtle concentration tension shaking/tremor at the end of the 4s charge
     if (this.chargeShake > 0) {
-      const shakeAmp = this.chargeShake * 3.2;
+      const shakeAmp = this.chargeShake * 1.15;
       const sx = Math.sin(time * 65.0) * shakeAmp;
       const sy = Math.cos(time * 80.0) * shakeAmp;
       ctx.translate(sx, sy);
@@ -2157,10 +2272,11 @@ export class Caterpillar {
       const ny = -ux * this.dorsalSign;
 
       const normS = s / (numSamples - 1); // 0 at rear, 1 at head
-      // Natural slender inchworm caterpillar profile: tapers at tail and neck
+      const sizeMult = this.sizeScale || 1.0;
+      // Authentic plump caterpillar profile: rounded segments, chubby tail and neck
       const profile = Math.sin(Math.pow(normS, 0.72) * Math.PI);
       const plump = 1 + this.contraction * 0.12;
-      const r = (7.8 + profile * 2.8) * plump;
+      const r = (10.5 + profile * 3.6) * plump * sizeMult;
 
       // Smooth Omega (Ω) arch during SPACE contraction (ZERO trembling noise!)
       // Note: Tail segment (normS <= 1/(N-1)) NEVER arches so it stays firmly planted on surface!
@@ -2286,6 +2402,26 @@ export class Caterpillar {
       ctx.quadraticCurveTo(t0.x - t0.ux * (t0.r * 0.4) - t0.nx * (t0.r * 0.7), t0.y - t0.uy * (t0.r * 0.4) - t0.ny * (t0.r * 0.7), tailBackX, tailBackY);
       ctx.closePath();
     };
+
+    // PASS 0: Power-up magical aura glow
+    if (this.activePowerUp && this.activePowerUp.timer > 0) {
+      const auraColors = {
+        speed: '#00d2d3',
+        strength: '#ff9f43',
+        giant: '#ee5253',
+        length: '#10ac84',
+        feather: '#54a0ff'
+      };
+      const auraColor = auraColors[this.activePowerUp.type] || '#ffd93b';
+      const pulse = 1 + Math.sin(time * 12) * 0.15;
+      ctx.save();
+      buildBodyHullPath();
+      ctx.strokeStyle = auraColor;
+      ctx.lineWidth = 14 * pulse;
+      ctx.globalAlpha = 0.42 + Math.sin(time * 10) * 0.18;
+      ctx.stroke();
+      ctx.restore();
+    }
 
     // PASS A: Solid dark cartoon outline
     ctx.save();
@@ -2541,7 +2677,7 @@ export class Caterpillar {
       ctx.scale(1, -1);
     }
 
-    const headR = 14.8;
+    const headR = 20.5 * (this.sizeScale || 1.0);
 
     const bob = Math.sin(time * 7) * 2.0;
     ctx.strokeStyle = pal.outline;

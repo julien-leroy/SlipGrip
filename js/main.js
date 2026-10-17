@@ -90,6 +90,12 @@ class SlipGripGame {
     this.elHealthFill = document.getElementById('health-bar-fill');
     this.elHealthCard = document.getElementById('health-card');
 
+    this.elPowerUpCard = document.getElementById('powerup-card');
+    this.elPowerUpIcon = document.getElementById('powerup-icon');
+    this.elPowerUpLabel = document.getElementById('powerup-label');
+    this.elPowerUpTimer = document.getElementById('powerup-timer');
+    this.elPowerUpFill = document.getElementById('powerup-bar-fill');
+
     this.elHelpModal = document.getElementById('help-modal');
     this.elCosmeticsModal = document.getElementById('cosmetics-modal');
     this.elTuningModal = document.getElementById('tuning-modal');
@@ -637,6 +643,49 @@ class SlipGripGame {
     }
     if (this.elHealthCard) {
       this.elHealthCard.classList.toggle('danger', hp <= 30);
+    }
+
+    // Power-up HUD update
+    if (this.elPowerUpCard) {
+      const pow = this.caterpillar.activePowerUp;
+      if (pow && pow.type && pow.timer > 0) {
+        this.elPowerUpCard.classList.remove('hidden');
+        const icons = {
+          speed: '⚡',
+          strength: '💪',
+          giant: '🎈',
+          length: '📏',
+          feather: '🪶'
+        };
+        const labels = {
+          speed: 'VITESSE MAX',
+          strength: 'SUPER FORCE',
+          giant: 'COLOSSAL',
+          length: 'LONGUEUR MAX',
+          feather: 'VOLTIGE'
+        };
+        const colors = {
+          speed: '#00d2d3',
+          strength: '#ff9f43',
+          giant: '#ee5253',
+          length: '#10ac84',
+          feather: '#54a0ff'
+        };
+        if (this.elPowerUpIcon) this.elPowerUpIcon.textContent = icons[pow.type] || '⭐';
+        if (this.elPowerUpLabel) {
+          this.elPowerUpLabel.textContent = labels[pow.type] || 'BONUS';
+          this.elPowerUpLabel.style.color = colors[pow.type] || '#ffd93b';
+        }
+        if (this.elPowerUpTimer) this.elPowerUpTimer.textContent = `${pow.timer.toFixed(1)}s`;
+        if (this.elPowerUpFill) {
+          const dur = pow.duration || 15.0;
+          const pct = Math.max(0, Math.min(100, (pow.timer / dur) * 100));
+          this.elPowerUpFill.style.width = `${pct}%`;
+          this.elPowerUpFill.style.background = colors[pow.type] || '#ffd93b';
+        }
+      } else {
+        this.elPowerUpCard.classList.add('hidden');
+      }
     }
 
     this.updateAnchorWidget(this.elRearWidget, this.elStateQ, this.elIconQ, this.caterpillar.rearAnchor, '🟣');
