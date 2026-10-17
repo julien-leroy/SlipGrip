@@ -1062,7 +1062,7 @@ export class Caterpillar {
     // Only one paw anchored:
     // 1. Rear gripped segment lock (Segment 0 between Node 0 and Node 1)
     if (this.rearAnchor.anchored && !this.rearAnchor.slipping) {
-      const isRearingHigh = (this.rearingProgress || 0) > 0.70;
+      const isRearingHigh = (this.rearingProgress || 0) > 0.20;
       const isCoiling = this.contraction > 0.15;
 
       if (!isRearingHigh && !isCoiling) {
@@ -1331,7 +1331,7 @@ export class Caterpillar {
               if (isPureDown) {
                 targetAimAngle = surfAngle;
               } else {
-                const aimDx = steerX !== 0 ? steerX : (surfTx * 0.4);
+                const aimDx = steerX !== 0 ? steerX : (surfTx * 0.35);
                 const aimDy = effSteerY !== 0 ? effSteerY : (isPressingUp ? -1.0 : 0);
                 targetAimAngle = Math.atan2(aimDy, aimDx);
               }
@@ -1340,7 +1340,8 @@ export class Caterpillar {
             let curAngleDiff = targetAimAngle - this.rearingSmoothedAngle;
             while (curAngleDiff > Math.PI) curAngleDiff -= Math.PI * 2;
             while (curAngleDiff < -Math.PI) curAngleDiff += Math.PI * 2;
-            this.rearingSmoothedAngle += curAngleDiff * Math.min(1, dt * 7.5 * (GAMEPLAY_CONFIG.orientationResponsiveness || 1.45));
+            const rotSpeed = (isPressingUp || effSteerY < 0) ? 11.0 : 8.0;
+            this.rearingSmoothedAngle += curAngleDiff * Math.min(1, dt * rotSpeed * (GAMEPLAY_CONFIG.orientationResponsiveness || 1.45));
 
             // 3. Construct target spine positions:
             const tx = new Float32Array(N);
@@ -1366,65 +1367,88 @@ export class Caterpillar {
             this.nodes[1].vx = rearProp ? rearProp.vx : 0;
             this.nodes[1].vy = rearProp ? rearProp.vy : 0;
 
-            // Nodes 2 to N-1:
+            // Compute ideal unhindered reared spine chain starting from Node 1:
             let spinalDiff = this.rearingSmoothedAngle - surfAngle;
             while (spinalDiff > Math.PI) spinalDiff -= Math.PI * 2;
             while (spinalDiff < -Math.PI) spinalDiff += Math.PI * 2;
 
+            const rearedX = new Float32Array(N);
+            const rearedY = new Float32Array(N);
+            rearedX[0] = tx[0];
+            rearedY[0] = ty[0];
+            rearedX[1] = tx[1];
+            rearedY[1] = ty[1];
+
+            for (let i = 2; i < N; i++) {
+              const t = (i - 1) / (N - 2);
+              const segAngle = surfAngle + spinalDiff * Math.pow(t, 0.85);
+              rearedX[i] = rearedX[i - 1] + Math.cos(segAngle) * bodySegLen;
+              rearedY[i] = rearedY[i - 1] + Math.sin(segAngle) * bodySegLen;
+            }
+
             for (let i = 2; i < N; i++) {
               const t = (i - 1) / (N - 2);
               // Progressive biological rearing:
-              // At low rearing progress, more than half the body (nodes 0, 1, 2 = 60%) stays grounded on the surface!
-              // Node 2 stays flat on the surface until rearingProgress > 0.42.
-              // Then node 2 gradually lifts off, rising up onto the hind legs/prolegs (nodes 0 and 1).
-              const threshold = Math.pow(1.0 - t, 0.85) * 0.58;
-              const segProg = Math.max(0, Math.min(1, (this.rearingProgress - threshold) / Math.max(0.01, 1.0 - threshold)));
-              const spineCurve = 0.25 + 0.75 * t;
-              const segAngle = surfAngle + spinalDiff * (segProg * spineCurve);
+              // At low rearing progress, rear prolegs (nodes 0, 1, 2) stay grounded.
+              // As rearing continues, it progressively stands tall on its rear feet!
+              const threshold = Math.pow(1.0 - t, 0.90) * 0.45;
+              const rawProg = Math.max(0, Math.min(1, (this.rearingProgress - threshold) / Math.max(0.01, 1.0 - threshold)));
+              const segProg = Math.pow(rawProg, 1.1);
 
-              const rearedX = tx[i - 1] + Math.cos(segAngle) * bodySegLen;
-              const rearedY = ty[i - 1] + Math.sin(segAngle) * bodySegLen;
-
+              let groundX, groundY;
               if (rearProp) {
                 const nodeWrapAngle = rearAngleOnProp + facingSign * (i * (bodySegLen / effPropR));
-                const wrapX = rearProp.x + Math.cos(nodeWrapAngle) * effPropR;
-                const wrapY = rearProp.y + Math.sin(nodeWrapAngle) * effPropR;
-                tx[i] = wrapX * (1 - segProg) + rearedX * segProg;
-                ty[i] = wrapY * (1 - segProg) + rearedY * segProg;
+                groundX = rearProp.x + Math.cos(nodeWrapAngle) * effPropR;
+                groundY = rearProp.y + Math.sin(nodeWrapAngle) * effPropR;
               } else {
-                const groundX = tx[0] + surfTx * (bodySegLen * i);
-                const groundY = ty[0] + surfTy * (bodySegLen * i);
-                tx[i] = groundX * (1 - segProg) + rearedX * segProg;
-                ty[i] = groundY * (1 - segProg) + rearedY * segProg;
+                groundX = tx[0] + surfTx * (bodySegLen * i);
+                groundY = ty[0] + surfTy * (bodySegLen * i);
               }
+              tx[i] = groundX * (1 - segProg) + rearedX[i] * segProg;
+              ty[i] = groundY * (1 - segProg) + rearedY * segProg;
 
               const errX = tx[i] - this.nodes[i].x;
-              const errY = ty[i] - this.nodes[i].y;
-              const stiff = (rearProp && segProg < 0.2) ? 42.0 : (24.0 + 14.0 * t);
+              let errY = ty[i] - this.nodes[i].y;
+
+              // If player is steering UP, never let spine target pull nodes down toward the ground!
+              if ((isPressingUp || effSteerY < 0) && errY > 0) {
+                errY = 0;
+              }
+
+              const stiff = (rearProp && segProg < 0.2) ? 42.0 : (28.0 + 12.0 * t);
               const damp = 10.0 + 3.0 * t;
               this.nodes[i].vx += (errX * stiff - this.nodes[i].vx * damp) * dt;
               this.nodes[i].vy += (errY * stiff - this.nodes[i].vy * damp) * dt;
             }
 
-            // 4. Active head aiming & peeling assistance on irregular surfaces:
+            // 4. Active head aiming & reach authority:
             if (hasSteer && !isPureDown) {
               const headReachForce = (GAMEPLAY_CONFIG.orientationUpForce || 1600) * resp * agilityRatio * liftEffort;
               const aimDx = Math.cos(this.rearingSmoothedAngle);
               const aimDy = Math.sin(this.rearingSmoothedAngle);
               this.head.vx += aimDx * headReachForce * 0.85 * dt;
               this.head.vy += aimDy * headReachForce * 0.85 * dt;
-              this.nodes[N - 2].vx += aimDx * headReachForce * 0.45 * dt;
-              this.nodes[N - 2].vy += aimDy * headReachForce * 0.45 * dt;
+              this.nodes[N - 2].vx += aimDx * headReachForce * 0.50 * dt;
+              this.nodes[N - 2].vy += aimDy * headReachForce * 0.50 * dt;
+              if (N > 3) {
+                this.nodes[N - 3].vx += aimDx * headReachForce * 0.20 * dt;
+                this.nodes[N - 3].vy += aimDy * headReachForce * 0.20 * dt;
+              }
 
-              // Peeling force if head touches an irregular obstacle, round prop or stairs while aiming away
-              if (this.head.onGround && this.head.groundNx !== undefined) {
-                const dotAway = aimDx * this.head.groundNx + aimDy * this.head.groundNy;
-                if (dotAway > -0.35 || isPressingUp) {
-                  const unstick = (950 * liftEffort) * dt;
-                  this.head.vx += this.head.groundNx * unstick;
-                  this.head.vy += (this.head.groundNy < 0 ? this.head.groundNy * unstick : -unstick * 0.75);
-                  this.head.onGround = false;
-                }
+              // Direct immediate upward lift when pressing UP so held objects (acorn, enemy) rise effortlessly:
+              if (isPressingUp || effSteerY < 0) {
+                const upBoost = headReachForce * 0.90 * dt;
+                this.head.vy -= upBoost;
+                this.nodes[N - 2].vy -= upBoost * 0.55;
+                if (N > 3) this.nodes[N - 3].vy -= upBoost * 0.25;
+                this.head.onGround = false;
+              }
+
+              // Peeling force if head touches an irregular obstacle, round prop or stairs while aiming away / up
+              if (this.head.onGround || isPressingUp) {
+                const unstick = (1100 * liftEffort) * dt;
+                this.head.vy -= unstick;
+                this.head.onGround = false;
               }
             }
 
@@ -1525,14 +1549,14 @@ export class Caterpillar {
                 this.nodes[i].vy += downForce * ratio;
               }
             } else if (effSteerY < 0) {
-              // Lift tail up! Responsive lift to point tail upward or diagonally
-              const liftForce = 640 * resp * dt;
+              // Lift tail up! Responsive lift to point tail upward or diagonally (boosted if holding object)
+              const liftForce = (isHoldingRear ? 820 : 640) * resp * dt;
               for (let i = 0; i < N - 2; i++) {
                 const ratio = Math.pow((N - 2 - i) / (N - 2), 0.95);
                 this.nodes[i].vy -= liftForce * ratio;
               }
-              // Ceiling clamp: allows generous natural lift (up to 75px above front anchor)
-              const maxTailElevation = this.frontAnchor.y - 75;
+              // Ceiling clamp: allows generous natural lift (up to 85px above front anchor)
+              const maxTailElevation = this.frontAnchor.y - 85;
               if (tail.y < maxTailElevation) {
                 tail.y = maxTailElevation;
                 tail.vy = Math.max(0, tail.vy);
@@ -2122,6 +2146,7 @@ export class Caterpillar {
 
       // Soft Squishy Aphids
       for (const a of world.aphids) {
+        if (a.isHeld) continue;
         const dx = n.x - a.x;
         const dy = n.y - a.y;
         const dist = Math.hypot(dx, dy) || 0.0001;
