@@ -140,7 +140,7 @@ export const LEVEL_DEFINITIONS = [
     startY: 540,
     finishX: 6400,
     finishY: 360,
-    coachHint: '💡 Niveau 2 : Escaladez les tiges de tomates 🍅, soulevez les glands/pommes de pin 🌰 qui pèsent sur les feuilles de chou 🥬 et poussez les pucerons !',
+    coachHint: '💡 Niveau 2 : Attention aux HÉRISSONS 🦔 ! Leurs piques font mal au contact, mais leur tête est inoffensive : saisissez-les par le devant avec D pour les soulever et les éjecter !',
     build(world) {
       // ==================== SECTION 1 : Les Buttes du Potager ====================
       world.addPolyline([
@@ -165,6 +165,7 @@ export const LEVEL_DEFINITIONS = [
         thickness: 22
       });
       world.addProp('acorn', 760, 515, 1.0);
+      world.addHedgehog(880, 635, 28, 740, 1050);
 
       // Tomato Vine #1
       world.addPolyline([
@@ -264,6 +265,7 @@ export const LEVEL_DEFINITIONS = [
       ], 'dirt', { thickness: 24, isGroundMass: true });
 
       world.addProp('pinecone', 3520, 445, 1.1);
+      world.addHedgehog(3650, 465, 28, 3450, 3850);
       world.addProp('acorn', 3990, 305, 1.0);
 
       // ==================== CHECKPOINT 3 ====================
@@ -291,6 +293,7 @@ export const LEVEL_DEFINITIONS = [
       ], 'dirt', { thickness: 24, isGroundMass: true });
 
       world.addAphid(5310, 315, 22, 5210, 5410);
+      world.addHedgehog(5400, 335, 28, 5250, 5550);
       world.addProp('pinecone', 5020, 390, 1.05);
       world.addProp('acorn', 5880, 325, 1.0);
 
@@ -575,6 +578,11 @@ export class LevelRenderer {
     // 8. Draw Soft Squishy Aphids
     for (const a of world.aphids) {
       this.drawAphid(ctx, a, time);
+    }
+
+    // 8b. Draw Hedgehogs (Hérissons)
+    for (const h of world.hedgehogs) {
+      this.drawHedgehog(ctx, h, time);
     }
 
     // 9. Draw Grabbable Dynamic Acorns (Glands) & Pinecones (Pommes de pin)!
@@ -1349,6 +1357,116 @@ export class LevelRenderer {
       ctx.arc(r * 0.55, -r * 0.2, 2.5, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    ctx.restore();
+  }
+
+  drawHedgehog(ctx, h, time) {
+    ctx.save();
+    ctx.translate(h.x, h.y);
+    ctx.scale(h.squashX * (h.facing || 1), h.squashY);
+
+    const r = h.radius;
+    const isPanicking = h.isHeld || h.isFlying;
+
+    // 1. Spikes on back and rear:
+    // Sharp cartoon triangular quills on top and rear (-X and -Y to +Y)
+    ctx.fillStyle = '#4a2810';
+    ctx.strokeStyle = '#241206';
+    ctx.lineWidth = 2.5;
+
+    const numQuills = 11;
+    for (let i = 0; i < numQuills; i++) {
+      // Angle spans from rear bottom (approx 2.4 rad) across top to forehead (approx -0.8 rad)
+      const a = 2.4 - (i / (numQuills - 1)) * 3.2;
+      const base1X = Math.cos(a - 0.16) * (r * 0.92);
+      const base1Y = Math.sin(a - 0.16) * (r * 0.92);
+      const base2X = Math.cos(a + 0.16) * (r * 0.92);
+      const base2Y = Math.sin(a + 0.16) * (r * 0.92);
+      const tipLen = r * 1.48 + (i % 2 === 0 ? 4 : 0);
+      const tipX = Math.cos(a) * tipLen;
+      const tipY = Math.sin(a) * tipLen;
+
+      ctx.beginPath();
+      ctx.moveTo(base1X, base1Y);
+      ctx.lineTo(tipX, tipY);
+      ctx.lineTo(base2X, base2Y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    // 2. Main Body (Brown fur dome)
+    ctx.fillStyle = '#8d5b32';
+    ctx.strokeStyle = '#241206';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.ellipse(0, 2, r * 1.05, r * 0.88, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 3. Cute Soft Front Face & Snout (Beige, NO spikes!)
+    ctx.fillStyle = '#e8c99b';
+    ctx.beginPath();
+    ctx.moveTo(r * 0.2, -r * 0.5);
+    ctx.quadraticCurveTo(r * 1.25, -r * 0.1, r * 1.35, r * 0.15); // snout tip
+    ctx.quadraticCurveTo(r * 0.9, r * 0.65, r * 0.2, r * 0.65);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Black Button Nose
+    ctx.fillStyle = '#1e1108';
+    ctx.beginPath();
+    ctx.arc(r * 1.35, r * 0.15, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eye (startled/dizzy if held or flying, cute shiny eye if normal)
+    if (isPanicking) {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(r * 0.65, -r * 0.12, 6.0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#1e1108';
+      ctx.beginPath();
+      ctx.arc(r * 0.65, -r * 0.12, 2.0, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(r * 0.65, -r * 0.12, 4.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#1e1108';
+      ctx.beginPath();
+      ctx.arc(r * 0.72, -r * 0.14, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // White shine
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(r * 0.70, -r * 0.17, 1.0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Cute Little Paws (underneath)
+    ctx.fillStyle = '#e8c99b';
+    ctx.strokeStyle = '#241206';
+    ctx.lineWidth = 2.5;
+    const pawSwing = isPanicking ? Math.sin(time * 24) * 5 : Math.sin(time * 10) * 3;
+    // Front paw
+    ctx.beginPath();
+    ctx.arc(r * 0.6 + pawSwing, r * 0.75, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    // Back paw
+    ctx.beginPath();
+    ctx.arc(-r * 0.3 - pawSwing, r * 0.75, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
 
     ctx.restore();
   }

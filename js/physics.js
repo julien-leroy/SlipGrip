@@ -22,6 +22,7 @@ export class PhysicsWorld {
     this.dynamicPlatforms = [];
     this.mushrooms = [];
     this.aphids = [];
+    this.hedgehogs = [];
     this.stickyCrumbs = [];
     this.props = [];
     this.checkpoints = [];
@@ -44,6 +45,7 @@ export class PhysicsWorld {
     this.dynamicPlatforms = [];
     this.mushrooms = [];
     this.aphids = [];
+    this.hedgehogs = [];
     this.stickyCrumbs = [];
     this.props = [];
     this.checkpoints = [];
@@ -250,6 +252,27 @@ export class PhysicsWorld {
     });
   }
 
+  addHedgehog(x, y, radius = 28, patrolMinX = x - 110, patrolMaxX = x + 110) {
+    const hedgehog = {
+      id: this.nextSegId++,
+      x,
+      y,
+      vx: 18 * (Math.random() > 0.5 ? 1 : -1),
+      vy: 0,
+      radius,
+      patrolMinX,
+      patrolMaxX,
+      facing: 1, // 1 for right, -1 for left
+      squashX: 1,
+      squashY: 1,
+      isHeld: false,
+      isFlying: false,
+      mass: 4.5
+    };
+    this.hedgehogs.push(hedgehog);
+    return hedgehog;
+  }
+
   addStickyCrumb(x, y, radius = 26) {
     this.stickyCrumbs.push({
       x,
@@ -355,6 +378,72 @@ export class PhysicsWorld {
           if (vn < 0) {
             a.vx -= hit.nx * vn * 1.1;
             a.vy -= hit.ny * vn * 1.1;
+          }
+        }
+      }
+    }
+
+    // 3b. Hedgehogs (Hérissons) with Spikes on Back and Soft Front Snout
+    for (const h of this.hedgehogs) {
+      if (h.isHeld) {
+        h.squashX += (0.9 - h.squashX) * Math.min(1, dt * 8);
+        h.squashY += (1.15 - h.squashY) * Math.min(1, dt * 8);
+        continue;
+      }
+
+      h.squashX += (1 - h.squashX) * Math.min(1, dt * 8);
+      h.squashY += (1 - h.squashY) * Math.min(1, dt * 8);
+
+      const speed = Math.hypot(h.vx, h.vy);
+      if (speed > 45) {
+        h.isFlying = true;
+      }
+
+      if (h.isFlying) {
+        h.vy += this.gravity * dt;
+        h.x += h.vx * dt;
+        h.y += h.vy * dt;
+        h.vx *= 0.992;
+        if (Math.abs(h.vx) > 10) h.facing = h.vx >= 0 ? 1 : -1;
+
+        const hit = this.findClosestSurface(h.x, h.y, h.radius + 6);
+        if (hit && hit.dist < h.radius) {
+          const overlap = h.radius - hit.dist;
+          h.x += hit.nx * overlap;
+          h.y += hit.ny * overlap;
+          const vn = h.vx * hit.nx + h.vy * hit.ny;
+          if (vn < 0) {
+            h.vx -= hit.nx * vn * 1.35;
+            h.vy -= hit.ny * vn * 1.35;
+            h.squashX = 1.35;
+            h.squashY = 0.65;
+          }
+          if (Math.hypot(h.vx, h.vy) < 45) {
+            h.isFlying = false;
+            h.patrolMinX = h.x - 110;
+            h.patrolMaxX = h.x + 110;
+          }
+        }
+      } else {
+        if (h.x < h.patrolMinX) h.vx = Math.abs(h.vx) + 14 * dt;
+        if (h.x > h.patrolMaxX) h.vx = -Math.abs(h.vx) - 14 * dt;
+        if (Math.abs(h.vx) < 16) h.vx += (h.facing || 1) * 20 * dt;
+        h.facing = h.vx >= 0 ? 1 : -1;
+
+        h.vy += this.gravity * dt;
+        h.x += h.vx * dt;
+        h.y += h.vy * dt;
+        h.vx *= 0.985;
+
+        const hit = this.findClosestSurface(h.x, h.y, h.radius + 6);
+        if (hit && hit.dist < h.radius) {
+          const overlap = h.radius - hit.dist;
+          h.x += hit.nx * overlap;
+          h.y += hit.ny * overlap;
+          const vn = h.vx * hit.nx + h.vy * hit.ny;
+          if (vn < 0) {
+            h.vx -= hit.nx * vn * 1.1;
+            h.vy -= hit.ny * vn * 1.1;
           }
         }
       }
@@ -524,6 +613,42 @@ export class PhysicsWorld {
           ty: nx,
           cx: a.x + nx * a.radius,
           cy: a.y + ny * a.radius
+        };
+      }
+    }
+    return best;
+  }
+
+  // Find closest enemy Hedgehog (differentiating safe snout vs prickly back/rear spikes)
+  findClosestHedgehog(px, py, maxSurfaceDist) {
+    let best = null;
+    let bestDist = maxSurfaceDist;
+    for (const h of this.hedgehogs) {
+      if (h.isHeld) continue;
+      const dx = px - h.x;
+      const dy = py - h.y;
+      const centerDist = Math.hypot(dx, dy) || 0.0001;
+      const surfDist = centerDist - h.radius;
+      if (surfDist < bestDist) {
+        bestDist = surfDist;
+        const nx = dx / centerDist;
+        const ny = dy / centerDist;
+
+        // Front safe snout is oriented in the direction of h.facing (+1 right, -1 left)
+        const isFrontHead = (nx * h.facing > 0.35) && (ny > -0.65);
+        const isSpiky = !isFrontHead;
+
+        best = {
+          hedgehog: h,
+          dist: surfDist,
+          nx,
+          ny,
+          tx: -ny,
+          ty: nx,
+          cx: h.x + nx * h.radius,
+          cy: h.y + ny * h.radius,
+          isFrontHead,
+          isSpiky
         };
       }
     }

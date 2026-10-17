@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=41';
-import { sound } from './audio.js?v=41';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=41';
+import { MATERIALS } from './physics.js?v=42';
+import { sound } from './audio.js?v=42';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=42';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -192,6 +192,7 @@ export class Caterpillar {
       slipping: false,
       propRef: null,
       aphidRef: null,
+      hedgehogRef: null,
       propLocalAngle: 0,
       stuckCrumb: null,
       stuckStrength: 0,
@@ -205,6 +206,26 @@ export class Caterpillar {
       localPt: null,
       material: 'dirt'
     };
+  }
+
+  takeDamage(amount, knockX = 0, knockY = -180, particles = null, sound = null) {
+    if (this.invulnerableTimer > 0 || this.hp <= 0) return false;
+    this.hp = Math.max(0, this.hp - amount);
+    this.invulnerableTimer = 1.3;
+    this.expression = 'scared';
+
+    for (let i = 0; i < this.numNodes; i++) {
+      this.nodes[i].vx += knockX * 0.8;
+      this.nodes[i].vy += knockY * 0.8;
+      this.nodes[i].onGround = false;
+    }
+
+    if (sound) sound.playSticky(false);
+    if (particles) {
+      particles.spawnPopup(this.head.x, this.head.y - 28, `-${amount} ❤️`, '#ff4757');
+      particles.spawnMud(this.head.x, this.head.y, 0, -1, 8, 0.75);
+    }
+    return true;
   }
 
   loadCosmetics() {
@@ -238,8 +259,12 @@ export class Caterpillar {
     this.contractedSegLen = cls.contractedSegLen;
     this.fullLength = this.extendedSegLen * (this.numNodes - 1);
 
+    this.maxHp = 100;
+    this.hp = 100;
+    this.invulnerableTimer = 0;
+
     this.nodes = [];
-    const radii = cls.radii || [12.5, 14.2, 14.8, 13.8, 14.8];
+    const radii = cls.radii || [8.5, 9.8, 10.2, 9.5, 10.2];
     for (let i = 0; i < this.numNodes; i++) {
       const x = startX + i * this.extendedSegLen;
       const y = startY;
@@ -249,7 +274,7 @@ export class Caterpillar {
         y,
         vx: 0,
         vy: 0,
-        r: radii[i] || 16,
+        r: radii[i] || 10,
         mass: cls.massMult || 1.0,
         onGround: false,
         groundSlopeGrade: 0,
@@ -372,6 +397,30 @@ export class Caterpillar {
       anchor.aphidRef = null;
     }
 
+    // Fling / Eject grabbable enemy Hedgehogs!
+    if (anchor.hedgehogRef) {
+      const hedgehog = anchor.hedgehogRef;
+      hedgehog.isHeld = false;
+      hedgehog.isFlying = true;
+
+      let { dx, dy } = this.getFrontVector();
+      if (!isFront) { dx = -dx; dy = -dy; }
+
+      const boost = (this.extensionTimer > 0 ? 2.5 : 1.7);
+      const throwSpeed = (310 + (this.extensionMomentum.power || 0) * 350) * boost;
+      hedgehog.vx = node.vx * 0.8 + dx * throwSpeed;
+      hedgehog.vy = node.vy * 0.8 + dy * throwSpeed - 130;
+      hedgehog.squashX = 1.45;
+      hedgehog.squashY = 0.55;
+
+      sound.playLaunch(0.85);
+      if (particles) {
+        particles.spawnPopup(node.x, node.y - 28, 'HÉRISSON ÉJECTÉ ! 🦔🚀', '#ffd93b');
+        particles.spawnMud(node.x, node.y, -dx, -dy, 8, 0.75);
+      }
+      anchor.hedgehogRef = null;
+    }
+
     // Fling / Throw grabbable light props (like acorns) with inertia and aim!
     if (anchor.propRef) {
       const prop = anchor.propRef;
@@ -395,6 +444,7 @@ export class Caterpillar {
     anchor.slipping = false;
     anchor.propRef = null;
     anchor.aphidRef = null;
+    anchor.hedgehogRef = null;
     anchor.segRef = null;
     anchor.localPt = null;
     sound.playRelease(isFront);
@@ -499,6 +549,9 @@ export class Caterpillar {
     this.wiggleTime += safeDt * (3.0 + speed * 0.05);
     this.lastInputs = { ...inputs };
 
+    if (this.invulnerableTimer > 0) {
+      this.invulnerableTimer = Math.max(0, this.invulnerableTimer - safeDt);
+    }
     if (this.extensionMomentum.timer > 0) {
       this.extensionMomentum.timer = Math.max(0, this.extensionMomentum.timer - safeDt);
     }
@@ -512,15 +565,17 @@ export class Caterpillar {
     const rearRange = this.rear.r + gripDist;
     const headRange = this.head.r + gripDist;
 
+    const rearHedgehog = world.findClosestHedgehog ? world.findClosestHedgehog(this.rear.x, this.rear.y, rearRange) : null;
     const rearAphid = world.findClosestAphid(this.rear.x, this.rear.y, rearRange);
     const rearProp = world.findClosestPropSurface(this.rear.x, this.rear.y, rearRange);
-    const rearSurf = rearAphid || rearProp || world.findClosestSurface(this.rear.x, this.rear.y, rearRange);
+    const rearSurf = rearHedgehog || rearAphid || rearProp || world.findClosestSurface(this.rear.x, this.rear.y, rearRange);
     this.rearCanGrip = !!rearSurf;
     this.rearTargetPt = rearSurf ? { x: rearSurf.cx, y: rearSurf.cy } : null;
 
+    const headHedgehog = world.findClosestHedgehog ? world.findClosestHedgehog(this.head.x, this.head.y, headRange) : null;
     const headAphid = world.findClosestAphid(this.head.x, this.head.y, headRange);
     const headProp = world.findClosestPropSurface(this.head.x, this.head.y, headRange);
-    const headSurf = headAphid || headProp || world.findClosestSurface(this.head.x, this.head.y, headRange);
+    const headSurf = headHedgehog || headAphid || headProp || world.findClosestSurface(this.head.x, this.head.y, headRange);
     this.frontCanGrip = !!headSurf;
     this.frontTargetPt = headSurf ? { x: headSurf.cx, y: headSurf.cy } : null;
 
@@ -1652,6 +1707,38 @@ export class Caterpillar {
           }
         }
       }
+
+      // Hedgehogs (Hérissons): Spikes hurt on back/rear, safe on front snout!
+      if (world.hedgehogs) {
+        for (const h of world.hedgehogs) {
+          if (h.isHeld) continue;
+          const dx = n.x - h.x;
+          const dy = n.y - h.y;
+          const dist = Math.hypot(dx, dy) || 0.0001;
+          const minDist = n.r + h.radius;
+          if (dist < minDist) {
+            const nx = dx / dist;
+            const ny = dy / dist;
+            // Snout is in direction of h.facing (+1 right, -1 left)
+            const isFrontSnout = (nx * h.facing > 0.35) && (ny > -0.65);
+            if (!isFrontSnout) {
+              // Prickly spikes on back or rear!
+              const knockDirX = nx * 340;
+              const knockDirY = (ny < 0 ? ny * 340 : -220);
+              this.takeDamage(25, knockDirX, knockDirY, particles, sound);
+              h.squashX = 1.35;
+              h.squashY = 0.70;
+            } else {
+              // Soft front snout bump
+              const overlap = minDist - dist;
+              n.x += nx * overlap * 0.5;
+              n.y += ny * overlap * 0.5;
+              h.x -= nx * overlap * 0.5;
+              h.y -= ny * overlap * 0.5;
+            }
+          }
+        }
+      }
     }
 
     // Sticky Crumbs
@@ -1700,6 +1787,10 @@ export class Caterpillar {
         anchor.aphidRef.isHeld = false;
         anchor.aphidRef = null;
       }
+      if (anchor.hedgehogRef) {
+        anchor.hedgehogRef.isHeld = false;
+        anchor.hedgehogRef = null;
+      }
       anchor.propRef = null;
       anchor.segRef = null;
       anchor.localPt = null;
@@ -1707,6 +1798,19 @@ export class Caterpillar {
     }
 
     if (anchor.anchored) {
+      if (anchor.hedgehogRef) {
+        const hedgehog = anchor.hedgehogRef;
+        hedgehog.isHeld = true;
+        hedgehog.x = node.x;
+        hedgehog.y = node.y;
+        hedgehog.vx = node.vx;
+        hedgehog.vy = node.vy;
+
+        anchor.x = node.x;
+        anchor.y = node.y;
+        return;
+      }
+
       if (anchor.aphidRef) {
         const aphid = anchor.aphidRef;
         aphid.isHeld = true;
@@ -1853,6 +1957,41 @@ export class Caterpillar {
     const maxSurfaceGap = (GAMEPLAY_CONFIG.gripDistance || 26) + extraGrip + reachBonus;
     const suctionRange = node.r + maxSurfaceGap;
 
+    // Check grabbable enemy hedgehogs (safe front snout, dangerous spikes on back/rear!)
+    if (world.findClosestHedgehog) {
+      const hHit = world.findClosestHedgehog(node.x, node.y, suctionRange);
+      if (hHit) {
+        if (hHit.isFrontHead) {
+          anchor.anchored = true;
+          anchor.hedgehogRef = hHit.hedgehog;
+          anchor.aphidRef = null;
+          anchor.propRef = null;
+          anchor.segRef = null;
+          anchor.localPt = null;
+          anchor.slipping = false;
+          anchor.material = 'stem';
+          anchor.nx = hHit.nx;
+          anchor.ny = hHit.ny;
+          anchor.tx = hHit.tx;
+          anchor.ty = hHit.ty;
+          anchor.x = hHit.cx;
+          anchor.y = hHit.cy;
+          hHit.hedgehog.isHeld = true;
+
+          node.x = anchor.x;
+          node.y = anchor.y;
+
+          sound.playGrip(isFront);
+          particles.spawnSuctionRing(anchor.x, anchor.y, '#ffd93b');
+          particles.spawnPopup(node.x, node.y - 20, 'HÉRISSON SAISI ! 🦔', '#ffd93b');
+          return;
+        } else if (hHit.isSpiky) {
+          this.takeDamage(25, hHit.nx * 340, -220, particles, sound);
+          return;
+        }
+      }
+    }
+
     // Check grabbable enemy aphids first!
     const aphidHit = world.findClosestAphid(node.x, node.y, suctionRange);
     if (aphidHit) {
@@ -1970,6 +2109,11 @@ export class Caterpillar {
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
+    // Damage invulnerability blinking (i-frames visual feedback)
+    if (this.invulnerableTimer > 0 && Math.floor(time * 24) % 2 === 0) {
+      ctx.globalAlpha = 0.35;
+    }
+
     // 1. DENSE SMOOTH SPINE SPLINE (24 samples along 5-node skeleton)
     const samples = [];
     const numSamples = 24;
@@ -2012,7 +2156,7 @@ export class Caterpillar {
       // Natural slender inchworm caterpillar profile: tapers at tail and neck
       const profile = Math.sin(Math.pow(normS, 0.72) * Math.PI);
       const plump = 1 + this.contraction * 0.12;
-      const r = (10.5 + profile * 3.6) * plump;
+      const r = (7.8 + profile * 2.8) * plump;
 
       // Smooth Omega (Ω) arch during SPACE contraction (ZERO trembling noise!)
       // Note: Tail segment (normS <= 1/(N-1)) NEVER arches so it stays firmly planted on surface!
@@ -2393,7 +2537,7 @@ export class Caterpillar {
       ctx.scale(1, -1);
     }
 
-    const headR = 20.5;
+    const headR = 14.8;
 
     const bob = Math.sin(time * 7) * 2.0;
     ctx.strokeStyle = pal.outline;

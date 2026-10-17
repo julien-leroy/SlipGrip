@@ -125,6 +125,82 @@ html, body {
   font-size: 0.78rem;
 }
 
+/* Health Bar Card */
+.health-card {
+  gap: 10px;
+  padding: 8px 14px;
+}
+
+.health-heart {
+  font-size: 1.45rem;
+  line-height: 1;
+  display: inline-block;
+  animation: heartPulse 2.2s infinite ease-in-out;
+}
+
+@keyframes heartPulse {
+  0%, 100% { transform: scale(1); }
+  14% { transform: scale(1.22); }
+  28% { transform: scale(1); }
+  42% { transform: scale(1.14); }
+}
+
+.health-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 105px;
+}
+
+.health-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.health-label {
+  font-size: 0.68rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #7c5c38;
+}
+
+.health-value {
+  font-family: var(--font-display);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #2a1b0e;
+}
+
+.health-bar-wrap {
+  width: 100%;
+  height: 12px;
+  background: #e2d5b5;
+  border: 2px solid var(--card-border);
+  border-radius: 999px;
+  overflow: hidden;
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.2);
+}
+
+.health-bar-fill {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, #ff4757, #ffa502, #2ed573);
+  background-size: 200% 100%;
+  border-radius: 999px;
+  transition: width 0.25s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.health-bar-fill.danger {
+  background: #ff4757;
+  animation: pulseHealth 0.7s infinite;
+}
+
+@keyframes pulseHealth {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
 /* Timer & Progress */
 .timer-card {
   gap: 14px;

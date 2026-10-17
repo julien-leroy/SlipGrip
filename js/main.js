@@ -1,11 +1,11 @@
 // js/main.js — Main Game Loop, Hold-to-Grip Input Controller, Checkpoints, Camera & HUD Manager
 
-import { PhysicsWorld } from './physics.js?v=41';
-import { Caterpillar } from './caterpillar.js?v=41';
-import { ParticleSystem } from './particles.js?v=41';
-import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=41';
-import { sound } from './audio.js?v=41';
-import { GAMEPLAY_CONFIG, GAMEPLAY_PRESETS, applyPreset, saveGameplayConfig, resetGameplayConfig, saveAsDefaultGameplayConfig } from './gameplayConfig.js?v=41';
+import { PhysicsWorld } from './physics.js?v=42';
+import { Caterpillar } from './caterpillar.js?v=42';
+import { ParticleSystem } from './particles.js?v=42';
+import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=42';
+import { sound } from './audio.js?v=42';
+import { GAMEPLAY_CONFIG, GAMEPLAY_PRESETS, applyPreset, saveGameplayConfig, resetGameplayConfig, saveAsDefaultGameplayConfig } from './gameplayConfig.js?v=42';
 
 class SlipGripGame {
   constructor() {
@@ -85,6 +85,10 @@ class SlipGripGame {
     this.elVictoryTime = document.getElementById('victory-time');
     this.elVictoryBest = document.getElementById('victory-best');
     this.elNewRecordBadge = document.getElementById('new-record-badge');
+
+    this.elHealthValue = document.getElementById('health-value');
+    this.elHealthFill = document.getElementById('health-bar-fill');
+    this.elHealthCard = document.getElementById('health-card');
 
     this.elHelpModal = document.getElementById('help-modal');
     this.elCosmeticsModal = document.getElementById('cosmetics-modal');
@@ -554,12 +558,14 @@ class SlipGripGame {
     this.camera.y = this.camera.focusY - (this.canvas.height / this.camera.scale) * 0.58;
   }
 
-  respawnAtCheckpoint() {
+  respawnAtCheckpoint(reason = 'CHECKPOINT ! 🚩') {
     this.caterpillar.reset(this.lastCheckpoint.x, this.lastCheckpoint.y);
+    this.caterpillar.hp = this.caterpillar.maxHp;
+    this.caterpillar.invulnerableTimer = 1.0;
     const com = this.caterpillar.centerOfMass;
     this.camera.focusX = com.x + 120;
     this.camera.focusY = com.y - 30;
-    this.particles.spawnPopup(this.lastCheckpoint.x + 70, this.lastCheckpoint.y - 30, 'CHECKPOINT ! 🚩', '#ffd93b');
+    this.particles.spawnPopup(this.lastCheckpoint.x + 70, this.lastCheckpoint.y - 30, reason, '#ffd93b');
   }
 
   checkCheckpoints() {
@@ -619,6 +625,20 @@ class SlipGripGame {
     this.elProgressFill.style.width = pct;
     this.elProgressBug.style.left = pct;
 
+    // Health bar update
+    const hp = Math.max(0, Math.round(this.caterpillar.hp));
+    const maxHp = this.caterpillar.maxHp || 100;
+    const hpPct = Math.max(0, Math.min(100, (hp / maxHp) * 100));
+    if (this.elHealthValue) {
+      this.elHealthValue.textContent = `${hp} / ${maxHp}`;
+    }
+    if (this.elHealthFill) {
+      this.elHealthFill.style.width = `${hpPct}%`;
+    }
+    if (this.elHealthCard) {
+      this.elHealthCard.classList.toggle('danger', hp <= 30);
+    }
+
     this.updateAnchorWidget(this.elRearWidget, this.elStateQ, this.elIconQ, this.caterpillar.rearAnchor, '🟣');
     this.updateAnchorWidget(this.elFrontWidget, this.elStateD, this.elIconD, this.caterpillar.frontAnchor, '🟢');
 
@@ -637,6 +657,14 @@ class SlipGripGame {
       widgetEl.classList.add('stuck');
       stateEl.textContent = 'ENGLUÉE ! (ESPACE)';
       iconEl.textContent = '🍯';
+    } else if (anchor.hedgehogRef) {
+      widgetEl.classList.add('anchored');
+      stateEl.textContent = 'AGRIPPÉE (HÉRISSON !)';
+      iconEl.textContent = '🦔';
+    } else if (anchor.aphidRef) {
+      widgetEl.classList.add('anchored');
+      stateEl.textContent = 'AGRIPPÉE (PUCERON)';
+      iconEl.textContent = '🐛';
     } else if (anchor.propRef) {
       widgetEl.classList.add('anchored');
       stateEl.textContent = anchor.propRef.type === 'pinecone' ? 'AGRIPPÉE (POMME DE PIN)' : 'AGRIPPÉE (GLAND)';
@@ -673,8 +701,17 @@ class SlipGripGame {
     this.checkCheckpoints();
 
     const com = this.caterpillar.centerOfMass;
+    if (this.caterpillar.hp <= 0) {
+      sound.playBoing();
+      this.particles.spawnPopup(com.x, com.y - 30, 'K.O. ! 💥', '#ff4757');
+      this.respawnAtCheckpoint('RÉAPPARITION ! ❤️');
+      return;
+    }
+
     if (com.y > 1020) {
-      this.respawnAtCheckpoint();
+      sound.playBoing();
+      this.particles.spawnPopup(com.x, com.y - 30, 'CHUTE DANS LE VIDE ! 🕳️', '#ff4757');
+      this.respawnAtCheckpoint('RÉAPPARITION ! ❤️');
       return;
     }
 
