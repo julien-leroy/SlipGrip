@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=43';
-import { sound } from './audio.js?v=43';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=43';
+import { MATERIALS } from './physics.js?v=47';
+import { sound } from './audio.js?v=47';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=47';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -13,6 +13,17 @@ export const COSMETIC_PALETTES = {
     spots: '#fffa75',
     outline: '#13361f',
     cheek: '#ff7675'
+  },
+  monarch: {
+    name: 'Monarque Zébré',
+    bodyTop: '#ffa502',
+    bodyFill: '#ff7f50',
+    bodyShade: '#2f3542',
+    belly: '#ffffff',
+    spots: '#ffffff',
+    outline: '#1e272e',
+    cheek: '#ff4757',
+    isStriped: true
   },
   axolotl: {
     name: 'Rose Bonbon',
@@ -45,7 +56,7 @@ export const COSMETIC_PALETTES = {
     cheek: '#ff5252'
   },
   cosmic: {
-    name: 'Lavande',
+    name: 'Nébuleuse',
     bodyTop: '#e0d6ff',
     bodyFill: '#a29bfe',
     bodyShade: '#6c5ce7',
@@ -63,6 +74,26 @@ export const COSMETIC_PALETTES = {
     spots: '#ffffff',
     outline: '#362404',
     cheek: '#ff595e'
+  },
+  shadow: {
+    name: 'Ombre Nocturne',
+    bodyTop: '#57606f',
+    bodyFill: '#2f3542',
+    bodyShade: '#1e272e',
+    belly: '#70a1ff',
+    spots: '#7bed9f',
+    outline: '#000000',
+    cheek: '#ff6b81'
+  },
+  ruby: {
+    name: 'Rubis Flamme',
+    bodyTop: '#ff6b6b',
+    bodyFill: '#ee5253',
+    bodyShade: '#c0392b',
+    belly: '#ffeaa7',
+    spots: '#ffd32a',
+    outline: '#2c000e',
+    cheek: '#ff4757'
   }
 };
 
@@ -468,17 +499,33 @@ export class Caterpillar {
       let { dx, dy } = this.getFrontVector();
       if (!isFront) { dx = -dx; dy = -dy; }
 
-      const boost = (this.extensionTimer > 0 ? 2.5 : 1.7);
-      const throwSpeed = (310 + (this.extensionMomentum.power || 0) * 350) * boost;
-      hedgehog.vx = node.vx * 0.8 + dx * throwSpeed;
-      hedgehog.vy = node.vy * 0.8 + dy * throwSpeed - 130;
+      const steerX = (this.lastInputs.right ? 1 : 0) - (this.lastInputs.left ? 1 : 0);
+      const steerY = (this.lastInputs.up ? -1 : 0) + (this.lastInputs.down ? 1 : 0);
+      let aimX = dx;
+      let aimY = dy;
+      if (steerX !== 0 || steerY !== 0) {
+        const sLen = Math.hypot(steerX, steerY) || 1;
+        aimX = dx * 0.35 + (steerX / sLen) * 0.65;
+        aimY = dy * 0.35 + (steerY / sLen) * 0.65;
+        const aLen = Math.hypot(aimX, aimY) || 1;
+        aimX /= aLen;
+        aimY /= aLen;
+      }
+
+      const chargeT = (this.extensionMomentum && this.extensionMomentum.chargeTime) || this.chargeDuration || 0;
+      const boost = (this.extensionTimer > 0 || chargeT >= 1.0) ? 2.5 : 1.5;
+      const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength') ? 1.6 : 1.0;
+      const throwSpeed = (290 + Math.pow(Math.min(1.0, chargeT / 3.0), 2.0) * 360) * boost * strengthMult;
+
+      hedgehog.vx = node.vx * 0.7 + aimX * throwSpeed;
+      hedgehog.vy = node.vy * 0.7 + aimY * throwSpeed - 120;
       hedgehog.squashX = 1.45;
       hedgehog.squashY = 0.55;
 
       sound.playLaunch(0.85);
       if (particles) {
         particles.spawnPopup(node.x, node.y - 28, 'HÉRISSON ÉJECTÉ ! 🦔🚀', '#ffd93b');
-        particles.spawnMud(node.x, node.y, -dx, -dy, 8, 0.75);
+        particles.spawnMud(node.x, node.y, -aimX, -aimY, 8, 0.75);
       }
       anchor.hedgehogRef = null;
     }
@@ -486,18 +533,37 @@ export class Caterpillar {
     // Fling / Throw grabbable light props (like acorns) with inertia and aim!
     if (anchor.propRef) {
       const prop = anchor.propRef;
-      if (prop.type === 'acorn' || prop.mass < 15) {
+      if (prop.type === 'acorn' || prop.mass < 15 || (this.bodyClass && this.bodyClass.massMult > 1.4)) {
         let { dx, dy } = this.getFrontVector();
         if (!isFront) { dx = -dx; dy = -dy; }
 
-        const boost = (this.extensionTimer > 0 ? 2.4 : 1.6);
-        const throwSpeed = (280 + (this.extensionMomentum.power || 0) * 320) * boost;
-        prop.vx = node.vx * 0.8 + dx * throwSpeed;
-        prop.vy = node.vy * 0.8 + dy * throwSpeed - 110;
+        const steerX = (this.lastInputs.right ? 1 : 0) - (this.lastInputs.left ? 1 : 0);
+        const steerY = (this.lastInputs.up ? -1 : 0) + (this.lastInputs.down ? 1 : 0);
+        let aimX = dx;
+        let aimY = dy;
+        if (steerX !== 0 || steerY !== 0) {
+          const sLen = Math.hypot(steerX, steerY) || 1;
+          aimX = dx * 0.35 + (steerX / sLen) * 0.65;
+          aimY = dy * 0.35 + (steerY / sLen) * 0.65;
+          const aLen = Math.hypot(aimX, aimY) || 1;
+          aimX /= aLen;
+          aimY /= aLen;
+        }
+
+        const chargeT = (this.extensionMomentum && this.extensionMomentum.chargeTime) || this.chargeDuration || 0;
+        const boost = (this.extensionTimer > 0 || chargeT >= 1.0) ? 2.5 : 1.5;
+        const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength') ? 1.6 : 1.0;
+        const clsMass = (this.bodyClass && this.bodyClass.massMult) || 1.0;
+        const throwSpeed = (260 + Math.pow(Math.min(1.0, chargeT / 3.0), 2.0) * 350) * boost * strengthMult * (clsMass > 1.2 ? 1.35 : 1.0);
+
+        prop.vx = node.vx * 0.7 + aimX * throwSpeed;
+        prop.vy = node.vy * 0.7 + aimY * throwSpeed - 95;
+        prop.angVel = aimX * 14.0;
+
         sound.playLaunch(0.70);
         if (particles) {
           particles.spawnPopup(node.x, node.y - 24, 'LANCÉ ! 🌰🚀', '#ffd93b');
-          particles.spawnMud(node.x, node.y, -dx, -dy, 7, 0.65);
+          particles.spawnMud(node.x, node.y, -aimX, -aimY, 7, 0.65);
         }
       }
     }
@@ -801,34 +867,62 @@ export class Caterpillar {
     const steerX = (inputs.right ? 1 : 0) - (inputs.left ? 1 : 0);
     const steerY = (inputs.up ? -1 : 0) + (inputs.down ? 1 : 0);
 
+    if (this.bodyClass && this.bodyClass.canJump === false) {
+      // Mastodonte is too heavy to jump!
+      sound.playSticky(false);
+      if (particles) {
+        particles.spawnPopup(this.head.x, this.head.y - 20, 'TROP LOURD POUR SAUTER ! 🦣', '#ffd93b');
+      }
+      return;
+    }
+
     const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
     const jumpBoostMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.00) * clsJump;
     const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength') ? 1.55 : 1.0;
     const speedMult = (this.activePowerUp && this.activePowerUp.type === 'speed') ? 1.35 : 1.0;
 
-    // 1. Average direction of all body segments (organic spine orientation)
-    let avgDx = 0;
-    let avgDy = 0;
-    for (let i = 0; i < N - 1; i++) {
-      const segDx = this.nodes[i + 1].x - this.nodes[i].x;
-      const segDy = this.nodes[i + 1].y - this.nodes[i].y;
-      const len = Math.hypot(segDx, segDy) || 1;
-      avgDx += segDx / len;
-      avgDy += segDy / len;
-    }
-    const avgLen = Math.hypot(avgDx, avgDy) || 1;
-    avgDx /= avgLen;
-    avgDy /= avgLen;
+    const frontWasAnchored = this.frontAnchor.anchored;
+    const rearWasAnchored = this.rearAnchor.anchored;
 
-    let aimX = avgDx;
-    let aimY = avgDy;
+    // 1. Spring Impulsion Direction:
+    // If FRONT was anchored on ground and TAIL was free in the air:
+    // The spring uncoils towards where the TAIL is pointing!
+    // If REAR was anchored on ground and HEAD was free in the air:
+    // The spring uncoils towards where the HEAD is pointing!
+    let freeEndDx = 0;
+    let freeEndDy = 0;
+
+    if (frontWasAnchored && !rearWasAnchored) {
+      for (let i = N - 1; i > 0; i--) {
+        const segDx = this.nodes[i - 1].x - this.nodes[i].x;
+        const segDy = this.nodes[i - 1].y - this.nodes[i].y;
+        const len = Math.hypot(segDx, segDy) || 1;
+        freeEndDx += segDx / len;
+        freeEndDy += segDy / len;
+      }
+    } else {
+      for (let i = 0; i < N - 1; i++) {
+        const segDx = this.nodes[i + 1].x - this.nodes[i].x;
+        const segDy = this.nodes[i + 1].y - this.nodes[i].y;
+        const len = Math.hypot(segDx, segDy) || 1;
+        freeEndDx += segDx / len;
+        freeEndDy += segDy / len;
+      }
+    }
+
+    const freeLen = Math.hypot(freeEndDx, freeEndDy) || 1;
+    freeEndDx /= freeLen;
+    freeEndDy /= freeLen;
+
+    let aimX = freeEndDx;
+    let aimY = freeEndDy;
     if (steerX !== 0 || steerY !== 0) {
       const sDist = Math.hypot(steerX, steerY) || 1;
       const keyAimX = steerX / sDist;
       const keyAimY = (steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist;
       const kLen = Math.hypot(keyAimX, keyAimY) || 1;
-      aimX = avgDx * 0.55 + (keyAimX / kLen) * 0.45;
-      aimY = avgDy * 0.55 + (keyAimY / kLen) * 0.45;
+      aimX = freeEndDx * 0.45 + (keyAimX / kLen) * 0.55;
+      aimY = freeEndDy * 0.45 + (keyAimY / kLen) * 0.55;
       const len = Math.hypot(aimX, aimY) || 1;
       aimX /= len;
       aimY /= len;
@@ -839,6 +933,14 @@ export class Caterpillar {
     const quadPower = normPower * normPower;
     this.launchSpineDir = { x: aimX, y: aimY };
     this.launchSpinePower = quadPower;
+
+    // If holding a prop/enemy with one paw while the other was anchored to ground:
+    // The spring uncoiling catapults the object!
+    if (this.frontAnchor.propRef && !this.rearAnchor.propRef) {
+      this.releaseAnchor(this.frontAnchor, true, particles);
+    } else if (this.rearAnchor.propRef && !this.frontAnchor.propRef) {
+      this.releaseAnchor(this.rearAnchor, false, particles);
+    }
 
     // Release any anchor grips so the caterpillar can jump into the air with momentum
     if (this.rearAnchor.anchored) {
@@ -858,7 +960,8 @@ export class Caterpillar {
 
     for (let i = 0; i < N; i++) {
       const trunkBonus = Math.sin((i / (N - 1)) * Math.PI) * 0.18;
-      const frontBonus = 0.88 + 0.12 * (i / (N - 1)) + trunkBonus;
+      const biasIdx = (frontWasAnchored && !rearWasAnchored) ? (N - 1 - i) : i;
+      const frontBonus = 0.88 + 0.12 * (biasIdx / (N - 1)) + trunkBonus;
       this.nodes[i].vx = aimX * jumpSpeed * frontBonus;
       this.nodes[i].vy = aimY * jumpSpeed * frontBonus;
       this.nodes[i].onGround = false;
@@ -877,95 +980,162 @@ export class Caterpillar {
   // that segment (0-1 for rear, N-2 to N-1 for front) remains glued flat against the surface.
   // It cannot rotate; rotations and steering are performed exclusively on the other segments!
   // When released, the segment unpins and smoothly blends back into the soft-body dynamics.
+  // Locked segment alignment: when a paw grabs a surface (rear foot or front foot),
+  // that segment remains glued flat against the surface during resting and crawling.
+  // When both feet are anchored, or when bending, it forms an elegant Omega arch (Ω) without pinching!
   enforceGrippedSegmentLocks(curSegLen = this.extendedSegLen) {
     const N = this.numNodes;
     if (N < 3) return;
 
+    const bothAnchored = this.rearAnchor.anchored && this.frontAnchor.anchored;
+    if (bothAnchored) {
+      // BOTH paws are anchored: the caterpillar forms a clean, beautiful Omega arch (Ω)!
+      // The body rises away from the ground along the surface normal.
+      // Interior nodes arch smoothly without folding, pinching, or crossing each other!
+      const headIdx = N - 1;
+      const rNode = this.nodes[0];
+      const hNode = this.nodes[headIdx];
+
+      // Surface normal (pointing out of ground)
+      let upX = 0;
+      let upY = -1;
+      if (this.rearAnchor.propRef && this.rearAnchor.propRef === this.frontAnchor.propRef) {
+        const prop = this.rearAnchor.propRef;
+        const midAx = (rNode.x + hNode.x) * 0.5 - prop.x;
+        const midAy = (rNode.y + hNode.y) * 0.5 - prop.y;
+        const mLen = Math.hypot(midAx, midAy) || 1;
+        upX = midAx / mLen;
+        upY = midAy / mLen;
+      } else {
+        const rNx = this.rearAnchor.nx || 0;
+        const rNy = this.rearAnchor.ny !== undefined ? this.rearAnchor.ny : -1;
+        const fNx = this.frontAnchor.nx || 0;
+        const fNy = this.frontAnchor.ny !== undefined ? this.frontAnchor.ny : -1;
+        upX = (rNx + fNx) * 0.5;
+        upY = (rNy + fNy) * 0.5;
+        const uLen = Math.hypot(upX, upY) || 1;
+        upX /= uLen;
+        upY /= uLen;
+      }
+
+      const chordX = hNode.x - rNode.x;
+      const chordY = hNode.y - rNode.y;
+      const chordDist = Math.hypot(chordX, chordY);
+
+      // Height of the Omega arch: rises gracefully with contraction!
+      const archVisual = GAMEPLAY_CONFIG.omegaArchVisual !== undefined ? GAMEPLAY_CONFIG.omegaArchVisual : 1.0;
+      const naturalArchH = Math.max(16, (this.fullLength - chordDist) * 0.48 + 18);
+      const archHeight = (naturalArchH + this.contraction * 34) * archVisual;
+
+      for (let i = 1; i < N - 1; i++) {
+        const t = i / (N - 1);
+        const baseX = rNode.x + chordX * t;
+        const baseY = rNode.y + chordY * t;
+        const archLift = Math.sin(t * Math.PI) * archHeight;
+
+        const targetX = baseX + upX * archLift;
+        const targetY = baseY + upY * archLift;
+
+        const blend = 0.50 + this.contraction * 0.35;
+        this.nodes[i].x += (targetX - this.nodes[i].x) * blend;
+        this.nodes[i].y += (targetY - this.nodes[i].y) * blend;
+        this.nodes[i].vx *= 0.55;
+        this.nodes[i].vy *= 0.55;
+      }
+      return;
+    }
+
+    // Only one paw anchored:
     // 1. Rear gripped segment lock (Segment 0 between Node 0 and Node 1)
     if (this.rearAnchor.anchored && !this.rearAnchor.slipping) {
-      if (this.rearAnchor.propRef) {
-        const prop = this.rearAnchor.propRef;
-        const rdx = this.rearAnchor.x - prop.x;
-        const rdy = this.rearAnchor.y - prop.y;
-        const rAng = Math.atan2(rdy, rdx);
-        const effR = prop.radius * 0.95 + this.nodes[0].r * 0.80;
+      const isRearingHigh = (this.rearingProgress || 0) > 0.70;
+      const isCoiling = this.contraction > 0.15;
 
-        const hAng = Math.atan2(this.head.y - prop.y, this.head.x - prop.x);
-        let diff = hAng - rAng;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        const sign = diff >= 0 ? 1 : -1;
+      if (!isRearingHigh && !isCoiling) {
+        if (this.rearAnchor.propRef) {
+          const prop = this.rearAnchor.propRef;
+          const rdx = this.rearAnchor.x - prop.x;
+          const rdy = this.rearAnchor.y - prop.y;
+          const rAng = Math.atan2(rdy, rdx);
+          const effR = prop.radius * 0.95 + this.nodes[0].r * 0.80;
 
-        const wrapAngle = rAng + sign * (curSegLen / Math.max(10, effR));
-        this.nodes[1].x = prop.x + Math.cos(wrapAngle) * effR;
-        this.nodes[1].y = prop.y + Math.sin(wrapAngle) * effR;
-        this.nodes[1].vx = prop.vx || 0;
-        this.nodes[1].vy = prop.vy || 0;
-      } else {
-        let tx = this.rearAnchor.tx;
-        let ty = this.rearAnchor.ty;
-        if (tx === undefined || (tx === 0 && ty === 0)) {
-          const nx = this.rearAnchor.nx || 0;
-          const ny = this.rearAnchor.ny !== undefined ? this.rearAnchor.ny : -1;
-          tx = -ny;
-          ty = nx;
+          const hAng = Math.atan2(this.head.y - prop.y, this.head.x - prop.x);
+          let diff = hAng - rAng;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          const sign = diff >= 0 ? 1 : -1;
+
+          const wrapAngle = rAng + sign * (curSegLen / Math.max(10, effR));
+          this.nodes[1].x = prop.x + Math.cos(wrapAngle) * effR;
+          this.nodes[1].y = prop.y + Math.sin(wrapAngle) * effR;
+          this.nodes[1].vx = prop.vx || 0;
+          this.nodes[1].vy = prop.vy || 0;
+        } else {
+          let tx = this.rearAnchor.tx;
+          let ty = this.rearAnchor.ty;
+          if (tx === undefined || (tx === 0 && ty === 0)) {
+            const nx = this.rearAnchor.nx || 0;
+            const ny = this.rearAnchor.ny !== undefined ? this.rearAnchor.ny : -1;
+            tx = -ny;
+            ty = nx;
+          }
+          const toHeadX = this.head.x - this.nodes[0].x;
+          const toHeadY = this.head.y - this.nodes[0].y;
+          const dot = toHeadX * tx + toHeadY * ty;
+          const sign = dot >= 0 ? 1 : -1;
+
+          this.nodes[1].x = this.nodes[0].x + tx * sign * curSegLen;
+          this.nodes[1].y = this.nodes[0].y + ty * sign * curSegLen;
+          this.nodes[1].vx = 0;
+          this.nodes[1].vy = 0;
         }
-        const toHeadX = this.head.x - this.nodes[0].x;
-        const toHeadY = this.head.y - this.nodes[0].y;
-        const dot = toHeadX * tx + toHeadY * ty;
-        const sign = dot >= 0 ? 1 : -1;
-
-        this.nodes[1].x = this.nodes[0].x + tx * sign * curSegLen;
-        this.nodes[1].y = this.nodes[0].y + ty * sign * curSegLen;
-        this.nodes[1].vx = 0;
-        this.nodes[1].vy = 0;
       }
     }
 
     // 2. Front gripped segment lock (Segment N-2 between Node N-2 and Node N-1)
-    const bothOnSameProp = this.rearAnchor.anchored && this.frontAnchor.anchored && this.rearAnchor.propRef && (this.rearAnchor.propRef === this.frontAnchor.propRef);
-    const frontLocked = this.frontAnchor.anchored && !this.frontAnchor.slipping && (!this.frontAnchor.propRef || this.frontAnchor.propRef.mass >= 15 || bothOnSameProp || this.rearAnchor.anchored);
-
-    if (frontLocked) {
+    if (this.frontAnchor.anchored && !this.frontAnchor.slipping && (!this.frontAnchor.propRef || this.frontAnchor.propRef.mass >= 15)) {
+      const isCoiling = this.contraction > 0.15;
       const headIdx = N - 1;
       const neckIdx = N - 2;
 
-      if (this.frontAnchor.propRef) {
-        const prop = this.frontAnchor.propRef;
-        const fdx = this.frontAnchor.x - prop.x;
-        const fdy = this.frontAnchor.y - prop.y;
-        const fAng = Math.atan2(fdy, fdx);
-        const effR = prop.radius * 0.95 + this.nodes[headIdx].r * 0.80;
+      if (!isCoiling) {
+        if (this.frontAnchor.propRef) {
+          const prop = this.frontAnchor.propRef;
+          const fdx = this.frontAnchor.x - prop.x;
+          const fdy = this.frontAnchor.y - prop.y;
+          const fAng = Math.atan2(fdy, fdx);
+          const effR = prop.radius * 0.95 + this.nodes[headIdx].r * 0.80;
 
-        const rAng = Math.atan2(this.rear.y - prop.y, this.rear.x - prop.x);
-        let diff = rAng - fAng;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        const sign = diff >= 0 ? 1 : -1;
+          const rAng = Math.atan2(this.rear.y - prop.y, this.rear.x - prop.x);
+          let diff = rAng - fAng;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          const sign = diff >= 0 ? 1 : -1;
 
-        const wrapAngle = fAng + sign * (curSegLen / Math.max(10, effR));
-        this.nodes[neckIdx].x = prop.x + Math.cos(wrapAngle) * effR;
-        this.nodes[neckIdx].y = prop.y + Math.sin(wrapAngle) * effR;
-        this.nodes[neckIdx].vx = prop.vx || 0;
-        this.nodes[neckIdx].vy = prop.vy || 0;
-      } else {
-        let tx = this.frontAnchor.tx;
-        let ty = this.frontAnchor.ty;
-        if (tx === undefined || (tx === 0 && ty === 0)) {
-          const nx = this.frontAnchor.nx || 0;
-          const ny = this.frontAnchor.ny !== undefined ? this.frontAnchor.ny : -1;
-          tx = -ny;
-          ty = nx;
+          const wrapAngle = fAng + sign * (curSegLen / Math.max(10, effR));
+          this.nodes[neckIdx].x = prop.x + Math.cos(wrapAngle) * effR;
+          this.nodes[neckIdx].y = prop.y + Math.sin(wrapAngle) * effR;
+          this.nodes[neckIdx].vx = prop.vx || 0;
+          this.nodes[neckIdx].vy = prop.vy || 0;
+        } else {
+          let tx = this.frontAnchor.tx;
+          let ty = this.frontAnchor.ty;
+          if (tx === undefined || (tx === 0 && ty === 0)) {
+            const nx = this.frontAnchor.nx || 0;
+            const ny = this.frontAnchor.ny !== undefined ? this.frontAnchor.ny : -1;
+            tx = -ny;
+            ty = nx;
+          }
+          const toTailX = this.rear.x - this.nodes[headIdx].x;
+          const toTailY = this.rear.y - this.nodes[headIdx].y;
+          const dot = toTailX * tx + toTailY * ty;
+          const sign = dot >= 0 ? 1 : -1;
+
+          this.nodes[neckIdx].x = this.nodes[headIdx].x + tx * sign * curSegLen;
+          this.nodes[neckIdx].y = this.nodes[headIdx].y + ty * sign * curSegLen;
+          this.nodes[neckIdx].vx = 0;
+          this.nodes[neckIdx].vy = 0;
         }
-        const toRearX = this.rear.x - this.nodes[headIdx].x;
-        const toRearY = this.rear.y - this.nodes[headIdx].y;
-        const dot = toRearX * tx + toRearY * ty;
-        const sign = dot >= 0 ? 1 : -1;
-
-        this.nodes[neckIdx].x = this.nodes[headIdx].x + tx * sign * curSegLen;
-        this.nodes[neckIdx].y = this.nodes[headIdx].y + ty * sign * curSegLen;
-        this.nodes[neckIdx].vx = 0;
-        this.nodes[neckIdx].vy = 0;
       }
     }
   }
@@ -1186,9 +1356,13 @@ export class Caterpillar {
 
             for (let i = 2; i < N; i++) {
               const t = (i - 1) / (N - 2);
-              const threshold = (1.0 - t) * 0.35;
-              const segProg = Math.max(0, Math.min(1, (this.rearingProgress - threshold) / (1.0 - threshold)));
-              const spineCurve = 0.30 + 0.70 * t;
+              // Progressive biological rearing:
+              // At low rearing progress, more than half the body (nodes 0, 1, 2 = 60%) stays grounded on the surface!
+              // Node 2 stays flat on the surface until rearingProgress > 0.42.
+              // Then node 2 gradually lifts off, rising up onto the hind legs/prolegs (nodes 0 and 1).
+              const threshold = Math.pow(1.0 - t, 0.85) * 0.58;
+              const segProg = Math.max(0, Math.min(1, (this.rearingProgress - threshold) / Math.max(0.01, 1.0 - threshold)));
+              const spineCurve = 0.25 + 0.75 * t;
               const segAngle = surfAngle + spinalDiff * (segProg * spineCurve);
 
               const rearedX = tx[i - 1] + Math.cos(segAngle) * bodySegLen;
@@ -1201,8 +1375,10 @@ export class Caterpillar {
                 tx[i] = wrapX * (1 - segProg) + rearedX * segProg;
                 ty[i] = wrapY * (1 - segProg) + rearedY * segProg;
               } else {
-                tx[i] = rearedX;
-                ty[i] = rearedY;
+                const groundX = tx[0] + surfTx * (bodySegLen * i);
+                const groundY = ty[0] + surfTy * (bodySegLen * i);
+                tx[i] = groundX * (1 - segProg) + rearedX * segProg;
+                ty[i] = groundY * (1 - segProg) + rearedY * segProg;
               }
 
               const errX = tx[i] - this.nodes[i].x;
@@ -1323,24 +1499,23 @@ export class Caterpillar {
 
             // 3. Vertical tail control (Up / Down arrows):
             // - Down arrow: presses tail firmly against ground/surface for easy Q gripping
-            // - Up arrow: lifts tail in a gentle low arch, ONLY if front has several segments on ground,
-            //   and strictly clamped so it never stands vertical like a stick ("pas trop vers le haut")!
+            // - Up arrow: lifts and arches the tail to aim direction before launching or flinging
             if (effSteerY > 0) {
               // Press tail down
-              const downForce = 550 * resp * dt;
+              const downForce = 580 * resp * dt;
               for (let i = 0; i < N - 2; i++) {
                 const ratio = (N - 2 - i) / (N - 2);
                 this.nodes[i].vy += downForce * ratio;
               }
-            } else if (effSteerY < 0 && frontSupportRatio > 0.3) {
-              // Lift tail slightly, scaled by support ratio
-              const liftForce = 420 * frontSupportRatio * resp * dt;
+            } else if (effSteerY < 0) {
+              // Lift tail up! Responsive lift to point tail upward or diagonally
+              const liftForce = 640 * resp * dt;
               for (let i = 0; i < N - 2; i++) {
-                const ratio = Math.pow((N - 2 - i) / (N - 2), 1.25);
+                const ratio = Math.pow((N - 2 - i) / (N - 2), 0.95);
                 this.nodes[i].vy -= liftForce * ratio;
               }
-              // Strict ceiling clamp: tail can NEVER rise higher than a small gentle arch (~32px above front anchor)
-              const maxTailElevation = this.frontAnchor.y - 32;
+              // Ceiling clamp: allows generous natural lift (up to 75px above front anchor)
+              const maxTailElevation = this.frontAnchor.y - 75;
               if (tail.y < maxTailElevation) {
                 tail.y = maxTailElevation;
                 tail.vy = Math.max(0, tail.vy);
@@ -2406,26 +2581,38 @@ export class Caterpillar {
 
     // Pass 2: Calculate smooth tangents & true perpendicular normals on the bent spine
     // (Prevents any self-intersection, pinching, or polygon tearing artifacts!)
+    const rawTangents = [];
+    for (let s = 0; s < numSamples; s++) {
+      const prev = centerPoints[Math.max(0, s - 1)];
+      const next = centerPoints[Math.min(numSamples - 1, s + 1)];
+      let tx = next.x - prev.x;
+      let ty = next.y - prev.y;
+      if (s === 0) {
+        tx = next.x - centerPoints[0].x;
+        ty = next.y - centerPoints[0].y;
+      } else if (s === numSamples - 1) {
+        tx = centerPoints[numSamples - 1].x - prev.x;
+        ty = centerPoints[numSamples - 1].y - prev.y;
+      }
+      const tLen = Math.hypot(tx, ty) || 1;
+      rawTangents.push({ ux: tx / tLen, uy: ty / tLen });
+    }
+
     const samples = [];
     const sizeMult = this.sizeScale || 1.0;
 
     for (let s = 0; s < numSamples; s++) {
       const pt = centerPoints[s];
-      const prev = centerPoints[Math.max(0, s - 1)];
-      const next = centerPoints[Math.min(numSamples - 1, s + 1)];
 
-      let tx = next.x - prev.x;
-      let ty = next.y - prev.y;
-      if (s === 0) {
-        tx = next.x - pt.x;
-        ty = next.y - pt.y;
-      } else if (s === numSamples - 1) {
-        tx = pt.x - prev.x;
-        ty = pt.y - prev.y;
-      }
-      const tLen = Math.hypot(tx, ty) || 1;
-      const ux = tx / tLen;
-      const uy = ty / tLen;
+      // 3-tap smoothed tangent across adjacent samples (suppresses any local spline curvature spikes)
+      const pT = rawTangents[Math.max(0, s - 1)];
+      const cT = rawTangents[s];
+      const nT = rawTangents[Math.min(numSamples - 1, s + 1)];
+      let ux = pT.ux * 0.25 + cT.ux * 0.50 + nT.ux * 0.25;
+      let uy = pT.uy * 0.25 + cT.uy * 0.50 + nT.uy * 0.25;
+      const uLen = Math.hypot(ux, uy) || 1;
+      ux /= uLen;
+      uy /= uLen;
 
       // True perpendicular dorsal/ventral normal along the actual curved spine
       const nx = uy * this.dorsalSign;
@@ -2433,8 +2620,8 @@ export class Caterpillar {
 
       // Thick, plump, cute caterpillar profile (generous radius completely avoids pinched artifacts)
       const profile = Math.sin(Math.pow(pt.normS, 0.72) * Math.PI);
-      const plump = 1 + this.contraction * 0.14;
-      const r = (13.5 + profile * 4.8) * plump * sizeMult;
+      const plump = 1 + this.contraction * 0.12;
+      const r = (12.8 + profile * 4.2) * plump * sizeMult;
 
       const dx = pt.x + nx * r;
       const dy = pt.y + ny * r;
@@ -2645,14 +2832,31 @@ export class Caterpillar {
       ctx.stroke();
       ctx.restore();
 
-      // Cute spot on dorsal side of this segment
+      // Cute spot or monarch stripes on dorsal side of this segment
       ctx.save();
-      ctx.fillStyle = pal.spots;
-      ctx.beginPath();
-      const spotX = seg.x + seg.nx * (seg.r * 0.52);
-      const spotY = seg.y + seg.ny * (seg.r * 0.52);
-      ctx.ellipse(spotX, spotY, seg.r * 0.22, seg.r * 0.13, Math.atan2(seg.uy, seg.ux), 0, Math.PI * 2);
-      ctx.fill();
+      if (pal.isStriped) {
+        // Monarch butterfly caterpillar distinctive zebra tiger stripes
+        ctx.strokeStyle = '#1e272e';
+        ctx.lineWidth = 4.2;
+        ctx.beginPath();
+        ctx.moveTo(seg.x + seg.nx * (seg.r * 0.15), seg.y + seg.ny * (seg.r * 0.15));
+        ctx.lineTo(seg.dx, seg.dy);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.0;
+        ctx.beginPath();
+        ctx.moveTo(seg.x + seg.nx * (seg.r * 0.20) + seg.ux * 2, seg.y + seg.ny * (seg.r * 0.20) + seg.uy * 2);
+        ctx.lineTo(seg.dx + seg.ux * 2, seg.dy + seg.uy * 2);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = pal.spots;
+        ctx.beginPath();
+        const spotX = seg.x + seg.nx * (seg.r * 0.52);
+        const spotY = seg.y + seg.ny * (seg.r * 0.52);
+        ctx.ellipse(spotX, spotY, seg.r * 0.22, seg.r * 0.13, Math.atan2(seg.uy, seg.ux), 0, Math.PI * 2);
+        ctx.fill();
+      }
       ctx.restore();
     }
 
