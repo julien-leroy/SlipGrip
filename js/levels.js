@@ -29,6 +29,7 @@ export const LEVEL_DEFINITIONS = [
 
       // Grabbable Acorns & Pinecones in Section 1!
       world.addProp('acorn', 490, 505, 1.0);
+      world.addAphid(620, 540, 22, 530, 720);
       world.addProp('pinecone', 860, 465, 1.05);
       world.addProp('acorn', 1310, 385, 1.0);
 
@@ -65,6 +66,7 @@ export const LEVEL_DEFINITIONS = [
 
       // Acorns & Pinecones obstructing the branch & valley
       world.addProp('pinecone', 2740, 375, 1.1);
+      world.addAphid(2620, 500, 22, 2520, 2720);
       world.addProp('acorn', 2980, 390, 1.0);
       world.addProp('acorn', 2820, 525, 1.05);
 
@@ -329,7 +331,8 @@ export const LEVEL_DEFINITIONS = [
 
       world.addStickyCrumb(320, 532, 26);
       world.addProp('acorn', 390, 515, 1.0);
-
+      world.addAphid(450, 530, 22, 380, 560);
+ 
       // Soda Can overlay ramp
       world.addPolyline([
         [430, 548], [680, 448], [920, 368], [1020, 448]
@@ -365,6 +368,7 @@ export const LEVEL_DEFINITIONS = [
       ], 'can', { thickness: 28, isGroundMass: false });
 
       world.addMushroom(2810, 585, 42, 410, 0.16);
+      world.addAphid(2920, 445, 22, 2850, 3050);
       world.addProp('acorn', 2980, 430, 1.0);
       world.addStickyCrumb(3120, 478, 28);
 
@@ -1292,11 +1296,14 @@ export class LevelRenderer {
     ctx.scale(a.squashX * a.facing, a.squashY);
 
     const r = a.radius;
+    const isPanicking = a.isHeld || a.isFlying;
 
     ctx.strokeStyle = '#1b4332';
     ctx.lineWidth = 3;
+    const legFreq = isPanicking ? 24 : 8;
+    const legAmp = isPanicking ? 5.5 : 3;
     for (let lx = -10; lx <= 10; lx += 10) {
-      const legBob = Math.sin(time * 8 + lx) * 3;
+      const legBob = Math.sin(time * legFreq + lx) * legAmp;
       ctx.beginPath();
       ctx.moveTo(lx, r * 0.6);
       ctx.lineTo(lx + legBob, r + 4);
@@ -1311,16 +1318,37 @@ export class LevelRenderer {
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.arc(r * 0.45, -r * 0.2, 5.5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    if (isPanicking) {
+      // Big cartoon startled eyes
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(r * 0.35, -r * 0.25, 7.0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
 
-    ctx.fillStyle = '#1b4332';
-    ctx.beginPath();
-    ctx.arc(r * 0.55, -r * 0.2, 2.5, 0, Math.PI * 2);
-    ctx.fill();
+      ctx.fillStyle = '#1b4332';
+      ctx.beginPath();
+      ctx.arc(r * 0.35, -r * 0.25, 2.0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Open panicked mouth
+      ctx.fillStyle = '#ff6b6b';
+      ctx.beginPath();
+      ctx.arc(r * 0.75, 2, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(r * 0.45, -r * 0.2, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#1b4332';
+      ctx.beginPath();
+      ctx.arc(r * 0.55, -r * 0.2, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
     ctx.restore();
   }

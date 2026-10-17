@@ -1,6 +1,6 @@
 // js/physics.js — Stable 2D Physics World with Continuous Terrain & Heavy Boulder Pinecones / Acorns
 
-import { GAMEPLAY_CONFIG } from './gameplayConfig.js?v=40';
+import { GAMEPLAY_CONFIG } from './gameplayConfig.js?v=41';
 
 export const MATERIALS = {
   dirt:    { friction: 0.90, gripSlide: 0.0,  restitution: 0.05, name: 'Terre meuble' },
@@ -243,7 +243,10 @@ export class PhysicsWorld {
       patrolMaxX,
       squashX: 1,
       squashY: 1,
-      facing: 1
+      facing: 1,
+      isHeld: false,
+      isFlying: false,
+      mass: 3.5
     });
   }
 
@@ -288,30 +291,71 @@ export class PhysicsWorld {
       }
     }
 
-    // 3. Soft Aphids
+    // 3. Soft Squishy & Throwable Aphids
     for (const a of this.aphids) {
-      if (a.x < a.patrolMinX) a.vx = Math.abs(a.vx) + 12 * dt;
-      if (a.x > a.patrolMaxX) a.vx = -Math.abs(a.vx) - 12 * dt;
-      if (Math.abs(a.vx) < 14) a.vx += (a.facing || 1) * 18 * dt;
-      a.facing = a.vx >= 0 ? 1 : -1;
-
-      a.vy += this.gravity * dt;
-      a.x += a.vx * dt;
-      a.y += a.vy * dt;
-      a.vx *= 0.985;
+      if (a.isHeld) {
+        // While held by caterpillar, position is directly controlled by the foot/mouth
+        a.squashX += (0.82 - a.squashX) * Math.min(1, dt * 8);
+        a.squashY += (1.22 - a.squashY) * Math.min(1, dt * 8);
+        continue;
+      }
 
       a.squashX += (1 - a.squashX) * Math.min(1, dt * 8);
       a.squashY += (1 - a.squashY) * Math.min(1, dt * 8);
 
-      const hit = this.findClosestSurface(a.x, a.y, a.radius + 6);
-      if (hit && hit.dist < a.radius) {
-        const overlap = a.radius - hit.dist;
-        a.x += hit.nx * overlap;
-        a.y += hit.ny * overlap;
-        const vn = a.vx * hit.nx + a.vy * hit.ny;
-        if (vn < 0) {
-          a.vx -= hit.nx * vn * 1.1;
-          a.vy -= hit.ny * vn * 1.1;
+      const speed = Math.hypot(a.vx, a.vy);
+      if (speed > 45) {
+        a.isFlying = true;
+      }
+
+      if (a.isFlying) {
+        // Projectile trajectory through the air
+        a.vy += this.gravity * dt;
+        a.x += a.vx * dt;
+        a.y += a.vy * dt;
+        a.vx *= 0.992;
+        a.facing = a.vx >= 0 ? 1 : -1;
+
+        const hit = this.findClosestSurface(a.x, a.y, a.radius + 6);
+        if (hit && hit.dist < a.radius) {
+          const overlap = a.radius - hit.dist;
+          a.x += hit.nx * overlap;
+          a.y += hit.ny * overlap;
+          const vn = a.vx * hit.nx + a.vy * hit.ny;
+          if (vn < 0) {
+            a.vx -= hit.nx * vn * 1.45;
+            a.vy -= hit.ny * vn * 1.45;
+            a.squashX = 1.35;
+            a.squashY = 0.65;
+          }
+          if (Math.hypot(a.vx, a.vy) < 45) {
+            a.isFlying = false;
+            a.patrolMinX = a.x - 90;
+            a.patrolMaxX = a.x + 90;
+          }
+        }
+      } else {
+        // Standard gentle ground patrol
+        if (a.x < a.patrolMinX) a.vx = Math.abs(a.vx) + 12 * dt;
+        if (a.x > a.patrolMaxX) a.vx = -Math.abs(a.vx) - 12 * dt;
+        if (Math.abs(a.vx) < 14) a.vx += (a.facing || 1) * 18 * dt;
+        a.facing = a.vx >= 0 ? 1 : -1;
+
+        a.vy += this.gravity * dt;
+        a.x += a.vx * dt;
+        a.y += a.vy * dt;
+        a.vx *= 0.985;
+
+        const hit = this.findClosestSurface(a.x, a.y, a.radius + 6);
+        if (hit && hit.dist < a.radius) {
+          const overlap = a.radius - hit.dist;
+          a.x += hit.nx * overlap;
+          a.y += hit.ny * overlap;
+          const vn = a.vx * hit.nx + a.vy * hit.ny;
+          if (vn < 0) {
+            a.vx -= hit.nx * vn * 1.1;
+            a.vy -= hit.ny * vn * 1.1;
+          }
         }
       }
     }
@@ -452,6 +496,34 @@ export class PhysicsWorld {
           cx: p.x + nx * effRadius,
           cy: p.y + ny * effRadius,
           localAngle: worldAngle - p.angle
+        };
+      }
+    }
+    return best;
+  }
+
+  // Find closest enemy Aphid for grabbing/carrying/projecting
+  findClosestAphid(px, py, maxSurfaceDist) {
+    let best = null;
+    let bestDist = maxSurfaceDist;
+    for (const a of this.aphids) {
+      const dx = px - a.x;
+      const dy = py - a.y;
+      const centerDist = Math.hypot(dx, dy) || 0.0001;
+      const surfDist = centerDist - a.radius;
+      if (surfDist < bestDist) {
+        bestDist = surfDist;
+        const nx = dx / centerDist;
+        const ny = dy / centerDist;
+        best = {
+          aphid: a,
+          dist: surfDist,
+          nx,
+          ny,
+          tx: -ny,
+          ty: nx,
+          cx: a.x + nx * a.radius,
+          cy: a.y + ny * a.radius
         };
       }
     }

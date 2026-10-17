@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=40';
-import { sound } from './audio.js?v=40';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=40';
+import { MATERIALS } from './physics.js?v=41';
+import { sound } from './audio.js?v=41';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES } from './gameplayConfig.js?v=41';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -191,6 +191,7 @@ export class Caterpillar {
       anchored: false,
       slipping: false,
       propRef: null,
+      aphidRef: null,
       propLocalAngle: 0,
       stuckCrumb: null,
       stuckStrength: 0,
@@ -238,7 +239,7 @@ export class Caterpillar {
     this.fullLength = this.extendedSegLen * (this.numNodes - 1);
 
     this.nodes = [];
-    const radii = cls.radii || [15.5, 17.5, 18.0, 17.0, 18.0];
+    const radii = cls.radii || [12.5, 14.2, 14.8, 13.8, 14.8];
     for (let i = 0; i < this.numNodes; i++) {
       const x = startX + i * this.extendedSegLen;
       const y = startY;
@@ -347,18 +348,45 @@ export class Caterpillar {
   releaseAnchor(anchor, isFront, particles) {
     const node = isFront ? this.head : this.rear;
 
+    // Fling / Throw grabbable enemy aphids!
+    if (anchor.aphidRef) {
+      const aphid = anchor.aphidRef;
+      aphid.isHeld = false;
+      aphid.isFlying = true;
+
+      let { dx, dy } = this.getFrontVector();
+      if (!isFront) { dx = -dx; dy = -dy; }
+
+      const boost = (this.extensionTimer > 0 ? 2.5 : 1.7);
+      const throwSpeed = (300 + (this.extensionMomentum.power || 0) * 340) * boost;
+      aphid.vx = node.vx * 0.8 + dx * throwSpeed;
+      aphid.vy = node.vy * 0.8 + dy * throwSpeed - 120;
+      aphid.squashX = 1.45;
+      aphid.squashY = 0.55;
+
+      sound.playLaunch(0.85);
+      if (particles) {
+        particles.spawnPopup(node.x, node.y - 28, 'PROJETÉ ! 🚀🐛', '#a8ff78');
+        particles.spawnMud(node.x, node.y, -dx, -dy, 8, 0.75);
+      }
+      anchor.aphidRef = null;
+    }
+
     // Fling / Throw grabbable light props (like acorns) with inertia and aim!
     if (anchor.propRef) {
       const prop = anchor.propRef;
       if (prop.type === 'acorn' || prop.mass < 15) {
-        // Catapult slingshot launch based on swing velocity + unbend extension
-        const boost = (this.extensionTimer > 0 ? 1.75 : 1.45);
-        prop.vx = Math.max(-480, Math.min(480, node.vx * boost));
-        prop.vy = Math.max(-480, Math.min(480, node.vy * boost - 50));
-        sound.playLaunch(0.65);
+        let { dx, dy } = this.getFrontVector();
+        if (!isFront) { dx = -dx; dy = -dy; }
+
+        const boost = (this.extensionTimer > 0 ? 2.4 : 1.6);
+        const throwSpeed = (280 + (this.extensionMomentum.power || 0) * 320) * boost;
+        prop.vx = node.vx * 0.8 + dx * throwSpeed;
+        prop.vy = node.vy * 0.8 + dy * throwSpeed - 110;
+        sound.playLaunch(0.70);
         if (particles) {
-          particles.spawnPopup(node.x, node.y - 24, 'LANCÉ ! 🌰', '#ffd93b');
-          particles.spawnMud(node.x, node.y, 0, -1, 6, 0.6);
+          particles.spawnPopup(node.x, node.y - 24, 'LANCÉ ! 🌰🚀', '#ffd93b');
+          particles.spawnMud(node.x, node.y, -dx, -dy, 7, 0.65);
         }
       }
     }
@@ -366,6 +394,7 @@ export class Caterpillar {
     anchor.anchored = false;
     anchor.slipping = false;
     anchor.propRef = null;
+    anchor.aphidRef = null;
     anchor.segRef = null;
     anchor.localPt = null;
     sound.playRelease(isFront);
@@ -379,8 +408,8 @@ export class Caterpillar {
         // flies forward smoothly with momentum!
         const power = this.extensionMomentum.power || 0.4;
         const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
-        const jumpMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.10) * clsJump;
-        const launchSpeed = (160 + power * 190) * jumpMult;
+        const jumpMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.25) * clsJump;
+        const launchSpeed = (200 + power * 240) * jumpMult;
 
         let aimX = 0;
         let aimY = 0;
@@ -483,13 +512,15 @@ export class Caterpillar {
     const rearRange = this.rear.r + gripDist;
     const headRange = this.head.r + gripDist;
 
+    const rearAphid = world.findClosestAphid(this.rear.x, this.rear.y, rearRange);
     const rearProp = world.findClosestPropSurface(this.rear.x, this.rear.y, rearRange);
-    const rearSurf = rearProp || world.findClosestSurface(this.rear.x, this.rear.y, rearRange);
+    const rearSurf = rearAphid || rearProp || world.findClosestSurface(this.rear.x, this.rear.y, rearRange);
     this.rearCanGrip = !!rearSurf;
     this.rearTargetPt = rearSurf ? { x: rearSurf.cx, y: rearSurf.cy } : null;
 
+    const headAphid = world.findClosestAphid(this.head.x, this.head.y, headRange);
     const headProp = world.findClosestPropSurface(this.head.x, this.head.y, headRange);
-    const headSurf = headProp || world.findClosestSurface(this.head.x, this.head.y, headRange);
+    const headSurf = headAphid || headProp || world.findClosestSurface(this.head.x, this.head.y, headRange);
     this.frontCanGrip = !!headSurf;
     this.frontTargetPt = headSurf ? { x: headSurf.cx, y: headSurf.cy } : null;
 
@@ -594,19 +625,20 @@ export class Caterpillar {
 
     if (!rearLocked && !frontLocked && !hadAnchor) {
       if (anyOnGround) {
+        // Forward extension leap straight along the body spine
         let { dx, dy } = this.getFrontVector();
         let aimX = dx;
         let aimY = dy;
         if (steerX !== 0 || steerY !== 0) {
           const sDist = Math.hypot(steerX, steerY) || 1;
-          aimX = dx * 0.20 + (steerX / sDist) * 0.80;
-          aimY = dy * 0.20 + ((steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist) * 0.80;
+          aimX = dx * 0.40 + (steerX / sDist) * 0.60;
+          aimY = dy * 0.40 + ((steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist) * 0.60;
           const aLen = Math.hypot(aimX, aimY) || 1;
           aimX /= aLen;
           aimY /= aLen;
         }
 
-        const pushSpeed = (150 + power * 180) * groundPushMult;
+        const pushSpeed = (180 + power * 220) * groundPushMult;
         for (let i = 0; i < this.numNodes; i++) {
           const ratio = 0.85 + 0.30 * (i / (this.numNodes - 1));
           this.nodes[i].vx = aimX * pushSpeed * ratio;
@@ -617,28 +649,8 @@ export class Caterpillar {
 
         particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, 6, power * 0.5);
         sound.playLaunch(0.40 + power * 0.40);
-      } else if (GAMEPLAY_CONFIG.airborneExtensionOnly === false) {
-        // Air-dash in mid-air allowed when airborneExtensionOnly is disabled!
-        let { dx, dy } = this.getFrontVector();
-        let aimX = dx;
-        let aimY = dy;
-        if (steerX !== 0 || steerY !== 0) {
-          const sDist = Math.hypot(steerX, steerY) || 1;
-          aimX = steerX / sDist;
-          aimY = (steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist;
-          const aLen = Math.hypot(aimX, aimY) || 1;
-          aimX /= aLen;
-          aimY /= aLen;
-        }
-        const airDashSpeed = (140 + power * 160) * jumpBoostMult;
-        for (let i = 0; i < this.numNodes; i++) {
-          this.nodes[i].vx = aimX * airDashSpeed;
-          this.nodes[i].vy = aimY * airDashSpeed;
-          this.nodes[i].onGround = false;
-        }
-        this.hopTimer = 0.40;
-        sound.playLaunch(0.55 + power * 0.35);
       }
+      // Completely airborne: NO velocity impulse! Naturally relaxes springs without mid-air flight spam.
       return;
     }
 
@@ -667,21 +679,21 @@ export class Caterpillar {
       let aimX = spineDx;
       let aimY = spineDy;
 
-      // Blend with player arrow steering if provided (gives player direct control over jump direction)
+      // Straight extension along body, optionally biased by player arrow steering
       if (steerX !== 0 || steerY !== 0) {
         const sDist = Math.hypot(steerX, steerY) || 1;
         const keyAimX = steerX / sDist;
         const keyAimY = (steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist;
         const kLen = Math.hypot(keyAimX, keyAimY) || 1;
-        aimX = spineDx * 0.20 + (keyAimX / kLen) * 0.80;
-        aimY = spineDy * 0.20 + (keyAimY / kLen) * 0.80;
+        aimX = spineDx * 0.60 + (keyAimX / kLen) * 0.40;
+        aimY = spineDy * 0.60 + (keyAimY / kLen) * 0.40;
         const len = Math.hypot(aimX, aimY) || 1;
         aimX /= len;
         aimY /= len;
       }
 
-      // Satisfying jump velocity and forward flight inertia
-      const speed = (160 + power * 190) * jumpBoostMult;
+      // Athletic jump velocity and forward extension inertia
+      const speed = (200 + power * 230) * jumpBoostMult;
       this.lastLaunchDir = { aimX, aimY, speed };
       this.extensionMomentum.aimX = aimX;
       this.extensionMomentum.aimY = aimY;
@@ -739,6 +751,26 @@ export class Caterpillar {
 
     const bothAnchored = this.rearAnchor.anchored && this.frontAnchor.anchored;
     const bothOnSameProp = bothAnchored && this.rearAnchor.propRef && this.frontAnchor.propRef && (this.rearAnchor.propRef === this.frontAnchor.propRef);
+
+    // 1b. Texture / belly flip is ONLY evaluated when BOTH front and rear feet are anchored simultaneously:
+    if (bothAnchored && isFirstSubstep) {
+      const rearNy = this.rearAnchor.ny !== undefined ? this.rearAnchor.ny : -1;
+      const frontNy = this.frontAnchor.ny !== undefined ? this.frontAnchor.ny : -1;
+
+      // When both feet are anchored on a ceiling / underside (both normals point downward, ny > 0.35):
+      if (rearNy > 0.35 && frontNy > 0.35) {
+        if (this.dorsalSign !== -1) {
+          this.dorsalSign = -1;
+          sound.playLaunch(0.4);
+        }
+      } else if (rearNy < -0.35 && frontNy < -0.35) {
+        // Both feet anchored on floor / ground (both normals point upward, ny < -0.35):
+        if (this.dorsalSign !== 1) {
+          this.dorsalSign = 1;
+          sound.playLaunch(0.4);
+        }
+      }
+    }
 
     const rearLocked = this.rearAnchor.anchored && !this.rearAnchor.slipping;
     const frontLocked = this.frontAnchor.anchored && !this.frontAnchor.slipping && (!this.frontAnchor.propRef || this.frontAnchor.propRef.mass >= 15 || bothOnSameProp || this.rearAnchor.anchored);
@@ -876,37 +908,40 @@ export class Caterpillar {
             const surfTy = surfNx * facingSign;
             const surfAngle = Math.atan2(surfTy, surfTx);
 
-            // 2. Rearing progress:
-            // RULE: ONLY rear up when player actively presses UP (or during Space bend if aiming up)!
-            // If pressing Right, Left, Down or neutral: targetProg = 0.0 (stays draped and hugging the surface)!
+            // 2. Head steering & reach authority:
+            // When player steers with arrows:
+            // - Down arrow alone: wraps/hugs around surface contour (targetProg = 0.0)
+            // - Up, Left, Right or diagonal arrows: directly aims and rears the head towards that direction (targetProg = 1.0)!
+            // - Neutral (no arrow): rests draped along the surface (targetProg = 0.0)
+            const isPureDown = isPressingDown && !isPressingLeft && !isPressingRight && !isPressingUp;
             let targetProg = 0.0;
-            if (isBending) {
-              if (isPressingUp) targetProg = 1.0;
-              else if (steerX !== 0) targetProg = 0.15;
-              else targetProg = 0.25;
-            } else if (isPressingUp) {
+            if (hasSteer && !isPureDown) {
               targetProg = 1.0;
+            } else if (isBending) {
+              targetProg = isPressingUp ? 1.0 : (hasSteer ? 0.35 : 0.20);
             } else {
               targetProg = 0.0;
             }
 
-            const rearRate = (isBending || isPressingUp) ? 6.5 : 8.0;
+            const rearRate = 8.5 * (GAMEPLAY_CONFIG.orientationResponsiveness || 1.45);
             this.rearingProgress += (targetProg - this.rearingProgress) * Math.min(1, dt * rearRate);
 
-            // Aim angle for reared posture
+            // Aim angle for steered head posture
             let targetAimAngle = surfAngle;
-            if (isPressingUp) {
-              const aimDx = steerX !== 0 ? steerX : surfTx * 0.6;
-              const aimDy = -1.0;
-              targetAimAngle = Math.atan2(aimDy, aimDx);
-            } else if (hasSteer) {
-              targetAimAngle = Math.atan2(steerY !== 0 ? steerY : surfTy, steerX !== 0 ? steerX : surfTx);
+            if (hasSteer) {
+              if (isPureDown) {
+                targetAimAngle = surfAngle;
+              } else {
+                const aimDx = steerX !== 0 ? steerX : (surfTx * 0.4);
+                const aimDy = effSteerY !== 0 ? effSteerY : (isPressingUp ? -1.0 : 0);
+                targetAimAngle = Math.atan2(aimDy, aimDx);
+              }
             }
 
             let curAngleDiff = targetAimAngle - this.rearingSmoothedAngle;
             while (curAngleDiff > Math.PI) curAngleDiff -= Math.PI * 2;
             while (curAngleDiff < -Math.PI) curAngleDiff += Math.PI * 2;
-            this.rearingSmoothedAngle += curAngleDiff * Math.min(1, dt * 6.5 * (GAMEPLAY_CONFIG.orientationResponsiveness || 1.45));
+            this.rearingSmoothedAngle += curAngleDiff * Math.min(1, dt * 7.5 * (GAMEPLAY_CONFIG.orientationResponsiveness || 1.45));
 
             // 3. Construct target spine positions:
             const tx = new Float32Array(N);
@@ -966,8 +1001,29 @@ export class Caterpillar {
               this.nodes[i].vy += (errY * stiff - this.nodes[i].vy * damp) * dt;
             }
 
-            // 4. Active surface clinging & hugging assistance
-            if (rearProp && !isPressingUp) {
+            // 4. Active head aiming & peeling assistance on irregular surfaces:
+            if (hasSteer && !isPureDown) {
+              const headReachForce = (GAMEPLAY_CONFIG.orientationUpForce || 1600) * resp * agilityRatio;
+              const aimDx = Math.cos(this.rearingSmoothedAngle);
+              const aimDy = Math.sin(this.rearingSmoothedAngle);
+              this.head.vx += aimDx * headReachForce * 0.85 * dt;
+              this.head.vy += aimDy * headReachForce * 0.85 * dt;
+              this.nodes[N - 2].vx += aimDx * headReachForce * 0.45 * dt;
+              this.nodes[N - 2].vy += aimDy * headReachForce * 0.45 * dt;
+
+              // Peeling force if head touches an irregular obstacle, round prop or stairs while aiming away
+              if (this.head.onGround && this.head.groundNx !== undefined) {
+                const dotAway = aimDx * this.head.groundNx + aimDy * this.head.groundNy;
+                if (dotAway > -0.35 || isPressingUp) {
+                  const unstick = 950 * dt;
+                  this.head.vx += this.head.groundNx * unstick;
+                  this.head.vy += (this.head.groundNy < 0 ? this.head.groundNy * unstick : -unstick * 0.75);
+                  this.head.onGround = false;
+                }
+              }
+            }
+
+            if (rearProp && (isPureDown || !hasSteer)) {
               const headTargetX = tx[N - 1];
               const headTargetY = ty[N - 1];
               this.head.vx += (headTargetX - this.head.x) * 45.0 * dt;
@@ -996,26 +1052,13 @@ export class Caterpillar {
                   this.head.vy += 250 * dt;
                 }
               }
-              if (isPressingRight) {
-                this.head.vx += 380 * dt;
-              } else if (isPressingLeft) {
-                this.head.vx -= 380 * dt;
-              }
-            } else if (isPressingDown) {
+            } else if (isPureDown) {
               if (this.head.onGround && this.head.groundNx !== undefined) {
                 this.head.vx -= this.head.groundNx * 350 * dt;
                 this.head.vy -= this.head.groundNy * 350 * dt;
               }
               this.head.vy += 450 * dt;
               this.nodes[N - 2].vy += 300 * dt;
-            }
-
-            // Peeling force if head touches a surface while aiming away
-            if (this.head.onGround && this.head.groundNx !== undefined && isPressingUp) {
-              const unstick = 850 * dt;
-              this.head.vx += this.head.groundNx * unstick;
-              this.head.vy += (this.head.groundNy < 0 ? this.head.groundNy * unstick : -unstick * 0.75);
-              this.head.onGround = false;
             }
           } else if (frontLocked && !rearLocked) {
             // Front is anchored: The player controls the tail with the arrows!
@@ -1653,6 +1696,10 @@ export class Caterpillar {
     if (!anchor.holdingKey) {
       anchor.anchored = false;
       anchor.slipping = false;
+      if (anchor.aphidRef) {
+        anchor.aphidRef.isHeld = false;
+        anchor.aphidRef = null;
+      }
       anchor.propRef = null;
       anchor.segRef = null;
       anchor.localPt = null;
@@ -1660,6 +1707,19 @@ export class Caterpillar {
     }
 
     if (anchor.anchored) {
+      if (anchor.aphidRef) {
+        const aphid = anchor.aphidRef;
+        aphid.isHeld = true;
+        aphid.x = node.x;
+        aphid.y = node.y;
+        aphid.vx = node.vx;
+        aphid.vy = node.vy;
+
+        anchor.x = node.x;
+        anchor.y = node.y;
+        return;
+      }
+
       if (anchor.propRef) {
         const prop = anchor.propRef;
         const isLightProp = prop.type === 'acorn' || prop.mass < 15;
@@ -1697,38 +1757,15 @@ export class Caterpillar {
         }
 
         if (isLightProp) {
-          const otherIsAnchoredToSolid = otherAnchor.anchored && !!otherAnchor.segRef;
-
-          if (otherIsAnchoredToSolid) {
-            // When anchored to a solid surface (ground/wall/ceiling), the caterpillar can lift the acorn!
-            const pullFactor = 0.50;
-            prop.x += pullX * pullFactor;
-            prop.y += pullY * pullFactor;
-            prop.vx = prop.vx * 0.70 + node.vx * 0.30;
-            prop.vy = prop.vy * 0.70 + node.vy * 0.30;
-          } else {
-            // NOT anchored to a solid surface:
-            // The acorn cannot be lifted into the air! Its weight keeps it grounded.
-            // Horizontal nudges only; vertical pull cannot lift the acorn upward (pullY < 0 disallowed)
-            const effectivePullX = pullX * 0.35;
-            const effectivePullY = Math.max(0, pullY * 0.35);
-            prop.x += effectivePullX;
-            prop.y += effectivePullY;
-
-            prop.vx = prop.vx * 0.85 + node.vx * 0.15;
-            // Never impart upward launch velocity to the acorn without a solid anchor
-            prop.vy = Math.max(prop.vy, prop.vy * 0.85 + node.vy * 0.15);
-
-            // The acorn grounds the node: if node tries to float above acorn surface, pull it down to the acorn
-            if (node.y < surfY) {
-              node.y = surfY;
-              node.vy = Math.max(0, node.vy);
-            }
-          }
-
-          // Clamp maximum speed so physics never glitches
-          prop.vx = Math.max(-260, Math.min(260, prop.vx));
-          prop.vy = Math.max(-260, Math.min(300, prop.vy));
+          // Grabbable light props (Acorns) move with the caterpillar's mouth or tail!
+          // Can be lifted into the air, carried around, dragged or hoisted effortlessly.
+          const targetPropX = node.x - nx * effR;
+          const targetPropY = node.y - ny * effR;
+          const carrySpeed = 42.0;
+          prop.x += (targetPropX - prop.x) * Math.min(1, dt * carrySpeed);
+          prop.y += (targetPropY - prop.y) * Math.min(1, dt * carrySpeed);
+          prop.vx = prop.vx * 0.35 + node.vx * 0.65;
+          prop.vy = prop.vy * 0.35 + node.vy * 0.65;
 
           anchor.nx = nx;
           anchor.ny = ny;
@@ -1816,30 +1853,38 @@ export class Caterpillar {
     const maxSurfaceGap = (GAMEPLAY_CONFIG.gripDistance || 26) + extraGrip + reachBonus;
     const suctionRange = node.r + maxSurfaceGap;
 
-    const checkInvertedGrip = (surfNx, surfNy) => {
-      const idx = node.index;
-      const other = isFront ? this.nodes[idx - 1] : this.nodes[idx + 1];
-      const dx = isFront ? (node.x - other.x) : (other.x - node.x);
-      const dy = isFront ? (node.y - other.y) : (other.y - node.y);
-      const len = Math.hypot(dx, dy) || 1;
-      const curUx = dx / len;
-      const curUy = dy / len;
-      const curDorsalNx = curUy * this.dorsalSign;
-      const curDorsalNy = -curUx * this.dorsalSign;
+    // Check grabbable enemy aphids first!
+    const aphidHit = world.findClosestAphid(node.x, node.y, suctionRange);
+    if (aphidHit) {
+      anchor.anchored = true;
+      anchor.aphidRef = aphidHit.aphid;
+      anchor.propRef = null;
+      anchor.segRef = null;
+      anchor.localPt = null;
+      anchor.slipping = false;
+      anchor.material = 'stem';
+      anchor.nx = aphidHit.nx;
+      anchor.ny = aphidHit.ny;
+      anchor.tx = aphidHit.tx;
+      anchor.ty = aphidHit.ty;
+      anchor.x = aphidHit.cx;
+      anchor.y = aphidHit.cy;
+      aphidHit.aphid.isHeld = true;
 
-      // Surface normal points outward from surface into the world
-      const dot = curDorsalNx * surfNx + curDorsalNy * surfNy;
-      if (dot < (GAMEPLAY_CONFIG.gripAngleTolerance !== undefined ? GAMEPLAY_CONFIG.gripAngleTolerance : -0.15)) {
-        // Gripping with top/dorsal side touching the surface triggers flipping!
-        this.dorsalSign = -this.dorsalSign;
-        sound.playLaunch(0.4);
-      }
-    };
+      node.x = anchor.x;
+      node.y = anchor.y;
+
+      sound.playGrip(isFront);
+      particles.spawnSuctionRing(anchor.x, anchor.y, '#a8ff78');
+      particles.spawnPopup(node.x, node.y - 20, 'SAISI ! 🐛', '#a8ff78');
+      return;
+    }
 
     const propHit = world.findClosestPropSurface(node.x, node.y, suctionRange);
     if (propHit) {
       anchor.anchored = true;
       anchor.propRef = propHit.prop;
+      anchor.aphidRef = null;
       anchor.propLocalAngle = propHit.localAngle;
       anchor.slipping = false;
       anchor.material = 'root';
@@ -1855,7 +1900,6 @@ export class Caterpillar {
       node.vx = propHit.prop.vx;
       node.vy = propHit.prop.vy;
 
-      checkInvertedGrip(propHit.nx, propHit.ny);
       sound.playGrip(isFront);
       particles.spawnSuctionRing(anchor.x, anchor.y, '#ffd93b');
       return;
@@ -1865,6 +1909,8 @@ export class Caterpillar {
     if (hit) {
       anchor.anchored = true;
       anchor.segRef = hit.seg;
+      anchor.aphidRef = null;
+      anchor.propRef = null;
       anchor.material = hit.material;
       anchor.nx = hit.nx;
       anchor.ny = hit.ny;
@@ -1886,7 +1932,6 @@ export class Caterpillar {
       node.vx = 0;
       node.vy = 0;
 
-      checkInvertedGrip(hit.nx, hit.ny);
       sound.playGrip(isFront);
       particles.spawnSuctionRing(anchor.x, anchor.y, isFront ? '#38d84e' : '#b84eff');
     }
@@ -1964,10 +2009,10 @@ export class Caterpillar {
       const ny = -ux * this.dorsalSign;
 
       const normS = s / (numSamples - 1); // 0 at rear, 1 at head
-      // Natural organic caterpillar profile: tapers at tail and neck, plump abdomen
+      // Natural slender inchworm caterpillar profile: tapers at tail and neck
       const profile = Math.sin(Math.pow(normS, 0.72) * Math.PI);
-      const plump = 1 + this.contraction * 0.14;
-      const r = (13.5 + profile * 4.6) * plump;
+      const plump = 1 + this.contraction * 0.12;
+      const r = (10.5 + profile * 3.6) * plump;
 
       // Smooth Omega (Ω) arch during SPACE contraction (ZERO trembling noise!)
       // Note: Tail segment (normS <= 1/(N-1)) NEVER arches so it stays firmly planted on surface!
@@ -1977,9 +2022,10 @@ export class Caterpillar {
         const tailThreshold = 1 / (N - 1);
         if (normS > tailThreshold) {
           const bodyNormS = (normS - tailThreshold) / (1 - tailThreshold);
-          const omegaMult = (GAMEPLAY_CONFIG.omegaArchVisual !== undefined ? GAMEPLAY_CONFIG.omegaArchVisual : 1.0);
+          const archFactor = Math.sin(Math.pow(bodyNormS, 0.82) * Math.PI);
+          const omegaMult = (GAMEPLAY_CONFIG.omegaArchVisual !== undefined ? GAMEPLAY_CONFIG.omegaArchVisual : 1.25);
           const shapeMult = (GAMEPLAY_CONFIG.preserveShapeOnBend === false) ? 0.0 : 1.0;
-          const maxArch = 18.0 * this.contraction * omegaMult * shapeMult;
+          const maxArch = 28.0 * this.contraction * omegaMult * shapeMult;
           sx += nx * (archFactor * maxArch);
           sy += ny * (archFactor * maxArch);
         }
