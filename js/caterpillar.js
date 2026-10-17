@@ -434,7 +434,7 @@ export class Caterpillar {
   }
 
   get omegaCharge() {
-    const maxChargeTime = Math.max(0.5, GAMEPLAY_CONFIG.jumpChargeTime || 4.0);
+    const maxChargeTime = Math.max(0.5, GAMEPLAY_CONFIG.jumpChargeTime || 3.0);
     return Math.min(1.0, this.chargeDuration / maxChargeTime);
   }
 
@@ -756,14 +756,14 @@ export class Caterpillar {
       this.extensionTimer = 0; // Never allow extension to fight contraction
       this.extensionMomentum.timer = 0;
       this.extensionMomentum.consumed = false;
-      const maxChargeTime = Math.max(0.5, GAMEPLAY_CONFIG.jumpChargeTime || 4.0);
+      const maxChargeTime = Math.max(1.0, GAMEPLAY_CONFIG.jumpChargeTime || 3.0);
       const chargeSpeed = (this.bodyClass && this.bodyClass.chargeSpeedMult) || 1.0;
       this.chargeDuration = Math.min(maxChargeTime, this.chargeDuration + safeDt * chargeSpeed);
       const chargeRatio = this.chargeDuration / maxChargeTime;
 
-      // Subtle concentration tension shaking/tremor at the end of the charge (from 2.6s to 4.0s)
-      if (this.chargeDuration >= 2.6) {
-        this.chargeShake = Math.min(1.0, (this.chargeDuration - 2.6) / 1.4);
+      // Subtle concentration tension shaking/tremor at the end of the charge (from 2.2s to 3.0s)
+      if (this.chargeDuration >= 2.2) {
+        this.chargeShake = Math.min(1.0, (this.chargeDuration - 2.2) / 0.8);
       } else {
         this.chargeShake = 0;
       }
@@ -788,19 +788,21 @@ export class Caterpillar {
     } else {
       if (this.wasSpaceHeld) {
         // Space released: snap unbend with organic spring inertia
-        // ANTI-SPAM: Fast tapping Space (chargeDuration < 0.28s) does NOT jump or fly!
-        const canJump = this.chargeDuration >= 0.28 && this.jumpCooldown <= 0;
+        // PROGRESSIVE JUMP: strictly ZERO push between 0 and 0.5s!
+        const minJumpCharge = 0.50;
+        const maxChargeTime = Math.max(1.0, GAMEPLAY_CONFIG.jumpChargeTime || 3.0);
+        const canJump = this.chargeDuration >= minJumpCharge && this.jumpCooldown <= 0;
         if (canJump) {
-          const maxChargeTime = Math.max(1.0, GAMEPLAY_CONFIG.jumpChargeTime || 2.5);
-          const normPower = Math.min(1.0, Math.max(0, (this.chargeDuration - 0.15) / (maxChargeTime - 0.15)));
-          const effectivePower = 0.25 + 0.75 * Math.pow(normPower, 1.15);
+          // Exponential curve: strictly 0 at 0.5s, accelerating smoothly to 1.0 at 3.0s
+          const u = Math.min(1.0, Math.max(0, (this.chargeDuration - minJumpCharge) / (maxChargeTime - minJumpCharge)));
+          const effectivePower = (Math.exp(2.5 * u) - 1) / (Math.exp(2.5) - 1);
           this.rigidityTimer = 0.35;
           this.bodyRigidity = 0.85;
           this.extensionTimer = 0.32 + 0.12 * effectivePower; // Active deployment phase
-          this.jumpCooldown = 0.40;
+          this.jumpCooldown = 0.35;
           this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles);
         } else {
-          // Quick tap: just release contraction without impulse (no spam flying!)
+          // Under 0.5s: purely release contraction without any jump impulse (no spam jumping/flying!)
           this.rigidityTimer = 0.15;
           this.bodyRigidity = 0.2;
           this.extensionTimer = 0.12;
@@ -938,8 +940,13 @@ export class Caterpillar {
     }
 
     // Dynamic, satisfying jump leap in the direction of the body!
-    // Much less overpowered than the old 600 px/s rocket, but snappy and responsive (130 to 320 px/s)
-    const jumpSpeed = (130 + Math.pow(power, 1.15) * 190) * jumpBoostMult * strengthMult * speedMult;
+    // Progressive jump: strictly zero push at start, accelerating exponentially to max (320 px/s) at 3.0s
+    if (power <= 0.005) {
+      return;
+    }
+
+    const baseMaxSpeed = GAMEPLAY_CONFIG.maxJumpSpeed || 320;
+    const jumpSpeed = (power * baseMaxSpeed) * jumpBoostMult * strengthMult * speedMult;
 
     for (let i = 0; i < N; i++) {
       const trunkBonus = Math.sin((i / (N - 1)) * Math.PI) * 0.16;
@@ -954,8 +961,8 @@ export class Caterpillar {
     this.extensionMomentum.consumed = true;
     this.extensionMomentum.timer = 0;
 
-    particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, 7, power * 0.7);
-    sound.playLaunch(0.35 + power * 0.55);
+    particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, Math.round(3 + power * 6), power * 0.75);
+    sound.playLaunch(0.20 + power * 0.70);
   }
 
   // Locked segment alignment: when a paw grabs a surface (rear foot or front foot),
