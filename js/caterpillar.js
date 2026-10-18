@@ -1976,8 +1976,7 @@ export class Caterpillar {
             world.applyPlatformForce(seg.plat, cp.cx, cp.cy, -cp.nx * pushForce, -cp.ny * pushForce, dt);
           }
 
-          const isPinned = (i === 0 && this.rearAnchor.anchored) || (i === 1 && this.rearAnchor.anchored) ||
-                           (i === N - 1 && this.frontAnchor.anchored) || (i === N - 2 && this.frontAnchor.anchored);
+          const isPinned = (i === 0 && this.rearAnchor.anchored) || (i === N - 1 && this.frontAnchor.anchored);
 
           if (!isPinned) {
             if (seg.material !== 'moss' && slopeGrade <= 0.30 && cp.ny < -0.5) {
@@ -2027,13 +2026,13 @@ export class Caterpillar {
         }
       }
 
-      // Solid Collision with Heavy Boulder Pinecones & Acorns
+      // Solid Collision with Heavy Boulder Pinecones & Acorns (all body segments collide!)
       for (const prop of world.props) {
-        if (
-          prop.isHeld ||
-          (this.rearAnchor.anchored && this.rearAnchor.propRef === prop) ||
-          (this.frontAnchor.anchored && this.frontAnchor.propRef === prop)
-        ) {
+        // Only skip collision for the specific anchor paw that is holding this prop
+        const isAnchorNodeForThisProp =
+          (i === 0 && this.rearAnchor.anchored && this.rearAnchor.propRef === prop) ||
+          (i === N - 1 && this.frontAnchor.anchored && this.frontAnchor.propRef === prop);
+        if (isAnchorNodeForThisProp) {
           continue;
         }
 
@@ -2050,7 +2049,8 @@ export class Caterpillar {
 
           const rearPinned = (i === 0 && this.rearAnchor.anchored);
           const frontPinned = (i === N - 1 && this.frontAnchor.anchored);
-          const isHeldProp = (this.rearAnchor.anchored && this.rearAnchor.propRef === prop) ||
+          const isHeldProp = prop.isHeld ||
+                             (this.rearAnchor.anchored && this.rearAnchor.propRef === prop) ||
                              (this.frontAnchor.anchored && this.frontAnchor.propRef === prop);
 
           const totalMass = n.mass + prop.mass;
@@ -2062,6 +2062,8 @@ export class Caterpillar {
           if (wProp > 0) {
             prop.x -= nx * overlap * wProp * 0.5;
             prop.y -= ny * overlap * wProp * 0.5;
+            world.resolvePropSegmentCollisions(prop);
+            world.resolvePropPropCollisions(prop);
           }
 
           if (ny < -0.35) {
@@ -2146,7 +2148,9 @@ export class Caterpillar {
 
       // Soft Squishy Aphids
       for (const a of world.aphids) {
-        if (a.isHeld) continue;
+        const isHoldingThis = (i === 0 && this.rearAnchor.anchored && this.rearAnchor.aphidRef === a) ||
+                              (i === N - 1 && this.frontAnchor.anchored && this.frontAnchor.aphidRef === a);
+        if (isHoldingThis) continue;
         const dx = n.x - a.x;
         const dy = n.y - a.y;
         const dist = Math.hypot(dx, dy) || 0.0001;
@@ -2160,6 +2164,7 @@ export class Caterpillar {
           n.y += ny * overlap * 0.5;
           a.x -= nx * overlap * 0.5;
           a.y -= ny * overlap * 0.5;
+          world.resolveEntitySegmentCollisions(a);
 
           const relVx = n.vx - a.vx;
           const relVy = n.vy - a.vy;
@@ -2183,7 +2188,9 @@ export class Caterpillar {
       // Hedgehogs (Hérissons): Spikes hurt on back/rear, safe on front snout!
       if (world.hedgehogs) {
         for (const h of world.hedgehogs) {
-          if (h.isHeld) continue;
+          const isHoldingThis = (i === 0 && this.rearAnchor.anchored && this.rearAnchor.hedgehogRef === h) ||
+                                (i === N - 1 && this.frontAnchor.anchored && this.frontAnchor.hedgehogRef === h);
+          if (isHoldingThis) continue;
           const dx = n.x - h.x;
           const dy = n.y - h.y;
           const dist = Math.hypot(dx, dy) || 0.0001;
@@ -2207,6 +2214,7 @@ export class Caterpillar {
               n.y += ny * overlap * 0.5;
               h.x -= nx * overlap * 0.5;
               h.y -= ny * overlap * 0.5;
+              world.resolveEntitySegmentCollisions(h);
             }
           }
         }
@@ -2301,6 +2309,9 @@ export class Caterpillar {
 
         hedgehog.x = node.x - attachNx * hDist;
         hedgehog.y = node.y - attachNy * hDist;
+        world.resolveEntitySegmentCollisions(hedgehog);
+        node.x = hedgehog.x + attachNx * hDist;
+        node.y = hedgehog.y + attachNy * hDist;
         hedgehog.vx = node.vx;
         hedgehog.vy = node.vy;
 
@@ -2321,6 +2332,9 @@ export class Caterpillar {
 
         aphid.x = node.x - attachNx * aDist;
         aphid.y = node.y - attachNy * aDist;
+        world.resolveEntitySegmentCollisions(aphid);
+        node.x = aphid.x + attachNx * aDist;
+        node.y = aphid.y + attachNy * aDist;
         aphid.vx = node.vx;
         aphid.vy = node.vy;
 
@@ -2351,6 +2365,9 @@ export class Caterpillar {
           prop.angVel *= 0.60;
           prop.vx *= 0.85;
 
+          world.resolvePropSegmentCollisions(prop);
+          world.resolvePropPropCollisions(prop);
+
           anchor.nx = nx;
           anchor.ny = ny;
           anchor.tx = -ny;
@@ -2373,6 +2390,11 @@ export class Caterpillar {
           const targetPropY = node.y - ny * effR;
           prop.x = targetPropX;
           prop.y = targetPropY;
+          world.resolvePropSegmentCollisions(prop);
+          world.resolvePropPropCollisions(prop);
+
+          node.x = prop.x + nx * effR;
+          node.y = prop.y + ny * effR;
           prop.vx = node.vx;
           prop.vy = node.vy;
 
@@ -2388,6 +2410,8 @@ export class Caterpillar {
         const wProp = (node.mass / (node.mass + prop.mass)) * 0.15;
         prop.x += pullX * wProp;
         prop.y += pullY * wProp;
+        world.resolvePropSegmentCollisions(prop);
+        world.resolvePropPropCollisions(prop);
 
         const rx = nx * prop.radius * 0.95;
         const ry = ny * prop.radius * 0.95;

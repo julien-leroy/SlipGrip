@@ -161,7 +161,8 @@ export class PhysicsWorld {
         y2: p2[1],
         material,
         thickness,
-        isDynamic: false
+        isDynamic: false,
+        isGroundMass: isGroundMass
       });
     }
   }
@@ -217,7 +218,8 @@ export class PhysicsWorld {
         x1, y1, x2, y2,
         material: plat.material,
         thickness: plat.thickness,
-        isDynamic: true
+        isDynamic: true,
+        isGroundMass: false
       });
     }
   }
@@ -504,6 +506,8 @@ export class PhysicsWorld {
       const p = this.props[i];
       p.onGround = false;
       if (p.isHeld) {
+        this.resolvePropSegmentCollisions(p);
+        this.resolvePropPropCollisions(p);
         continue;
       }
 
@@ -610,6 +614,81 @@ export class PhysicsWorld {
 
     for (const c of this.stickyCrumbs) {
       c.wobble += dt * 2.5;
+    }
+  }
+
+  resolvePropSegmentCollisions(p) {
+    const candidates = this.getAllSegmentsNear(p.x, p.y, p.radius + 32);
+    for (const seg of candidates) {
+      const cp = this.closestPointOnSegment(p.x, p.y, seg);
+      const minDist = p.radius * 0.94 + (seg.thickness || 20) * 0.5;
+      if (cp.dist < minDist) {
+        const overlap = minDist - cp.dist;
+        p.x += cp.nx * overlap;
+        p.y += cp.ny * overlap;
+        p.onGround = true;
+
+        const vn = p.vx * cp.nx + p.vy * cp.ny;
+        if (vn < 0) {
+          p.vx -= cp.nx * vn;
+          p.vy -= cp.ny * vn;
+        }
+      }
+    }
+
+    for (const m of this.mushrooms) {
+      const dx = p.x - m.x;
+      const dy = p.y - m.y;
+      const dist = Math.hypot(dx, dy) || 0.0001;
+      const minDist = p.radius + m.radius;
+      if (dist < minDist) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const overlap = minDist - dist;
+        p.x += nx * overlap;
+        p.y += ny * overlap;
+        const vn = p.vx * nx + p.vy * ny;
+        if (vn < 0) {
+          p.vx -= nx * vn * 1.5;
+          p.vy -= ny * vn * 1.5;
+        }
+      }
+    }
+  }
+
+  resolvePropPropCollisions(p) {
+    for (const q of this.props) {
+      if (q === p) continue;
+      const dx = p.x - q.x;
+      const dy = p.y - q.y;
+      const dist = Math.hypot(dx, dy) || 0.0001;
+      const minDist = (p.radius + q.radius) * 0.94;
+      if (dist < minDist) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        const overlap = minDist - dist;
+        const wProp = q.isHeld ? 1.0 : (p.isHeld ? 0 : 0.5);
+        p.x += nx * overlap * (1 - wProp);
+        p.y += ny * overlap * (1 - wProp);
+        if (!q.isHeld) {
+          q.x -= nx * overlap * wProp;
+          q.y -= ny * overlap * wProp;
+        }
+      }
+    }
+  }
+
+  resolveEntitySegmentCollisions(e) {
+    const candidates = this.getAllSegmentsNear(e.x, e.y, e.radius + 24);
+    for (const seg of candidates) {
+      const cp = this.closestPointOnSegment(e.x, e.y, seg);
+      const minDist = e.radius * 0.94 + (seg.thickness || 20) * 0.5;
+      if (cp.dist < minDist) {
+        const overlap = minDist - cp.dist;
+        e.x += cp.nx * overlap;
+        e.y += cp.ny * overlap;
+        e.onGround = true;
+      }
     }
   }
 
@@ -750,7 +829,7 @@ export class PhysicsWorld {
     const cy = s.y1 + t * dy;
     const distDx = px - cx;
     const distDy = py - cy;
-    const dist = Math.hypot(distDx, distDy);
+    const dist = Math.hypot(distDx, distDy) || 0.0001;
 
     const segLen = Math.sqrt(lenSq) || 1;
     const surfNx = dy / segLen;
@@ -759,20 +838,32 @@ export class PhysicsWorld {
     let nx = surfNx;
     let ny = surfNy;
 
-    if (t <= 0.001 || t >= 0.999) {
-      if (dist > 0.0001) {
+    if (!s.isGroundMass || s.isDynamic) {
+      // Two-sided thin platform / branch / leaf / ceiling / wall:
+      // Normal ALWAYS points outward from segment toward the querying object!
+      // This strictly prevents passing through platforms from below, from above, or from the sides.
+      nx = distDx / dist;
+      ny = distDy / dist;
+    } else {
+      // Ground mass (solid ground underneath):
+      if (t <= 0.001 || t >= 0.999) {
         const vnx = distDx / dist;
         const vny = distDy / dist;
-        // At vertex corner, point along radial vector as long as it points outward from the surface
         if (vnx * surfNx + vny * surfNy > -0.05) {
           nx = vnx;
           ny = vny;
         }
+      } else {
+        const dot = (distDx * surfNx + distDy * surfNy);
+        if (dot < 0) {
+          // Inside ground mass: push upward to surface
+          nx = surfNx;
+          ny = surfNy;
+        } else {
+          nx = distDx / dist;
+          ny = distDy / dist;
+        }
       }
-    } else {
-      // Along the segment span, outward normal is always surfNx, surfNy
-      nx = surfNx;
-      ny = surfNy;
     }
 
     return { cx, cy, dist, nx, ny, t, segLen, tx: dx / segLen, ty: dy / segLen };
