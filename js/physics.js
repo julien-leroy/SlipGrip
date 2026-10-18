@@ -1,5 +1,5 @@
 import { GAMEPLAY_CONFIG } from './gameplayConfig.js?v=41';
-import { sound } from './sound.js?v=41';
+import { sound } from './audio.js?v=48';
 
 export const MATERIALS = {
   dirt:    { friction: 0.90, gripSlide: 0.0,  restitution: 0.05, name: 'Terre meuble' },

@@ -153,6 +153,7 @@ export class Caterpillar {
 
     // Rearing and bending posture tracking (tail segment stays anchored to surface)
     this.rearingProgress = 0;
+    this.freeRearingProg = 0;
     this.rearingTargetAngle = -Math.PI / 2;
     this.rearingSmoothedAngle = -Math.PI / 2;
 
@@ -418,6 +419,7 @@ export class Caterpillar {
     this.crawlPhase = 0;
 
     this.rearingProgress = 0;
+    this.freeRearingProg = 0;
     this.rearingTargetAngle = -Math.PI / 2;
     this.rearingSmoothedAngle = -Math.PI / 2;
 
@@ -1235,9 +1237,16 @@ export class Caterpillar {
         if (!bothAnchored) {
           if (!rearLocked && !frontLocked) {
             // Free caterpillar on the ground:
-            // The player directs the HEAD freely (raise head, look up, reach)
-            // While passive horizontal crawling with arrows alone is slow and deliberate.
-            // But the HEAD can be actively lifted and reached over obstacles/stairs!
+            // Progressive segment-by-segment lift:
+            // The player raises the HEAD first, followed progressively by neck and mid-body!
+            // Rear feet stay grounded to prevent rising like a rigid pole (piquet).
+            const isLiftingFree = hasSteer && (effSteerY < 0 || inputs.up);
+            if (isLiftingFree) {
+              this.freeRearingProg += (1.0 - this.freeRearingProg) * Math.min(1, dt * 5.0);
+            } else {
+              this.freeRearingProg += (0.0 - this.freeRearingProg) * Math.min(1, dt * 8.0);
+            }
+
             let aimDirX = 0;
             let aimDirY = 0;
             if (hasSteer) {
@@ -1246,18 +1255,29 @@ export class Caterpillar {
               aimDirY = effSteerY / aimDist;
 
               const liftEffort = isHoldingFront ? 0.70 : 1.0;
-              // Full reaching authority on the head (fast and responsive aiming with arrows):
               const headReachForce = (GAMEPLAY_CONFIG.orientationUpForce || 2100) * resp * agilityRatio * liftEffort;
-              this.head.vx += aimDirX * headReachForce * dt;
-              this.head.vy += aimDirY * headReachForce * dt;
 
-              // Neck follows with partial power:
-              this.nodes[N - 2].vx += aimDirX * headReachForce * 0.55 * dt;
-              this.nodes[N - 2].vy += aimDirY * headReachForce * 0.55 * dt;
+              // 1. Head rises first and foremost:
+              const headLift = isLiftingFree ? Math.min(1.0, this.freeRearingProg / 0.28) : 1.0;
+              this.head.vx += aimDirX * headReachForce * (isLiftingFree ? 0.75 : 1.0) * dt;
+              this.head.vy += aimDirY * headReachForce * headLift * dt;
 
-              // Mid vertebra slight support:
-              this.nodes[N - 3].vx += aimDirX * headReachForce * 0.20 * dt;
-              this.nodes[N - 3].vy += aimDirY * headReachForce * 0.20 * dt;
+              // 2. Neck follows progressively only after head is already airborne:
+              const neckLift = isLiftingFree ? Math.max(0, Math.min(1.0, (this.freeRearingProg - 0.22) / 0.45)) : 1.0;
+              this.nodes[N - 2].vx += aimDirX * headReachForce * 0.45 * neckLift * dt;
+              this.nodes[N - 2].vy += aimDirY * headReachForce * 0.48 * neckLift * dt;
+
+              // 3. Mid vertebra only follows later if Up continues to be held:
+              const midLift = isLiftingFree ? Math.max(0, Math.min(1.0, (this.freeRearingProg - 0.55) / 0.40)) : 1.0;
+              this.nodes[N - 3].vx += aimDirX * headReachForce * 0.20 * midLift * dt;
+              this.nodes[N - 3].vy += aimDirY * headReachForce * 0.22 * midLift * dt;
+
+              // 4. Rear and pelvic nodes (0 and 1) stay weighted on the ground!
+              // Keeps the tail planted firmly on the floor so the body arches naturally instead of levitating like a board:
+              if (isLiftingFree) {
+                this.nodes[0].vy += 160 * dt;
+                this.nodes[1].vy += 100 * dt;
+              }
 
               // Lower body crawl push is kept calm and deliberate so walking does NOT get faster:
               const crawlPush = 35.0 * clsAgility;
@@ -1333,7 +1353,7 @@ export class Caterpillar {
             }
 
             const liftEffort = isHoldingFront ? 0.70 : 1.0;
-            const rearRate = 18.0 * (GAMEPLAY_CONFIG.orientationResponsiveness || 2.2) * liftEffort;
+            const rearRate = (targetProg > this.rearingProgress ? 4.8 : 8.5) * (GAMEPLAY_CONFIG.orientationResponsiveness || 2.2) * liftEffort;
             this.rearingProgress += (targetProg - this.rearingProgress) * Math.min(1, dt * rearRate);
 
             // Aim angle for steered head posture
@@ -1390,21 +1410,21 @@ export class Caterpillar {
             rearedX[1] = tx[1];
             rearedY[1] = ty[1];
 
+            // Progressive segment-by-segment lift:
+            // Head (i=N-1) rises first, followed by neck (i=N-2), then mid-body (i=N-3).
+            // Tail (i=0) and proleg (i=1) stay anchored to the surface!
             for (let i = 2; i < N; i++) {
-              const t = (i - 1) / (N - 2);
-              const segAngle = surfAngle + spinalDiff * Math.pow(t, 0.85);
+              const segFraction = (i - 1) / (N - 2); // for i=2: 0.33, i=3: 0.67, i=4: 1.0 (head)
+              // Threshold: Head begins lifting at 0.0, neck at ~0.22, mid-body at ~0.55
+              const threshold = (1.0 - segFraction) * 0.65;
+              const rawProg = Math.max(0, Math.min(1.0, (this.rearingProgress - threshold) / Math.max(0.01, 1.0 - threshold)));
+              // Organic ease curve
+              const segProg = rawProg * rawProg * (3.0 - 2.0 * rawProg);
+
+              // Curvature: segment angle bends smoothly from surface angle to target aim angle
+              const segAngle = surfAngle + spinalDiff * segProg;
               rearedX[i] = rearedX[i - 1] + Math.cos(segAngle) * bodySegLen;
               rearedY[i] = rearedY[i - 1] + Math.sin(segAngle) * bodySegLen;
-            }
-
-            for (let i = 2; i < N; i++) {
-              const t = (i - 1) / (N - 2);
-              // Progressive biological rearing:
-              // At low rearing progress, rear prolegs (nodes 0, 1, 2) stay grounded.
-              // As rearing continues, it progressively stands tall on its rear feet!
-              const threshold = Math.pow(1.0 - t, 0.90) * 0.45;
-              const rawProg = Math.max(0, Math.min(1, (this.rearingProgress - threshold) / Math.max(0.01, 1.0 - threshold)));
-              const segProg = Math.pow(rawProg, 1.1);
 
               let groundX, groundY;
               if (rearProp) {
@@ -1426,8 +1446,8 @@ export class Caterpillar {
                 errY = 0;
               }
 
-              const stiff = (rearProp && segProg < 0.2) ? 45.0 : (36.0 + 16.0 * t);
-              const damp = 11.0 + 3.0 * t;
+              const stiff = (rearProp && segProg < 0.2) ? 45.0 : (24.0 + 20.0 * segProg);
+              const damp = 9.0 + 4.0 * segProg;
               this.nodes[i].vx += (errX * stiff - this.nodes[i].vx * damp) * dt;
               this.nodes[i].vy += (errY * stiff - this.nodes[i].vy * damp) * dt;
             }
@@ -1437,21 +1457,32 @@ export class Caterpillar {
               const headReachForce = (GAMEPLAY_CONFIG.orientationUpForce || 2100) * resp * agilityRatio * liftEffort;
               const aimDx = Math.cos(this.rearingSmoothedAngle);
               const aimDy = Math.sin(this.rearingSmoothedAngle);
+              
+              // Head always lifts first:
               this.head.vx += aimDx * headReachForce * 0.95 * dt;
               this.head.vy += aimDy * headReachForce * 0.95 * dt;
-              this.nodes[N - 2].vx += aimDx * headReachForce * 0.60 * dt;
-              this.nodes[N - 2].vy += aimDy * headReachForce * 0.60 * dt;
+
+              // Neck follows progressively once head is up:
+              const neckLift = Math.max(0, Math.min(1.0, (this.rearingProgress - 0.22) / 0.78));
+              this.nodes[N - 2].vx += aimDx * headReachForce * 0.50 * neckLift * dt;
+              this.nodes[N - 2].vy += aimDy * headReachForce * 0.50 * neckLift * dt;
+
+              // Mid-body follows later:
               if (N > 3) {
-                this.nodes[N - 3].vx += aimDx * headReachForce * 0.25 * dt;
-                this.nodes[N - 3].vy += aimDy * headReachForce * 0.25 * dt;
+                const midLift = Math.max(0, Math.min(1.0, (this.rearingProgress - 0.52) / 0.48));
+                this.nodes[N - 3].vx += aimDx * headReachForce * 0.22 * midLift * dt;
+                this.nodes[N - 3].vy += aimDy * headReachForce * 0.22 * midLift * dt;
               }
 
               // Direct immediate upward lift when pressing UP so held objects (acorn, enemy) rise effortlessly:
               if (isPressingUp || effSteerY < 0) {
                 const upBoost = headReachForce * 0.90 * dt;
                 this.head.vy -= upBoost;
-                this.nodes[N - 2].vy -= upBoost * 0.55;
-                if (N > 3) this.nodes[N - 3].vy -= upBoost * 0.25;
+                this.nodes[N - 2].vy -= upBoost * 0.50 * neckLift;
+                if (N > 3) {
+                  const midLift = Math.max(0, Math.min(1.0, (this.rearingProgress - 0.52) / 0.48));
+                  this.nodes[N - 3].vy -= upBoost * 0.22 * midLift;
+                }
                 this.head.onGround = false;
               }
 
@@ -1678,8 +1709,15 @@ export class Caterpillar {
           } else if (frontLocked && !rearLocked) {
             liftRelief = 0.85; // Tail stays down on surface
           } else {
-            // Free on ground: Head and neck are agile; rear nodes carry weight
-            liftRelief = (i === N - 1) ? (isHoldingFront ? 0.35 : 0.05) : ((i === N - 2) ? (isHoldingFront ? 0.55 : 0.35) : 1.0);
+            // Free on ground: Head lifts first with immediate relief; neck follows progressively; rear stays heavily grounded!
+            if (i === N - 1) {
+              liftRelief = isHoldingFront ? 0.35 : 0.05;
+            } else if (i === N - 2) {
+              const neckLift = Math.max(0, Math.min(1.0, (this.freeRearingProg - 0.22) / 0.45));
+              liftRelief = 1.0 - neckLift * (isHoldingFront ? 0.45 : 0.65);
+            } else {
+              liftRelief = 1.0;
+            }
           }
         } else if (hasSteer && effSteerY < 0) {
           liftRelief = isHeadPart ? (isAnchoredOnePaw ? (isHoldingFront ? 0.45 : 0.25) : (isHoldingFront ? 0.65 : 0.50)) : 1.0;
