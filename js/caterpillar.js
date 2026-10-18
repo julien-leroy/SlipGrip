@@ -1891,54 +1891,6 @@ export class Caterpillar {
     // 5. Handle World Collisions
     this.handleWorldCollisions(dt, world, particles, inputs, isFirstSubstep);
 
-    // 6. Sprite / Texture Flip:
-    // Only flip when landed mostly on its back (dorsal side in contact with surface),
-    // with at least half the segments touching on the back and at least one foot touching on the back.
-    if (isFirstSubstep && this.flipCooldown <= 0) {
-      let dorsalTouches = 0;
-      let footOnDorsal = false;
-
-      for (let i = 0; i < N; i++) {
-        const n = this.nodes[i];
-        if (!n.onGround) continue;
-
-        let tx = 0, ty = 0;
-        if (i < N - 1) {
-          tx = this.nodes[i + 1].x - this.nodes[i].x;
-          ty = this.nodes[i + 1].y - this.nodes[i].y;
-        } else {
-          tx = this.nodes[i].x - this.nodes[i - 1].x;
-          ty = this.nodes[i].y - this.nodes[i - 1].y;
-        }
-        const tLen = Math.hypot(tx, ty) || 1;
-        const ux = tx / tLen;
-        const uy = ty / tLen;
-
-        const dNx = uy * this.dorsalSign;
-        const dNy = -ux * this.dorsalSign;
-
-        // Ground normal n.groundNx, n.groundNy points outward from surface to node center.
-        // Surface is in direction (-n.groundNx, -n.groundNy) from node center.
-        // If surface contact is in direction of the dorsal side (back against surface):
-        const dot = n.groundNx * dNx + n.groundNy * dNy;
-        if (dot < -0.25) {
-          dorsalTouches++;
-          if (i === 0 || i === N - 1) {
-            footOnDorsal = true;
-          }
-        }
-      }
-
-      const minDorsalSegments = Math.ceil(N / 2);
-      if (dorsalTouches >= minDorsalSegments && footOnDorsal) {
-        this.dorsalSign = -this.dorsalSign;
-        this.flipCooldown = 0.50;
-        sound.playLaunch(0.35);
-        if (particles) {
-          particles.spawnPopup(head.x, head.y - 20, 'RETOURNÉE ! 🔄', '#ffd93b');
-        }
-      }
-    }
   }
 
   handleWorldCollisions(dt, world, particles, inputs, isFirstSubstep) {

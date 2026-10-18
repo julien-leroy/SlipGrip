@@ -703,9 +703,15 @@ export class PhysicsWorld {
       const effRadius = p.radius * 0.95;
       const surfDist = centerDist - effRadius;
       if (surfDist < bestDist) {
-        bestDist = surfDist;
         const nx = dx / centerDist;
         const ny = dy / centerDist;
+        const cx = p.x + nx * effRadius;
+        const cy = p.y + ny * effRadius;
+
+        // Never grab props through a wall or platform!
+        if (!this.hasLineOfSight(px, py, cx, cy)) continue;
+
+        bestDist = surfDist;
         const worldAngle = Math.atan2(dy, dx);
         best = {
           prop: p,
@@ -714,8 +720,8 @@ export class PhysicsWorld {
           ny,
           tx: -ny,
           ty: nx,
-          cx: p.x + nx * effRadius,
-          cy: p.y + ny * effRadius,
+          cx,
+          cy,
           localAngle: worldAngle - p.angle
         };
       }
@@ -733,9 +739,15 @@ export class PhysicsWorld {
       const centerDist = Math.hypot(dx, dy) || 0.0001;
       const surfDist = centerDist - a.radius;
       if (surfDist < bestDist) {
-        bestDist = surfDist;
         const nx = dx / centerDist;
         const ny = dy / centerDist;
+        const cx = a.x + nx * a.radius;
+        const cy = a.y + ny * a.radius;
+
+        // Never grab aphids through a wall!
+        if (!this.hasLineOfSight(px, py, cx, cy)) continue;
+
+        bestDist = surfDist;
         best = {
           aphid: a,
           dist: surfDist,
@@ -743,8 +755,8 @@ export class PhysicsWorld {
           ny,
           tx: -ny,
           ty: nx,
-          cx: a.x + nx * a.radius,
-          cy: a.y + ny * a.radius
+          cx,
+          cy
         };
       }
     }
@@ -762,14 +774,19 @@ export class PhysicsWorld {
       const centerDist = Math.hypot(dx, dy) || 0.0001;
       const surfDist = centerDist - h.radius;
       if (surfDist < bestDist) {
-        bestDist = surfDist;
         const nx = dx / centerDist;
         const ny = dy / centerDist;
+        const cx = h.x + nx * h.radius;
+        const cy = h.y + ny * h.radius;
+
+        // Never grab hedgehogs through a wall!
+        if (!this.hasLineOfSight(px, py, cx, cy)) continue;
 
         // Front safe snout is oriented in the direction of h.facing (+1 right, -1 left)
         const isFrontHead = (nx * h.facing > 0.35) && (ny > -0.65);
         const isSpiky = !isFrontHead;
 
+        bestDist = surfDist;
         best = {
           hedgehog: h,
           dist: surfDist,
@@ -777,8 +794,8 @@ export class PhysicsWorld {
           ny,
           tx: -ny,
           ty: nx,
-          cx: h.x + nx * h.radius,
-          cy: h.y + ny * h.radius,
+          cx,
+          cy,
           isFrontHead,
           isSpiky
         };
@@ -869,33 +886,110 @@ export class PhysicsWorld {
     return { cx, cy, dist, nx, ny, t, segLen, tx: dx / segLen, ty: dy / segLen };
   }
 
+  // Line of sight raycast: verifies if a straight line from (x1, y1) to (x2, y2)
+  // is unobstructed by any intermediate wall or platform segment.
+  hasLineOfSight(x1, y1, x2, y2, targetSeg = null) {
+    const rxMin = Math.min(x1, x2) - 4;
+    const rxMax = Math.max(x1, x2) + 4;
+    const ryMin = Math.min(y1, y2) - 4;
+    const ryMax = Math.max(y1, y2) + 4;
+
+    const midX = (x1 + x2) * 0.5;
+    const midY = (y1 + y2) * 0.5;
+    const rayLen = Math.hypot(x2 - x1, y2 - y1) || 0.001;
+    const candidates = this.getAllSegmentsNear(midX, midY, rayLen * 0.5 + 24);
+
+    for (const s of candidates) {
+      if (s === targetSeg) continue;
+      const sMinX = Math.min(s.x1, s.x2);
+      const sMaxX = Math.max(s.x1, s.x2);
+      const sMinY = Math.min(s.y1, s.y2);
+      const sMaxY = Math.max(s.y1, s.y2);
+      if (rxMax < sMinX || rxMin > sMaxX || ryMax < sMinY || ryMin > sMaxY) continue;
+
+      const denom = (s.y2 - s.y1) * (x2 - x1) - (s.x2 - s.x1) * (y2 - y1);
+      if (Math.abs(denom) < 1e-6) continue; // parallel
+
+      const ua = ((s.x2 - s.x1) * (y1 - s.y1) - (s.y2 - s.y1) * (x1 - s.x1)) / denom;
+      const ub = ((x2 - x1) * (y1 - s.y1) - (y2 - y1) * (x1 - s.x1)) / denom;
+
+      // True intersection across the span
+      if (ua > 0.06 && ua < 0.94 && ub > 0.02 && ub < 0.98) {
+        return false; // Interrupted by wall/platform segment s!
+      }
+    }
+    return true;
+  }
+
   findClosestSurface(px, py, maxDist) {
     const candidates = this.getAllSegmentsNear(px, py, maxDist);
     let best = null;
     let bestEffectiveDist = maxDist;
 
     for (const s of candidates) {
-      const cp = this.closestPointOnSegment(px, py, s);
-      const halfThick = (s.thickness || 20) * 0.5;
-      const effectiveDist = cp.dist - halfThick;
-      if (effectiveDist < bestEffectiveDist) {
-        bestEffectiveDist = effectiveDist;
-        best = {
-          seg: s,
-          cx: cp.cx + cp.nx * halfThick,
-          cy: cp.cy + cp.ny * halfThick,
-          rawCx: cp.cx,
-          rawCy: cp.cy,
-          dist: effectiveDist,
-          nx: cp.nx,
-          ny: cp.ny,
-          tx: cp.tx,
-          ty: cp.ty,
-          t: cp.t,
-          segLen: cp.segLen,
-          material: s.material
-        };
+      const dx = s.x2 - s.x1;
+      const dy = s.y2 - s.y1;
+      const lenSq = dx * dx + dy * dy;
+      let t = 0;
+      if (lenSq > 0.0001) {
+        t = ((px - s.x1) * dx + (py - s.y1) * dy) / lenSq;
+        t = Math.max(0, Math.min(1, t));
       }
+      const cx = s.x1 + t * dx;
+      const cy = s.y1 + t * dy;
+      const distDx = px - cx;
+      const distDy = py - cy;
+      const dist = Math.hypot(distDx, distDy) || 0.0001;
+      const segLen = Math.sqrt(lenSq) || 1;
+
+      // Surface normal along polyline direction (outward for ground mass)
+      const surfNx = dy / segLen;
+      const surfNy = -dx / segLen;
+
+      if (s.isGroundMass) {
+        // Ground mass: can ONLY grab the top/outer surface facing the air.
+        // If the paw is underneath or behind the ground mass (dot < -2), cannot grab through the earth!
+        const dot = distDx * surfNx + distDy * surfNy;
+        if (dot < -2.0) {
+          continue;
+        }
+      }
+
+      // Outward normal facing directly toward the querying paw (strictly the NEAR side!):
+      const nearNx = distDx / dist;
+      const nearNy = distDy / dist;
+
+      const halfThick = (s.thickness || 20) * 0.5;
+      const effectiveDist = dist - halfThick;
+      if (effectiveDist >= bestEffectiveDist) {
+        continue;
+      }
+
+      // Point on the NEAR surface facing the paw:
+      const surfaceX = cx + nearNx * halfThick;
+      const surfaceY = cy + nearNy * halfThick;
+
+      // Line of sight check: ensure no other wall or platform lies between the paw and the surface point
+      if (!this.hasLineOfSight(px, py, surfaceX, surfaceY, s)) {
+        continue;
+      }
+
+      bestEffectiveDist = effectiveDist;
+      best = {
+        seg: s,
+        cx: surfaceX,
+        cy: surfaceY,
+        rawCx: cx,
+        rawCy: cy,
+        dist: effectiveDist,
+        nx: nearNx,
+        ny: nearNy,
+        tx: -nearNy,
+        ty: nearNx,
+        t,
+        segLen,
+        material: s.material
+      };
     }
     return best;
   }
