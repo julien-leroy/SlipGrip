@@ -107,6 +107,7 @@ export class Caterpillar {
       bodyShape: 'larve'
     };
     this.loadCosmetics();
+    this.loadAppleSegments();
 
     this.nodes = [];
     this.applyBodyClass(this.cosmetics.bodyType || 'classique', false);
@@ -165,6 +166,40 @@ export class Caterpillar {
     this.reset(startX, startY);
   }
 
+  getDefaultRadius(cls, i, totalNodes) {
+    const radii = (cls && cls.radii) || [14.0, 16.5, 17.5, 16.5, 17.5];
+    if (radii.length === 0) return 16;
+    if (i === 0) return radii[0];
+    if (i === totalNodes - 1) return radii[radii.length - 1];
+    if (radii.length <= 2) return radii[0];
+    const mid = radii.slice(1, -1);
+    return mid[(i - 1) % mid.length];
+  }
+
+  loadAppleSegments() {
+    try {
+      const saved = localStorage.getItem('slipgrip_apple_segments');
+      if (saved !== null) {
+        const parsed = parseInt(saved, 10);
+        if (!isNaN(parsed) && parsed >= 0) {
+          this.extraAppleSegments = parsed;
+          return;
+        }
+      }
+    } catch {
+      // Ignore storage error
+    }
+    this.extraAppleSegments = 0;
+  }
+
+  saveAppleSegments() {
+    try {
+      localStorage.setItem('slipgrip_apple_segments', (this.extraAppleSegments || 0).toString());
+    } catch {
+      // Ignore storage error
+    }
+  }
+
   applyBodyClass(typeId, morphExisting = false) {
     const cls = CATERPILLAR_CLASSES[typeId] || CATERPILLAR_CLASSES.classique;
     this.bodyClass = cls;
@@ -172,11 +207,11 @@ export class Caterpillar {
     const reachMult = GAMEPLAY_CONFIG.unbendReachBonus || 1.0;
     this.extendedSegLen = cls.extendedSegLen * reachMult;
     this.contractedSegLen = cls.contractedSegLen;
-    this.fullLength = this.extendedSegLen * (cls.numNodes - 1);
+    const targetNum = cls.numNodes + (this.extraAppleSegments || 0);
+    this.fullLength = this.extendedSegLen * (targetNum - 1);
 
     if (morphExisting && this.nodes && this.nodes.length > 0) {
       const oldLen = this.nodes.length;
-      const targetNum = cls.numNodes;
       const newNodes = [];
       for (let i = 0; i < targetNum; i++) {
         const t = targetNum > 1 ? (i / (targetNum - 1)) : 0;
@@ -191,7 +226,7 @@ export class Caterpillar {
           y: nA.y + (nB.y - nA.y) * f,
           vx: nA.vx + (nB.vx - nA.vx) * f,
           vy: nA.vy + (nB.vy - nA.vy) * f,
-          r: cls.radii[i] || 16,
+          r: this.getDefaultRadius(cls, i, targetNum),
           mass: cls.massMult || 1.0,
           onGround: nA.onGround || nB.onGround,
           groundSlopeGrade: nA.groundSlopeGrade,
@@ -211,7 +246,7 @@ export class Caterpillar {
         this.frontAnchor.y = this.nodes[targetNum - 1].y;
       }
     } else {
-      this.numNodes = cls.numNodes;
+      this.numNodes = targetNum;
     }
   }
 
@@ -285,17 +320,16 @@ export class Caterpillar {
     };
 
     const cls = this.bodyClass || CATERPILLAR_CLASSES[this.cosmetics.bodyType] || CATERPILLAR_CLASSES.classique;
-    const baseRadii = cls.radii || [14.0, 16.5, 17.5, 16.5, 17.5];
 
     if (type === 'giant') {
       this.sizeScale = 1.45;
       for (let i = 0; i < this.numNodes; i++) {
-        if (this.nodes[i]) this.nodes[i].r = (baseRadii[i] || 16) * 1.45;
+        if (this.nodes[i]) this.nodes[i].r = this.getDefaultRadius(cls, i, this.numNodes) * 1.45;
       }
     } else {
       this.sizeScale = 1.0;
       for (let i = 0; i < this.numNodes; i++) {
-        if (this.nodes[i]) this.nodes[i].r = baseRadii[i] || 16;
+        if (this.nodes[i]) this.nodes[i].r = this.getDefaultRadius(cls, i, this.numNodes);
       }
     }
 
@@ -321,8 +355,10 @@ export class Caterpillar {
   }
 
   addPermanentSegment(particles) {
-    const N = this.numNodes;
-    if (N >= 10) return; // reasonable max
+    this.extraAppleSegments = (this.extraAppleSegments || 0) + 1;
+    this.saveAppleSegments();
+
+    const N = this.nodes.length;
     const preHead = this.nodes[N - 2];
     const head = this.nodes[N - 1];
     const mx = (preHead.x + head.x) * 0.5;
@@ -344,12 +380,13 @@ export class Caterpillar {
     this.nodes.splice(N - 1, 0, newNode);
     this.numNodes = this.nodes.length;
     this.fullLength = this.extendedSegLen * (this.numNodes - 1);
+    this.maxHp = 100 + (this.extraAppleSegments || 0) * 10;
     this.hp = Math.min(this.maxHp, this.hp + 50);
     this.expression = 'happy';
     if (sound) sound.playCheckpoint();
     if (particles) {
-      particles.spawnPopup(this.head.x, this.head.y - 30, '+1 SEGMENT ! 🍏', '#38d84e');
-      particles.spawnConfetti(this.head.x, this.head.y - 10, 20);
+      particles.spawnPopup(this.head.x, this.head.y - 30, `+1 SEGMENT (Total: ${this.numNodes}) ! 🍏`, '#38d84e');
+      particles.spawnConfetti(this.head.x, this.head.y - 10, 25);
     }
   }
 
@@ -379,14 +416,14 @@ export class Caterpillar {
 
   reset(startX, startY) {
     const cls = this.bodyClass || CATERPILLAR_CLASSES[this.cosmetics.bodyType] || CATERPILLAR_CLASSES.classique;
-    this.numNodes = cls.numNodes;
+    this.numNodes = cls.numNodes + (this.extraAppleSegments || 0);
     const reachMult = GAMEPLAY_CONFIG.unbendReachBonus || 1.0;
     this.extendedSegLen = cls.extendedSegLen * reachMult;
     this.contractedSegLen = cls.contractedSegLen;
     this.fullLength = this.extendedSegLen * (this.numNodes - 1);
 
-    this.maxHp = 100;
-    this.hp = 100;
+    this.maxHp = 100 + (this.extraAppleSegments || 0) * 10;
+    this.hp = this.maxHp;
     this.invulnerableTimer = 0;
 
     this.activePowerUp = {
@@ -398,7 +435,6 @@ export class Caterpillar {
     this.jumpCooldown = 0;
 
     this.nodes = [];
-    const radii = cls.radii || [14.0, 16.5, 17.5, 16.5, 17.5];
     for (let i = 0; i < this.numNodes; i++) {
       const x = startX + i * this.extendedSegLen;
       const y = startY;
@@ -408,7 +444,7 @@ export class Caterpillar {
         y,
         vx: 0,
         vy: 0,
-        r: radii[i] || 16,
+        r: this.getDefaultRadius(cls, i, this.numNodes),
         mass: cls.massMult || 1.0,
         onGround: false,
         groundSlopeGrade: 0,
@@ -761,9 +797,8 @@ export class Caterpillar {
         if (this.activePowerUp.type === 'giant') {
           this.sizeScale = 1.0;
           const cls = this.bodyClass || CATERPILLAR_CLASSES[this.cosmetics.bodyType] || CATERPILLAR_CLASSES.classique;
-          const baseRadii = cls.radii || [12.5, 14.2, 14.8, 13.8, 14.8];
           for (let i = 0; i < this.numNodes; i++) {
-            if (this.nodes[i]) this.nodes[i].r = baseRadii[i] || 14;
+            if (this.nodes[i]) this.nodes[i].r = this.getDefaultRadius(cls, i, this.numNodes);
           }
         }
         this.activePowerUp.type = null;
