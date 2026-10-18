@@ -100,6 +100,8 @@ class SlipGripGame {
     this.elCosmeticsModal = document.getElementById('cosmetics-modal');
     this.elTuningModal = document.getElementById('tuning-modal');
     this.lvlButtons = Array.from(document.querySelectorAll('.lvl-btn'));
+    this.lastHp = null;
+    this.healthVisibleTimer = 0;
   }
 
   syncCosmeticsUI() {
@@ -558,6 +560,8 @@ class SlipGripGame {
     };
 
     this.caterpillar.reset(this.level.startX, this.level.startY);
+    this.lastHp = this.caterpillar.hp;
+    this.healthVisibleTimer = 0;
 
     this.raceStarted = false;
     this.raceFinished = false;
@@ -579,6 +583,8 @@ class SlipGripGame {
     this.caterpillar.reset(this.lastCheckpoint.x, this.lastCheckpoint.y);
     this.caterpillar.hp = this.caterpillar.maxHp;
     this.caterpillar.invulnerableTimer = 1.0;
+    this.lastHp = this.caterpillar.hp;
+    this.healthVisibleTimer = 2.0;
     const com = this.caterpillar.centerOfMass;
     this.camera.focusX = com.x + 120;
     this.camera.focusY = com.y - 30;
@@ -635,17 +641,32 @@ class SlipGripGame {
     }, 1350);
   }
 
-  updateHUD() {
+  updateHUD(dt = 0.016) {
     this.elTimer.textContent = this.formatTime(this.raceTime);
     const progress = Math.max(0, Math.min(1, (this.caterpillar.head.x - this.level.startX) / (this.level.finishX - this.level.startX)));
     const pct = (progress * 100).toFixed(1) + '%';
     this.elProgressFill.style.width = pct;
     this.elProgressBug.style.left = pct;
 
-    // Health bar update
+    // Health bar update (appears only on damage/healing or if <= 10% HP)
     const hp = Math.max(0, Math.round(this.caterpillar.hp));
     const maxHp = this.caterpillar.maxHp || 100;
     const hpPct = Math.max(0, Math.min(100, (hp / maxHp) * 100));
+
+    if (this.lastHp === null) {
+      this.lastHp = hp;
+    } else if (Math.abs(hp - this.lastHp) >= 0.5) {
+      this.healthVisibleTimer = 2.8;
+      this.lastHp = hp;
+    }
+
+    if (this.healthVisibleTimer > 0) {
+      this.healthVisibleTimer = Math.max(0, this.healthVisibleTimer - dt);
+    }
+
+    const isCritical = hp > 0 && (hp <= maxHp * 0.10);
+    const shouldShowHealth = (this.healthVisibleTimer > 0) || isCritical;
+
     if (this.elHealthValue) {
       this.elHealthValue.textContent = `${hp} / ${maxHp}`;
     }
@@ -653,10 +674,12 @@ class SlipGripGame {
       this.elHealthFill.style.width = `${hpPct}%`;
     }
     if (this.elHealthCard) {
-      this.elHealthCard.classList.toggle('danger', hp <= 30);
+      this.elHealthCard.classList.toggle('visible', shouldShowHealth);
+      this.elHealthCard.classList.toggle('critical', isCritical);
+      this.elHealthCard.classList.toggle('danger', hp <= 25);
     }
 
-    // Power-up HUD update
+    // Power-up HUD update (compact ergonomic timer badge)
     if (this.elPowerUpCard) {
       const pow = this.caterpillar.activePowerUp;
       if (pow && pow.type && pow.timer > 0) {
@@ -668,13 +691,6 @@ class SlipGripGame {
           length: '📏',
           feather: '🪶'
         };
-        const labels = {
-          speed: 'VITESSE MAX',
-          strength: 'SUPER FORCE',
-          giant: 'COLOSSAL',
-          length: 'LONGUEUR MAX',
-          feather: 'VOLTIGE'
-        };
         const colors = {
           speed: '#00d2d3',
           strength: '#ff9f43',
@@ -683,17 +699,15 @@ class SlipGripGame {
           feather: '#54a0ff'
         };
         if (this.elPowerUpIcon) this.elPowerUpIcon.textContent = icons[pow.type] || '⭐';
-        if (this.elPowerUpLabel) {
-          this.elPowerUpLabel.textContent = labels[pow.type] || 'BONUS';
-          this.elPowerUpLabel.style.color = colors[pow.type] || '#ffd93b';
-        }
         if (this.elPowerUpTimer) this.elPowerUpTimer.textContent = `${pow.timer.toFixed(1)}s`;
         if (this.elPowerUpFill) {
           const dur = pow.duration || 15.0;
-          const pct = Math.max(0, Math.min(100, (pow.timer / dur) * 100));
-          this.elPowerUpFill.style.width = `${pct}%`;
+          const fillPct = Math.max(0, Math.min(100, (pow.timer / dur) * 100));
+          this.elPowerUpFill.style.width = `${fillPct}%`;
           this.elPowerUpFill.style.background = colors[pow.type] || '#ffd93b';
         }
+        this.elPowerUpCard.style.borderColor = colors[pow.type] || '#00d2d3';
+        this.elPowerUpCard.style.boxShadow = `0 4px 0 var(--card-border), 0 0 12px ${colors[pow.type] || 'rgba(0, 210, 211, 0.45)'}`;
       } else {
         this.elPowerUpCard.classList.add('hidden');
       }
@@ -814,7 +828,7 @@ class SlipGripGame {
     this.camera.y += (targetCamY - this.camera.y) * Math.min(1, dt * 1.5);
     this.camera.y = Math.max(-360, Math.min(200, this.camera.y));
 
-    this.updateHUD();
+    this.updateHUD(dt);
   }
 
   draw() {

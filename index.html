@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=16" />
+  <link rel="stylesheet" href="styles.css?v=17" />
 </head>
 <body>
   <div id="game-wrapper">
@@ -18,40 +18,20 @@
     <header id="hud-top">
       <div class="hud-card brand-card">
         <div class="logo-badge">🐛 SlipGrip</div>
-        <div class="level-selector">
-          <button class="lvl-btn active" data-level="0" title="Niveau 1 : Le Sous-bois Glissant">
-            <span class="lvl-num">1</span>
-          </button>
-          <button class="lvl-btn" data-level="1" title="Niveau 2 : Le Potager Suspendu">
-            <span class="lvl-num">2</span>
-          </button>
-          <button class="lvl-btn" data-level="2" title="Niveau 3 : Le Pique-nique Ravagé">
-            <span class="lvl-num">3</span>
-          </button>
-        </div>
       </div>
 
-      <div class="hud-card health-card" title="Points de Vie de la chenille (Attention aux piques et aux trous !)">
+      <div id="health-card" class="hud-card health-card" title="Points de Vie">
         <span class="health-heart">❤️</span>
-        <div class="health-info">
-          <div class="health-meta">
-            <span class="health-label">SANTÉ</span>
-            <span id="health-value" class="health-value">100 HP</span>
-          </div>
-          <div class="health-bar-wrap">
-            <div id="health-bar-fill" class="health-bar-fill" style="width: 100%;"></div>
-          </div>
+        <div class="health-bar-wrap">
+          <div id="health-bar-fill" class="health-bar-fill" style="width: 100%;"></div>
         </div>
       </div>
 
-      <div id="powerup-card" class="hud-card powerup-card hidden" title="Bonus temporaire actif">
+      <div id="powerup-card" class="hud-card powerup-card hidden" title="Bonus actif">
         <span id="powerup-icon" class="powerup-icon">⚡</span>
-        <div class="powerup-info">
-          <div class="powerup-meta">
-            <span id="powerup-label" class="powerup-label">VITESSE</span>
-            <span id="powerup-timer" class="powerup-timer">15.0s</span>
-          </div>
-          <div class="powerup-bar-wrap">
+        <div class="powerup-timer-box">
+          <span id="powerup-timer" class="powerup-timer">15.0s</span>
+          <div class="powerup-mini-track">
             <div id="powerup-bar-fill" class="powerup-bar-fill" style="width: 100%;"></div>
           </div>
         </div>
@@ -75,23 +55,23 @@
       </div>
 
       <div class="hud-card actions-card">
-        <button id="btn-tuning" class="action-btn" title="Régler le Gameplay & Physique (Touche Tab ou T)">
-          ⚙️ Réglages
-        </button>
-        <button id="btn-cosmetics" class="action-btn" title="Personnaliser votre chenille (Chapeau, Couleur, Visage)">
-          🎨 Cosmétiques
-        </button>
-        <button id="btn-checkpoint" class="action-btn" title="Revenir au dernier Checkpoint activé (Touche C)">
-          🚩 Checkpoint <kbd>C</kbd>
-        </button>
-        <button id="btn-restart" class="action-btn" title="Recommencer le niveau depuis le départ (Touche R)">
-          🔄 Départ <kbd>R</kbd>
-        </button>
-        <button id="btn-mute" class="action-btn icon-only" title="Activer / Couper le son">
-          🔊
-        </button>
-        <button id="btn-help" class="action-btn icon-only" title="Afficher les contrôles">
+        <button id="btn-help" class="action-btn icon-only" title="Règles & Contrôles (Touche H ou ?)">
           ❓
+        </button>
+        <button id="btn-cosmetics" class="action-btn icon-only" title="Personnaliser votre chenille (Chapeau, Couleur, Visage)">
+          🎨
+        </button>
+        <button id="btn-tuning" class="action-btn icon-only" title="Régler le Gameplay & Physique (Touche Tab ou T)">
+          ⚙️
+        </button>
+        <button id="btn-checkpoint" class="action-btn icon-only" title="Revenir au dernier Checkpoint (Touche C)">
+          🚩
+        </button>
+        <button id="btn-restart" class="action-btn icon-only" title="Recommencer depuis le départ (Touche R)">
+          🔄
+        </button>
+        <button id="btn-mute" class="action-btn icon-only" title="Activer / Couper le son (Touche M)">
+          🔊
         </button>
       </div>
     </header>
@@ -535,6 +515,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=62"></script> 
+  <script type="module" src="js/main.js?v=63"></script> 
 </body>
 </html>

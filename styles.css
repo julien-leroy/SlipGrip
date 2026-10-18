@@ -74,65 +74,51 @@ html, body {
   font-weight: 700;
   color: #1f7a1f;
   text-shadow: 0 2px 0 #d5f7b8;
-  padding-right: 8px;
-  border-right: 2px dashed rgba(58, 38, 20, 0.25);
   white-space: nowrap;
 }
 
 .level-selector {
-  display: flex;
-  gap: 6px;
+  display: none !important;
 }
 
-.lvl-btn {
-  font-family: var(--font-display);
-  font-size: 0.88rem;
-  font-weight: 600;
-  padding: 6px 11px;
-  border-radius: 12px;
-  border: 2.5px solid var(--card-border);
-  background: #f3ead3;
-  color: var(--text-main);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: transform 0.12s ease, background 0.15s ease;
-  box-shadow: 0 3px 0 var(--card-border);
-}
-
-.lvl-btn:hover {
-  transform: translateY(-2px);
-  background: #fff8e6;
-}
-
-.lvl-btn.active {
-  background: var(--accent-yellow);
-  color: #2a1b0e;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 0 var(--card-border);
-}
-
-.lvl-num {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--card-border);
-  color: #fff;
-  font-size: 0.78rem;
-}
-
-/* Health Bar Card */
+/* Health Bar Card — Minimalist, displays on HP change or <= 10% HP */
 .health-card {
-  gap: 10px;
-  padding: 8px 14px;
+  gap: 8px;
+  padding: 6px 12px;
+  opacity: 0;
+  transform: translateY(-8px) scale(0.96);
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.2, 0.9, 0.3, 1), transform 0.3s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.health-card.visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.health-card.critical {
+  border-color: #ff4757;
+  box-shadow: 0 0 14px rgba(255, 71, 87, 0.7), 0 5px 0 var(--card-border);
+  animation: criticalPulse 0.65s infinite alternate ease-in-out;
+}
+
+.health-card.critical .health-heart {
+  animation: heartFastBeat 0.45s infinite ease-in-out;
+}
+
+@keyframes criticalPulse {
+  0% { transform: scale(1); }
+  100% { transform: scale(1.05); }
+}
+
+@keyframes heartFastBeat {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.35); }
 }
 
 .health-heart {
-  font-size: 1.45rem;
+  font-size: 1.35rem;
   line-height: 1;
   display: inline-block;
   animation: heartPulse 2.2s infinite ease-in-out;
@@ -145,41 +131,14 @@ html, body {
   42% { transform: scale(1.14); }
 }
 
-.health-info {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 105px;
-}
-
-.health-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.health-label {
-  font-size: 0.68rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  color: #7c5c38;
-}
-
-.health-value {
-  font-family: var(--font-display);
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: #2a1b0e;
-}
-
 .health-bar-wrap {
-  width: 100%;
+  width: 120px;
   height: 12px;
-  background: #e2d5b5;
+  background: #2a1b0e;
   border: 2px solid var(--card-border);
   border-radius: 999px;
   overflow: hidden;
-  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.3);
 }
 
 .health-bar-fill {
@@ -201,13 +160,16 @@ html, body {
   50% { opacity: 0.55; }
 }
 
-/* Power-Up HUD Card */
+/* Power-Up HUD Card — Compact & Ergonomic Timer */
 .powerup-card {
-  gap: 10px;
-  min-width: 135px;
+  gap: 8px;
+  padding: 6px 12px;
+  min-width: 90px;
+  border-radius: 16px;
   border-color: #00d2d3;
-  box-shadow: var(--shadow-chunky), 0 0 12px rgba(0, 210, 211, 0.45);
-  animation: powerupPulse 1.2s infinite alternate;
+  box-shadow: 0 4px 0 var(--card-border), 0 0 12px rgba(0, 210, 211, 0.45);
+  animation: powerupPulse 1.2s infinite alternate ease-in-out;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 @keyframes powerupPulse {
@@ -216,54 +178,43 @@ html, body {
 }
 
 .powerup-icon {
-  font-size: 1.6rem;
+  font-size: 1.45rem;
   line-height: 1;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.25));
 }
 
-.powerup-info {
+.powerup-timer-box {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  gap: 4px;
-}
-
-.powerup-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.powerup-label {
-  font-size: 0.68rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  color: #0097e6;
+  gap: 3px;
+  min-width: 50px;
 }
 
 .powerup-timer {
   font-family: var(--font-display);
-  font-size: 0.88rem;
-  font-weight: 700;
+  font-size: 0.95rem;
+  font-weight: 800;
   color: #2a1b0e;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
 }
 
-.powerup-bar-wrap {
+.powerup-mini-track {
   width: 100%;
-  height: 12px;
-  background: #e2d5b5;
-  border: 2px solid var(--card-border);
+  height: 6px;
+  background: rgba(42, 27, 14, 0.25);
+  border: 1.5px solid var(--card-border);
   border-radius: 999px;
   overflow: hidden;
-  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.2);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .powerup-bar-fill {
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, #00d2d3, #48dbfb);
+  background: #00d2d3;
   border-radius: 999px;
-  transition: width 0.15s linear;
+  transition: width 0.1s linear;
 }
 
 /* Timer & Progress */
@@ -345,7 +296,8 @@ html, body {
 
 /* Action Buttons */
 .actions-card {
-  gap: 8px;
+  gap: 6px;
+  padding: 6px 10px;
 }
 
 .action-btn {
@@ -359,15 +311,16 @@ html, body {
   color: var(--text-main);
   cursor: pointer;
   box-shadow: 0 3px 0 var(--card-border);
-  transition: transform 0.1s ease, background 0.15s ease;
+  transition: transform 0.1s ease, background 0.15s ease, box-shadow 0.1s ease;
   display: flex;
   align-items: center;
-  gap: 5px;
+  justify-content: center;
 }
 
 .action-btn:hover {
   background: #ffebb3;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 5px 0 var(--card-border);
 }
 
 .action-btn:active {
@@ -376,8 +329,11 @@ html, body {
 }
 
 .action-btn.icon-only {
-  padding: 7px 10px;
-  font-size: 1rem;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  font-size: 1.22rem;
+  line-height: 1;
 }
 
 kbd {
