@@ -144,8 +144,8 @@ export class PhysicsWorld {
       scale,
       // Heavy boulder masses so they never glitch or fly away when gripped
       mass: isPinecone ? 36.0 : 6.5,
-      maxHp: isPinecone ? 9999 : 35,
-      hp: isPinecone ? 9999 : 35,
+      maxHp: isPinecone ? 9999 : 100,
+      hp: isPinecone ? 9999 : 100,
       isBroken: false,
       damageCooldown: 0,
       hpBarTimer: 0,
@@ -667,17 +667,17 @@ export class PhysicsWorld {
       }
 
       p.vy += this.gravity * dt;
-      // Heavy damping so pinecones act like massive stable boulders
-      const linDamp = p.type === 'pinecone' ? 0.96 : 0.98;
-      const angDamp = p.type === 'pinecone' ? 0.90 : 0.94;
+      // Damping allows props to fly smoothly across distances when ejected
+      const linDamp = p.type === 'pinecone' ? 0.985 : 0.992;
+      const angDamp = p.type === 'pinecone' ? 0.95 : 0.97;
       p.vx *= Math.pow(linDamp, dt * 60);
       p.vy *= Math.pow(linDamp, dt * 60);
       p.angVel *= Math.pow(angDamp, dt * 60);
 
-      // Clamp max velocity so props can never glitch or fly off
-      p.vx = Math.max(-220, Math.min(220, p.vx));
-      p.vy = Math.max(-260, Math.min(320, p.vy));
-      p.angVel = Math.max(-2.5, Math.min(2.5, p.angVel));
+      // Clamp max velocity so thrown props can fly far across the level
+      p.vx = Math.max(-1400, Math.min(1400, p.vx));
+      p.vy = Math.max(-1400, Math.min(1500, p.vy));
+      p.angVel = Math.max(-18.0, Math.min(18.0, p.angVel));
 
       p.x += p.vx * dt;
       p.y += p.vy * dt;
@@ -719,9 +719,11 @@ export class PhysicsWorld {
             const vn = p.vx * cp.nx + p.vy * cp.ny;
             const vt = p.vx * cp.tx + p.vy * cp.ty;
             if (vn < 0) {
-              // High velocity impact damages acorns
-              if (vn < -75 && p.type === 'acorn') {
-                this.damageProp(p, Math.pow(-vn / 36, 1.35) * 8, p.x, p.y, particles, 'impact');
+              // High velocity impact damages acorns (takes multiple hits to open!)
+              if (vn < -80 && p.type === 'acorn') {
+                const impactSpeed = -vn;
+                const dmg = Math.min(36, Math.pow(impactSpeed / 42, 1.25) * 8);
+                this.damageProp(p, dmg, p.x, p.y, particles, 'impact');
               }
 
               const newVn = -vn * 0.08;
@@ -767,6 +769,18 @@ export class PhysicsWorld {
             p.vy -= ny * imp * wp;
             q.vx += nx * imp * wq;
             q.vy += ny * imp * wq;
+
+            if (rvn < -65) {
+              const relSpeed = -rvn;
+              if (p.type === 'acorn') {
+                const dmgP = Math.min(45, Math.pow(relSpeed / 38, 1.25) * (q.mass * 0.45));
+                this.damageProp(p, dmgP, (p.x + q.x) * 0.5, (p.y + q.y) * 0.5, particles, 'prop_impact');
+              }
+              if (q.type === 'acorn') {
+                const dmgQ = Math.min(45, Math.pow(relSpeed / 38, 1.25) * (p.mass * 0.45));
+                this.damageProp(q, dmgQ, (p.x + q.x) * 0.5, (p.y + q.y) * 0.5, particles, 'prop_impact');
+              }
+            }
           }
         }
       }
@@ -786,14 +800,15 @@ export class PhysicsWorld {
             const relVy = p.vy - e.vy;
             const relSpeed = Math.hypot(relVx, relVy);
             if (relSpeed > 38) {
-              const massFactor = p.type === 'pinecone' ? 1.65 : 0.45;
+              const massFactor = p.type === 'pinecone' ? 2.2 : 0.65;
               const hitDmg = Math.pow(relSpeed / 30, 1.35) * (p.mass * massFactor);
               const midX = (p.x + e.x) * 0.5;
               const midY = (p.y + e.y) * 0.5;
               this.damageEnemy(e, hitDmg, midX, midY, particles, 'prop_impact');
 
               if (p.type === 'acorn') {
-                this.damageProp(p, hitDmg * 0.70, midX, midY, particles, 'enemy_impact');
+                const dmgA = Math.min(35, Math.pow(relSpeed / 42, 1.25) * 8);
+                this.damageProp(p, dmgA, midX, midY, particles, 'enemy_impact');
               }
 
               // Knockback enemy

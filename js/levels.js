@@ -1014,6 +1014,105 @@ export class LevelRenderer {
       ctx.ellipse(-r * 0.34, r * 0.22, r * 0.2, r * 0.36, -0.22, 0, Math.PI * 2);
       ctx.fill();
 
+      // 1b. Procedural Cracks & Fissures ("craquelures") based on HP loss:
+      const maxHp = prop.maxHp || 100;
+      const curHp = prop.hp !== undefined ? prop.hp : maxHp;
+      const damageRatio = Math.max(0, Math.min(1, 1 - (curHp / maxHp)));
+
+      if (damageRatio > 0.10) {
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'miter';
+
+        const drawCrack = (pts, width = 2.2) => {
+          // Lighter highlight border along crack edge for depth
+          ctx.strokeStyle = 'rgba(255, 235, 190, 0.45)';
+          ctx.lineWidth = width + 1.2;
+          ctx.beginPath();
+          ctx.moveTo(pts[0][0] + 0.8, pts[0][1] + 0.8);
+          for (let p = 1; p < pts.length; p++) {
+            ctx.lineTo(pts[p][0] + 0.8, pts[p][1] + 0.8);
+          }
+          ctx.stroke();
+
+          // Dark inner fracture crevasse
+          ctx.strokeStyle = '#220d04';
+          ctx.lineWidth = width;
+          ctx.beginPath();
+          ctx.moveTo(pts[0][0], pts[0][1]);
+          for (let p = 1; p < pts.length; p++) {
+            ctx.lineTo(pts[p][0], pts[p][1]);
+          }
+          ctx.stroke();
+        };
+
+        // Fissure 1: Starts from bottom point and climbs up the center-left
+        const t1 = Math.min(1.0, (damageRatio - 0.10) / 0.32);
+        const p1 = [
+          [0, r * 1.04],
+          [-r * 0.08, r * 0.88],
+          [-r * 0.03, r * 0.74],
+          [-r * 0.18, r * 0.58],
+          [-r * 0.12, r * 0.44],
+          [-r * 0.24, r * 0.30]
+        ];
+        const sliceLen1 = Math.max(2, Math.floor(t1 * p1.length));
+        drawCrack(p1.slice(0, sliceLen1), 2.4);
+
+        if (damageRatio > 0.28) {
+          drawCrack([
+            [-r * 0.18, r * 0.58],
+            [-r * 0.35, r * 0.62],
+            [-r * 0.46, r * 0.54]
+          ], 1.8);
+        }
+
+        // Fissure 2: Starts on the right side and zigs inwards
+        if (damageRatio > 0.40) {
+          const t2 = Math.min(1.0, (damageRatio - 0.40) / 0.30);
+          const p2 = [
+            [r * 0.78, r * 0.15],
+            [r * 0.58, r * 0.28],
+            [r * 0.42, r * 0.22],
+            [r * 0.26, r * 0.38],
+            [r * 0.12, r * 0.42],
+            [0, r * 0.56]
+          ];
+          const sliceLen2 = Math.max(2, Math.floor(t2 * p2.length));
+          drawCrack(p2.slice(0, sliceLen2), 2.2);
+
+          if (damageRatio > 0.58) {
+            drawCrack([
+              [r * 0.42, r * 0.22],
+              [r * 0.48, r * 0.08],
+              [r * 0.38, -r * 0.04]
+            ], 1.8);
+          }
+        }
+
+        // Fissure 3: Major splitting crevasse from near the cap downwards
+        if (damageRatio > 0.70) {
+          const t3 = Math.min(1.0, (damageRatio - 0.70) / 0.26);
+          const p3 = [
+            [-r * 0.32, -r * 0.06],
+            [-r * 0.20, r * 0.08],
+            [-r * 0.06, r * 0.18],
+            [r * 0.08, r * 0.32],
+            [-r * 0.02, r * 0.50]
+          ];
+          const sliceLen3 = Math.max(2, Math.floor(t3 * p3.length));
+          drawCrack(p3.slice(0, sliceLen3), 2.5);
+
+          drawCrack([
+            [-r * 0.06, r * 0.18],
+            [r * 0.12, r * 0.16],
+            [r * 0.28, r * 0.04]
+          ], 2.0);
+        }
+
+        ctx.restore();
+      }
+
       // 2. Little woody stem at top
       ctx.fillStyle = '#4a280d';
       ctx.beginPath();

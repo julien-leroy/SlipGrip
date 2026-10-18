@@ -480,7 +480,8 @@ export class Caterpillar {
   isHoldingMovable(anchor) {
     if (!anchor || !anchor.anchored) return false;
     if (anchor.hedgehogRef || anchor.aphidRef) return true;
-    if (anchor.propRef && (anchor.propRef.type === 'acorn' || anchor.propRef.mass < 15)) return true;
+    const hasStrength = (this.activePowerUp && this.activePowerUp.type === 'strength');
+    if (anchor.propRef && (anchor.propRef.type === 'acorn' || anchor.propRef.mass < 15 || hasStrength)) return true;
     return false;
   }
 
@@ -528,16 +529,21 @@ export class Caterpillar {
       let { dx, dy } = this.getFrontVector();
       if (!isFront) { dx = -dx; dy = -dy; }
 
+      const hasStrength = (this.activePowerUp && this.activePowerUp.type === 'strength');
+      const strengthMult = hasStrength ? 3.0 : 1.0;
       const boost = (this.extensionTimer > 0 ? 2.5 : 1.7);
-      const throwSpeed = (300 + (this.extensionMomentum.power || 0) * 340) * boost;
+      const throwSpeed = (320 + (this.extensionMomentum.power || 0) * 380) * boost * strengthMult;
       aphid.vx = node.vx * 0.8 + dx * throwSpeed;
-      aphid.vy = node.vy * 0.8 + dy * throwSpeed - 120;
+      aphid.vy = node.vy * 0.8 + dy * throwSpeed - (hasStrength ? 200 : 120);
       aphid.squashX = 1.45;
       aphid.squashY = 0.55;
 
       sound.playLaunch(0.85);
       if (particles) {
         particles.spawnMud(node.x, node.y, -dx, -dy, 8, 0.75);
+        if (hasStrength) {
+          particles.spawnConfetti(node.x, node.y, 14);
+        }
       }
       anchor.aphidRef = null;
     }
@@ -566,26 +572,31 @@ export class Caterpillar {
 
       const chargeT = (this.extensionMomentum && this.extensionMomentum.chargeTime) || this.chargeDuration || 0;
       const boost = (this.extensionTimer > 0 || chargeT >= 1.0) ? 2.5 : 1.5;
-      const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength') ? 1.6 : 1.0;
-      const throwSpeed = (290 + Math.pow(Math.min(1.0, chargeT / 3.0), 2.0) * 360) * boost * strengthMult;
+      const hasStrength = (this.activePowerUp && this.activePowerUp.type === 'strength');
+      const strengthMult = hasStrength ? 3.0 : 1.0;
+      const throwSpeed = (300 + Math.pow(Math.min(1.0, chargeT / 3.0), 2.0) * 400) * boost * strengthMult;
 
       hedgehog.vx = node.vx * 0.7 + aimX * throwSpeed;
-      hedgehog.vy = node.vy * 0.7 + aimY * throwSpeed - 120;
+      hedgehog.vy = node.vy * 0.7 + aimY * throwSpeed - (hasStrength ? 200 : 120);
       hedgehog.squashX = 1.45;
       hedgehog.squashY = 0.55;
 
       sound.playLaunch(0.85);
       if (particles) {
         particles.spawnMud(node.x, node.y, -aimX, -aimY, 8, 0.75);
+        if (hasStrength) {
+          particles.spawnConfetti(node.x, node.y, 14);
+        }
       }
       anchor.hedgehogRef = null;
     }
 
-    // Fling / Throw grabbable light props (like acorns) with inertia and aim!
+    // Fling / Throw grabbable props (acorns, and pinecones with superforce!)
     if (anchor.propRef) {
       const prop = anchor.propRef;
       prop.isHeld = false;
-      if (prop.type === 'acorn' || prop.mass < 15 || (this.bodyClass && this.bodyClass.massMult > 1.4)) {
+      const hasStrength = (this.activePowerUp && this.activePowerUp.type === 'strength');
+      if (prop.type === 'acorn' || prop.mass < 15 || hasStrength || (this.bodyClass && this.bodyClass.massMult > 1.4)) {
         let { dx, dy } = this.getFrontVector();
         if (!isFront) { dx = -dx; dy = -dy; }
 
@@ -604,17 +615,21 @@ export class Caterpillar {
 
         const chargeT = (this.extensionMomentum && this.extensionMomentum.chargeTime) || this.chargeDuration || 0;
         const boost = (this.extensionTimer > 0 || chargeT >= 1.0) ? 2.5 : 1.5;
-        const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength') ? 1.6 : 1.0;
+        const strengthMult = hasStrength ? 3.0 : 1.0;
         const clsMass = (this.bodyClass && this.bodyClass.massMult) || 1.0;
-        const throwSpeed = (260 + Math.pow(Math.min(1.0, chargeT / 3.0), 2.0) * 350) * boost * strengthMult * (clsMass > 1.2 ? 1.35 : 1.0);
+        const baseSpeed = prop.type === 'pinecone' ? 320 : 350;
+        const throwSpeed = (baseSpeed + Math.pow(Math.min(1.0, chargeT / 2.5), 2.0) * 440) * boost * strengthMult * (clsMass > 1.2 ? 1.35 : 1.0);
 
         prop.vx = node.vx * 0.7 + aimX * throwSpeed;
-        prop.vy = node.vy * 0.7 + aimY * throwSpeed - 95;
-        prop.angVel = aimX * 14.0;
+        prop.vy = node.vy * 0.7 + aimY * throwSpeed - (hasStrength ? 180 : 100);
+        prop.angVel = aimX * (hasStrength ? 20.0 : 14.0);
 
         sound.playLaunch(0.70);
         if (particles) {
-          particles.spawnMud(node.x, node.y, -aimX, -aimY, 7, 0.65);
+          particles.spawnMud(node.x, node.y, -aimX, -aimY, 9, 0.75);
+          if (hasStrength) {
+            particles.spawnConfetti(node.x, node.y, 16);
+          }
         }
       }
     }
@@ -1299,7 +1314,8 @@ export class Caterpillar {
               aimDirX = steerX / aimDist;
               aimDirY = effSteerY / aimDist;
 
-              const liftEffort = isHoldingFront ? 0.70 : 1.0;
+              const hasSuperStrength = (this.activePowerUp && this.activePowerUp.type === 'strength');
+              const liftEffort = (isHoldingFront && !hasSuperStrength) ? 0.70 : 1.0;
               const headReachForce = (GAMEPLAY_CONFIG.orientationUpForce || 2100) * resp * agilityRatio * liftEffort;
 
               // 1. Head rises first and foremost:
@@ -1397,7 +1413,8 @@ export class Caterpillar {
               targetProg = 0.0;
             }
 
-            const liftEffort = isHoldingFront ? 0.70 : 1.0;
+            const hasSuperStrength = (this.activePowerUp && this.activePowerUp.type === 'strength');
+            const liftEffort = (isHoldingFront && !hasSuperStrength) ? 0.70 : 1.0;
             const rearRate = (targetProg > this.rearingProgress ? 4.8 : 8.5) * (GAMEPLAY_CONFIG.orientationResponsiveness || 2.2) * liftEffort;
             this.rearingProgress += (targetProg - this.rearingProgress) * Math.min(1, dt * rearRate);
 
@@ -1947,6 +1964,30 @@ export class Caterpillar {
           }
         }
       }
+
+      // Extension kick on acorns: hitting them with body expansion helps crack them open!
+      if (world.props) {
+        for (const p of world.props) {
+          if (p.isHeld || p.type !== 'acorn') continue;
+          for (let i = 0; i < N; i++) {
+            const n = this.nodes[i];
+            const pdx = p.x - n.x;
+            const pdy = p.y - n.y;
+            const pdist = Math.hypot(pdx, pdy) || 0.0001;
+            const minHitDist = n.r + p.radius + 6;
+            if (pdist < minHitDist) {
+              const pushDirX = pdx / pdist;
+              const pushDirY = pdy / pdist;
+              p.vx += pushDirX * 320;
+              p.vy += (pushDirY < 0 ? pushDirY * 320 : -160);
+              if (world.damageProp) {
+                world.damageProp(p, 14 + extRatio * 18, p.x, p.y, particles, 'extension_kick');
+              }
+              break;
+            }
+          }
+        }
+      }
     }
 
     // 4. SKELETON CONSTRAINTS:
@@ -2175,8 +2216,8 @@ export class Caterpillar {
           continue;
         }
 
-        // For small light acorns when held: skip collision with adjacent nodes to prevent self-propulsion flying glitch
-        if (prop.isHeld && (prop.type === 'acorn' || prop.mass < 15)) {
+        // For props when held (acorns, or pinecones held with superforce): skip collision with body nodes to prevent self-propulsion
+        if (prop.isHeld) {
           continue;
         }
 
@@ -2497,7 +2538,8 @@ export class Caterpillar {
 
       if (anchor.propRef) {
         const prop = anchor.propRef;
-        const isLightProp = prop.type === 'acorn' || prop.mass < 15;
+        const hasSuperStrength = (this.activePowerUp && this.activePowerUp.type === 'strength');
+        const isLightProp = prop.type === 'acorn' || prop.mass < 15 || hasSuperStrength;
         const effR = prop.radius * 0.95 + node.r * 0.80;
         const worldAngle = prop.angle + anchor.propLocalAngle;
         const nx = Math.cos(worldAngle);
