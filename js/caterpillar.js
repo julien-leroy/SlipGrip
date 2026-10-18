@@ -177,27 +177,16 @@ export class Caterpillar {
   }
 
   loadAppleSegments() {
+    this.extraAppleSegments = 0;
     try {
-      const saved = localStorage.getItem('slipgrip_apple_segments');
-      if (saved !== null) {
-        const parsed = parseInt(saved, 10);
-        if (!isNaN(parsed) && parsed >= 0) {
-          this.extraAppleSegments = parsed;
-          return;
-        }
-      }
+      localStorage.removeItem('slipgrip_apple_segments');
     } catch {
       // Ignore storage error
     }
-    this.extraAppleSegments = 0;
   }
 
   saveAppleSegments() {
-    try {
-      localStorage.setItem('slipgrip_apple_segments', (this.extraAppleSegments || 0).toString());
-    } catch {
-      // Ignore storage error
-    }
+    // Session only: do not persist extra segments to localStorage
   }
 
   applyBodyClass(typeId, morphExisting = false) {
@@ -356,7 +345,6 @@ export class Caterpillar {
 
   addPermanentSegment(particles) {
     this.extraAppleSegments = (this.extraAppleSegments || 0) + 1;
-    this.saveAppleSegments();
 
     const N = this.nodes.length;
     const preHead = this.nodes[N - 2];
