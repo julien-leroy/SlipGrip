@@ -1061,7 +1061,7 @@ export class Caterpillar {
 
     // Only one paw anchored:
     // 1. Rear gripped segment lock (Segment 0 between Node 0 and Node 1)
-    if (this.rearAnchor.anchored && !this.rearAnchor.slipping) {
+    if (rearIsGround) {
       const isRearingHigh = (this.rearingProgress || 0) > 0.20;
       const isCoiling = this.contraction > 0.15;
 
@@ -1213,7 +1213,7 @@ export class Caterpillar {
       } else {
         // On the ground / anchored:
         const inertiaBoost = (isExtending || isHopping) ? 1.5 : 1.0;
-        const resp = GAMEPLAY_CONFIG.orientationResponsiveness || 1.6;
+        const resp = GAMEPLAY_CONFIG.orientationResponsiveness || 2.2;
         const clsAgility = (this.bodyClass && this.bodyClass.agilityMult) || 1.0;
         const clsMass = (this.bodyClass && this.bodyClass.massMult) || 1.0;
         // Bending: orient continues smoothly at ~0.50x speed as requested; normal is full speed & snappy
@@ -1236,23 +1236,24 @@ export class Caterpillar {
               aimDirY = effSteerY / aimDist;
 
               const liftEffort = isHoldingFront ? 0.70 : 1.0;
-              // Full reaching authority on the head (directly tuned by orientationUpForce, 30% more struggle with held item/enemy):
-              const headReachForce = (GAMEPLAY_CONFIG.orientationUpForce || 1600) * resp * agilityRatio * liftEffort;
+              // Full reaching authority on the head (fast and responsive aiming with arrows):
+              const headReachForce = (GAMEPLAY_CONFIG.orientationUpForce || 2100) * resp * agilityRatio * liftEffort;
               this.head.vx += aimDirX * headReachForce * dt;
               this.head.vy += aimDirY * headReachForce * dt;
 
               // Neck follows with partial power:
-              this.nodes[N - 2].vx += aimDirX * headReachForce * 0.50 * dt;
-              this.nodes[N - 2].vy += aimDirY * headReachForce * 0.50 * dt;
+              this.nodes[N - 2].vx += aimDirX * headReachForce * 0.55 * dt;
+              this.nodes[N - 2].vy += aimDirY * headReachForce * 0.55 * dt;
 
               // Mid vertebra slight support:
-              this.nodes[N - 3].vx += aimDirX * headReachForce * 0.15 * dt;
-              this.nodes[N - 3].vy += aimDirY * headReachForce * 0.15 * dt;
+              this.nodes[N - 3].vx += aimDirX * headReachForce * 0.20 * dt;
+              this.nodes[N - 3].vy += aimDirY * headReachForce * 0.20 * dt;
 
-              // Lower body (node 0 and 1) gets ZERO upward lift! They carry their own weight on the ground.
+              // Lower body crawl push is kept calm and deliberate so walking does NOT get faster:
+              const crawlPush = 35.0 * clsAgility;
               if (steerX !== 0) {
-                this.nodes[0].vx += steerX * (sideCurlForce * 0.035) * dt;
-                this.nodes[1].vx += steerX * (sideCurlForce * 0.035) * dt;
+                this.nodes[0].vx += steerX * crawlPush * dt;
+                this.nodes[1].vx += steerX * crawlPush * dt;
               }
 
               // Active peeling / unsticking force if the head is touching an obstacle and steering away/up:
@@ -1322,7 +1323,7 @@ export class Caterpillar {
             }
 
             const liftEffort = isHoldingFront ? 0.70 : 1.0;
-            const rearRate = 8.5 * (GAMEPLAY_CONFIG.orientationResponsiveness || 1.45) * liftEffort;
+            const rearRate = 18.0 * (GAMEPLAY_CONFIG.orientationResponsiveness || 2.2) * liftEffort;
             this.rearingProgress += (targetProg - this.rearingProgress) * Math.min(1, dt * rearRate);
 
             // Aim angle for steered head posture
@@ -1340,8 +1341,8 @@ export class Caterpillar {
             let curAngleDiff = targetAimAngle - this.rearingSmoothedAngle;
             while (curAngleDiff > Math.PI) curAngleDiff -= Math.PI * 2;
             while (curAngleDiff < -Math.PI) curAngleDiff += Math.PI * 2;
-            const rotSpeed = (isPressingUp || effSteerY < 0) ? 11.0 : 8.0;
-            this.rearingSmoothedAngle += curAngleDiff * Math.min(1, dt * rotSpeed * (GAMEPLAY_CONFIG.orientationResponsiveness || 1.45));
+            const rotSpeed = (isPressingUp || effSteerY < 0) ? 24.0 : 18.0;
+            this.rearingSmoothedAngle += curAngleDiff * Math.min(1, dt * rotSpeed * (GAMEPLAY_CONFIG.orientationResponsiveness || 2.2));
 
             // 3. Construct target spine positions:
             const tx = new Float32Array(N);
@@ -1415,24 +1416,24 @@ export class Caterpillar {
                 errY = 0;
               }
 
-              const stiff = (rearProp && segProg < 0.2) ? 42.0 : (28.0 + 12.0 * t);
-              const damp = 10.0 + 3.0 * t;
+              const stiff = (rearProp && segProg < 0.2) ? 45.0 : (36.0 + 16.0 * t);
+              const damp = 11.0 + 3.0 * t;
               this.nodes[i].vx += (errX * stiff - this.nodes[i].vx * damp) * dt;
               this.nodes[i].vy += (errY * stiff - this.nodes[i].vy * damp) * dt;
             }
 
             // 4. Active head aiming & reach authority:
             if (hasSteer && !isPureDown) {
-              const headReachForce = (GAMEPLAY_CONFIG.orientationUpForce || 1600) * resp * agilityRatio * liftEffort;
+              const headReachForce = (GAMEPLAY_CONFIG.orientationUpForce || 2100) * resp * agilityRatio * liftEffort;
               const aimDx = Math.cos(this.rearingSmoothedAngle);
               const aimDy = Math.sin(this.rearingSmoothedAngle);
-              this.head.vx += aimDx * headReachForce * 0.85 * dt;
-              this.head.vy += aimDy * headReachForce * 0.85 * dt;
-              this.nodes[N - 2].vx += aimDx * headReachForce * 0.50 * dt;
-              this.nodes[N - 2].vy += aimDy * headReachForce * 0.50 * dt;
+              this.head.vx += aimDx * headReachForce * 0.95 * dt;
+              this.head.vy += aimDy * headReachForce * 0.95 * dt;
+              this.nodes[N - 2].vx += aimDx * headReachForce * 0.60 * dt;
+              this.nodes[N - 2].vy += aimDy * headReachForce * 0.60 * dt;
               if (N > 3) {
-                this.nodes[N - 3].vx += aimDx * headReachForce * 0.20 * dt;
-                this.nodes[N - 3].vy += aimDy * headReachForce * 0.20 * dt;
+                this.nodes[N - 3].vx += aimDx * headReachForce * 0.25 * dt;
+                this.nodes[N - 3].vy += aimDy * headReachForce * 0.25 * dt;
               }
 
               // Direct immediate upward lift when pressing UP so held objects (acorn, enemy) rise effortlessly:
@@ -1520,7 +1521,7 @@ export class Caterpillar {
             // 1. Horizontal tail steering (Left / Right arrows)
             // Allows player to swing, slide, or sway the tail onto ledges or away/closer!
             if (steerX !== 0) {
-              const tailHorizontalForce = 620 * slideEase * resp * dt;
+              const tailHorizontalForce = 950 * slideEase * resp * dt;
               for (let i = 0; i < N - 2; i++) {
                 const ratio = (N - 2 - i) / (N - 2);
                 this.nodes[i].vx += steerX * tailHorizontalForce * ratio;
@@ -1530,7 +1531,7 @@ export class Caterpillar {
             // 2. Longitudinal pull / push (Bending / Space or directional pull)
             if (isBending) {
               // Holding Space draws the tail smoothly toward the front anchor
-              const pullForce = 580 * slideEase * resp * dt;
+              const pullForce = 750 * slideEase * resp * dt;
               for (let i = 0; i < N - 2; i++) {
                 const ratio = (N - 2 - i) / (N - 2);
                 this.nodes[i].vx += dirX * pullForce * ratio;
@@ -1543,14 +1544,14 @@ export class Caterpillar {
             // - Up arrow: lifts and arches the tail to aim direction before launching or flinging
             if (effSteerY > 0) {
               // Press tail down
-              const downForce = 580 * resp * dt;
+              const downForce = 850 * resp * dt;
               for (let i = 0; i < N - 2; i++) {
                 const ratio = (N - 2 - i) / (N - 2);
                 this.nodes[i].vy += downForce * ratio;
               }
             } else if (effSteerY < 0) {
               // Lift tail up! Responsive lift to point tail upward or diagonally (boosted if holding object)
-              const liftForce = (isHoldingRear ? 820 : 640) * resp * dt;
+              const liftForce = (isHoldingRear ? 1300 : 1050) * resp * dt;
               for (let i = 0; i < N - 2; i++) {
                 const ratio = Math.pow((N - 2 - i) / (N - 2), 0.95);
                 this.nodes[i].vy -= liftForce * ratio;
@@ -2026,13 +2027,14 @@ export class Caterpillar {
         }
       }
 
-      // Solid Collision with Heavy Boulder Pinecones & Acorns (all body segments collide!)
+      // Solid Collision with Heavy Boulder Pinecones & Acorns
       for (const prop of world.props) {
-        // Only skip collision for the specific anchor paw that is holding this prop
-        const isAnchorNodeForThisProp =
-          (i === 0 && this.rearAnchor.anchored && this.rearAnchor.propRef === prop) ||
-          (i === N - 1 && this.frontAnchor.anchored && this.frontAnchor.propRef === prop);
-        if (isAnchorNodeForThisProp) {
+        // If this prop is currently held by the caterpillar, ignore self-collision with caterpillar body
+        if (
+          prop.isHeld ||
+          (this.rearAnchor.anchored && this.rearAnchor.propRef === prop) ||
+          (this.frontAnchor.anchored && this.frontAnchor.propRef === prop)
+        ) {
           continue;
         }
 
@@ -2049,13 +2051,11 @@ export class Caterpillar {
 
           const rearPinned = (i === 0 && this.rearAnchor.anchored);
           const frontPinned = (i === N - 1 && this.frontAnchor.anchored);
-          const isHeldProp = prop.isHeld ||
-                             (this.rearAnchor.anchored && this.rearAnchor.propRef === prop) ||
-                             (this.frontAnchor.anchored && this.frontAnchor.propRef === prop);
+          const isHeldProp = false;
 
           const totalMass = n.mass + prop.mass;
           const wNode = (rearPinned || frontPinned) ? 0 : 1.0;
-          const wProp = (isHeldProp || rearPinned || frontPinned) ? 0 : (n.mass / totalMass);
+          const wProp = (rearPinned || frontPinned) ? 0 : (n.mass / totalMass);
 
           n.x += nx * overlap * wNode;
           n.y += ny * overlap * wNode;
@@ -2098,11 +2098,9 @@ export class Caterpillar {
             }
           }
 
-          if (!isHeldProp) {
-            const torque = rx * (n.mass * world.gravity * 0.6) - ry * (-nx * n.mass * world.gravity * 0.3);
-            const inertia = 0.65 * prop.mass * effPropRadius * effPropRadius;
-            prop.angVel += (torque / inertia) * dt * 6;
-          }
+          const torque = rx * (n.mass * world.gravity * 0.6) - ry * (-nx * n.mass * world.gravity * 0.3);
+          const inertia = 0.65 * prop.mass * effPropRadius * effPropRadius;
+          prop.angVel += (torque / inertia) * dt * 6;
 
           if (!rearPinned && !frontPinned) {
             n.vx -= tx * rvt * Math.min(1, dt * 20);
@@ -2148,9 +2146,7 @@ export class Caterpillar {
 
       // Soft Squishy Aphids
       for (const a of world.aphids) {
-        const isHoldingThis = (i === 0 && this.rearAnchor.anchored && this.rearAnchor.aphidRef === a) ||
-                              (i === N - 1 && this.frontAnchor.anchored && this.frontAnchor.aphidRef === a);
-        if (isHoldingThis) continue;
+        if (a.isHeld) continue;
         const dx = n.x - a.x;
         const dy = n.y - a.y;
         const dist = Math.hypot(dx, dy) || 0.0001;
@@ -2188,9 +2184,7 @@ export class Caterpillar {
       // Hedgehogs (Hérissons): Spikes hurt on back/rear, safe on front snout!
       if (world.hedgehogs) {
         for (const h of world.hedgehogs) {
-          const isHoldingThis = (i === 0 && this.rearAnchor.anchored && this.rearAnchor.hedgehogRef === h) ||
-                                (i === N - 1 && this.frontAnchor.anchored && this.frontAnchor.hedgehogRef === h);
-          if (isHoldingThis) continue;
+          if (h.isHeld) continue;
           const dx = n.x - h.x;
           const dy = n.y - h.y;
           const dist = Math.hypot(dx, dy) || 0.0001;
@@ -2397,6 +2391,10 @@ export class Caterpillar {
           node.y = prop.y + ny * effR;
           prop.vx = node.vx;
           prop.vy = node.vy;
+          if (prop.onGround && node.vy > 0) {
+            node.vy = 0;
+            node.onGround = true;
+          }
 
           anchor.nx = nx;
           anchor.ny = ny;

@@ -1484,20 +1484,27 @@ export class LevelRenderer {
     const isPanicking = h.isHeld || h.isFlying;
 
     // 1. Spikes on back and rear:
-    // Sharp cartoon triangular quills on top and rear (-X and -Y to +Y)
+    // Quills cover the back dome and rear (from top of neck behind face, up and over back, down to rear)
+    // Front face and snout are 100% clean and free of quills!
     ctx.fillStyle = '#4a2810';
     ctx.strokeStyle = '#241206';
     ctx.lineWidth = 2.5;
 
-    const numQuills = 11;
+    const numQuills = 15;
+    // Angle spans from neck behind eyes (-1.15 rad) up over the back (-PI/2, -PI) down to lower rear (-4.25 rad)
+    const startA = -1.15;
+    const endA = -4.25;
+
     for (let i = 0; i < numQuills; i++) {
-      // Angle spans from rear bottom (approx 2.4 rad) across top to forehead (approx -0.8 rad)
-      const a = 2.4 - (i / (numQuills - 1)) * 3.2;
-      const base1X = Math.cos(a - 0.16) * (r * 0.92);
-      const base1Y = Math.sin(a - 0.16) * (r * 0.92);
-      const base2X = Math.cos(a + 0.16) * (r * 0.92);
-      const base2Y = Math.sin(a + 0.16) * (r * 0.92);
-      const tipLen = r * 1.48 + (i % 2 === 0 ? 4 : 0);
+      const t = i / (numQuills - 1);
+      const a = startA + t * (endA - startA);
+      const spread = 0.14;
+      const base1X = Math.cos(a - spread) * (r * 0.92);
+      const base1Y = Math.sin(a - spread) * (r * 0.92);
+      const base2X = Math.cos(a + spread) * (r * 0.92);
+      const base2Y = Math.sin(a + spread) * (r * 0.92);
+
+      const tipLen = r * 1.50 + (i % 2 === 0 ? 4 : 0);
       const tipX = Math.cos(a) * tipLen;
       const tipY = Math.sin(a) * tipLen;
 
@@ -1508,6 +1515,27 @@ export class LevelRenderer {
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
+    }
+
+    // Secondary inner quill highlights (lighter brown tips for depth)
+    ctx.fillStyle = '#7a4218';
+    for (let i = 1; i < numQuills - 1; i += 2) {
+      const t = i / (numQuills - 1);
+      const a = startA + t * (endA - startA);
+      const tipLen = r * 1.35;
+      const tipX = Math.cos(a) * tipLen;
+      const tipY = Math.sin(a) * tipLen;
+      const base1X = Math.cos(a - 0.08) * (r * 0.90);
+      const base1Y = Math.sin(a - 0.08) * (r * 0.90);
+      const base2X = Math.cos(a + 0.08) * (r * 0.90);
+      const base2Y = Math.sin(a + 0.08) * (r * 0.90);
+
+      ctx.beginPath();
+      ctx.moveTo(base1X, base1Y);
+      ctx.lineTo(tipX, tipY);
+      ctx.lineTo(base2X, base2Y);
+      ctx.closePath();
+      ctx.fill();
     }
 
     // 2. Main Body (Brown fur dome)
@@ -1528,6 +1556,19 @@ export class LevelRenderer {
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
+
+    // Cute Little Ear (between face and spiky back)
+    ctx.fillStyle = '#e8c99b';
+    ctx.strokeStyle = '#241206';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.arc(r * 0.15, -r * 0.42, 4.0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#ff85a2';
+    ctx.beginPath();
+    ctx.arc(r * 0.15, -r * 0.42, 2.0, 0, Math.PI * 2);
+    ctx.fill();
 
     // Black Button Nose
     ctx.fillStyle = '#1e1108';

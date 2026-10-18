@@ -264,10 +264,10 @@ export const GAMEPLAY_CONFIG = {
   groundSnapping: 1.5,
 
   // Force d'orientation vers le haut (permet de dresser la tête facilement)
-  orientationUpForce: 1750,
+  orientationUpForce: 2100,
 
-  // Vitesse de réaction à l'orientation des flèches
-  orientationResponsiveness: 1.45,
+  // Vitesse de réaction à l'orientation des flèches (orientation vive et rapide)
+  orientationResponsiveness: 2.2,
 
   // Nombre de segments avant mobilisés pour lever la tête (1 à 3)
   orientationHeadSpan: 2,
