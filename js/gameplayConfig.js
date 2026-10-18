@@ -152,7 +152,7 @@ export const GAMEPLAY_PRESETS = {
     orientationHeadSpan: 2,
     orientationRearSpan: 2,
     jumpBoost: 1.00,
-    maxJumpSpeed: 320,
+    maxJumpSpeed: 520,
     jumpUpAngleBonus: 1.25,
     jumpChargeTime: 3.0,
     gripDistance: 26,
@@ -165,7 +165,7 @@ export const GAMEPLAY_PRESETS = {
     bendCanOrientVertically: true,
     bendOrientationPower: 0.55,
     bendContractSpeed: 11.0,
-    unbendExtensionSpeed: 14.0,
+    unbendExtensionSpeed: 36.0,
     anchorReleaseMomentumWindow: 0.30,
     groundPushForce: 1.10,
     airborneExtensionOnly: true,
@@ -279,7 +279,7 @@ export const GAMEPLAY_CONFIG = {
   jumpBoost: 1.00,
 
   // Vitesse maximale de base du saut à pleine charge
-  maxJumpSpeed: 320,
+  maxJumpSpeed: 520,
 
   // Bonus d'impulsion verticale quand on oriente vers le haut
   jumpUpAngleBonus: 1.25,
@@ -318,7 +318,7 @@ export const GAMEPLAY_CONFIG = {
   bendContractSpeed: 11.0,
 
   // Vitesse de déploiement / détente du corps au relâchement
-  unbendExtensionSpeed: 14.0,
+  unbendExtensionSpeed: 36.0,
 
   // Poussée sur la surface au décollage avec bonne inertie physique
   groundPushForce: 1.00,

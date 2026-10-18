@@ -630,11 +630,13 @@ export class LevelRenderer {
     // 8. Draw Soft Squishy Aphids
     for (const a of world.aphids) {
       this.drawAphid(ctx, a, time);
+      this.drawEnemyHealthBar(ctx, a);
     }
 
     // 8b. Draw Hedgehogs (Hérissons)
     for (const h of world.hedgehogs) {
       this.drawHedgehog(ctx, h, time);
+      this.drawEnemyHealthBar(ctx, h);
     }
 
     // 8c. Draw Power-Up Collectibles (Speed, Strength, Giant, Length, Feather)
@@ -1357,6 +1359,49 @@ export class LevelRenderer {
     ctx.restore();
   }
 
+  drawEnemyHealthBar(ctx, enemy) {
+    if (!enemy || enemy.maxHp === undefined) return;
+    // Show if damaged, defeated, or timer > 0
+    if (enemy.hp >= enemy.maxHp && (!enemy.hpBarTimer || enemy.hpBarTimer <= 0)) return;
+
+    ctx.save();
+    const barW = Math.max(34, enemy.radius * 1.5);
+    const barH = 5;
+    const barX = enemy.x - barW * 0.5;
+    const barY = enemy.y - enemy.radius - 14;
+
+    // Dark rounded background capsule with border
+    ctx.fillStyle = 'rgba(20, 20, 20, 0.78)';
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.roundRect(barX - 1, barY - 1, barW + 2, barH + 2, 3);
+    ctx.fill();
+    ctx.stroke();
+
+    // Fill ratio
+    const ratio = Math.max(0, Math.min(1, enemy.hp / enemy.maxHp));
+    const fillW = Math.max(0, barW * ratio);
+
+    if (fillW > 0) {
+      // Color from green to orange to red
+      const fillColor = ratio > 0.55 ? '#2ed573' : (ratio > 0.25 ? '#ffa502' : '#ff4757');
+      ctx.fillStyle = fillColor;
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, fillW, barH, 2);
+      ctx.fill();
+    }
+
+    if (enemy.isDefeated) {
+      ctx.font = 'bold 9px "Lilita One", sans-serif';
+      ctx.fillStyle = '#ff4757';
+      ctx.textAlign = 'center';
+      ctx.fillText('K.O.', enemy.x, barY - 3);
+    }
+
+    ctx.restore();
+  }
+
   drawAphid(ctx, a, time) {
     ctx.save();
     ctx.translate(a.x, a.y);
@@ -1385,7 +1430,24 @@ export class LevelRenderer {
     ctx.fill();
     ctx.stroke();
 
-    if (isPanicking) {
+    if (a.isDefeated) {
+      // Defeated 'X' eye
+      ctx.strokeStyle = '#1b4332';
+      ctx.lineWidth = 2.5;
+      const eyeX = r * 0.40;
+      const eyeY = -r * 0.20;
+      ctx.beginPath();
+      ctx.moveTo(eyeX - 4, eyeY - 4);
+      ctx.lineTo(eyeX + 4, eyeY + 4);
+      ctx.moveTo(eyeX + 4, eyeY - 4);
+      ctx.lineTo(eyeX - 4, eyeY + 4);
+      ctx.stroke();
+
+      // Dizzy mouth
+      ctx.beginPath();
+      ctx.arc(r * 0.65, 3, 3, 0, Math.PI);
+      ctx.stroke();
+    } else if (isPanicking) {
       // Big cartoon startled eyes
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
@@ -1576,8 +1638,19 @@ export class LevelRenderer {
     ctx.arc(r * 1.35, r * 0.15, 3.5, 0, Math.PI * 2);
     ctx.fill();
 
-    // Eye (startled/dizzy if held or flying, cute shiny eye if normal)
-    if (isPanicking) {
+    // Eye (defeated 'X', startled if held or flying, cute shiny eye if normal)
+    if (h.isDefeated) {
+      ctx.strokeStyle = '#1e1108';
+      ctx.lineWidth = 2.5;
+      const eyeX = r * 0.65;
+      const eyeY = -r * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(eyeX - 4, eyeY - 4);
+      ctx.lineTo(eyeX + 4, eyeY + 4);
+      ctx.moveTo(eyeX + 4, eyeY - 4);
+      ctx.lineTo(eyeX - 4, eyeY + 4);
+      ctx.stroke();
+    } else if (isPanicking) {
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.arc(r * 0.65, -r * 0.12, 6.0, 0, Math.PI * 2);

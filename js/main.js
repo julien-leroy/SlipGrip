@@ -754,7 +754,7 @@ class SlipGripGame {
       this.raceTime += dt;
     }
 
-    this.world.update(dt);
+    this.world.update(dt, this.particles);
     this.caterpillar.update(dt, this.world, this.inputs, this.particles);
     this.particles.update(dt);
 

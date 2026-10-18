@@ -814,12 +814,13 @@ export class Caterpillar {
         const maxChargeTime = Math.max(1.0, GAMEPLAY_CONFIG.jumpChargeTime || 3.0);
         const canJump = this.chargeDuration >= minJumpCharge && this.jumpCooldown <= 0;
         if (canJump) {
-          // Exponential curve: strictly 0 at 0.5s, accelerating smoothly to 1.0 at 3.0s
+          // 3-tier progressive jump: strictly 0 jump below 0.5s of charge!
+          // 0.5-1.2s: petit saut (~0.35-0.48), 1.2-2.2s: moyen saut (~0.48-0.74), 2.2-3.0s: gros saut (~0.75-1.00)
           const u = Math.min(1.0, Math.max(0, (this.chargeDuration - minJumpCharge) / (maxChargeTime - minJumpCharge)));
-          const effectivePower = (Math.exp(2.5 * u) - 1) / (Math.exp(2.5) - 1);
+          const effectivePower = 0.35 + 0.65 * Math.pow(u, 1.35);
           this.rigidityTimer = 0.35;
           this.bodyRigidity = 0.85;
-          this.extensionTimer = 0.32 + 0.12 * effectivePower; // Active deployment phase
+          this.extensionTimer = 0.32 + 0.16 * effectivePower; // Active deployment phase
           this.jumpCooldown = 0.35;
           this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles);
         } else {
@@ -963,12 +964,12 @@ export class Caterpillar {
     }
 
     // Dynamic, satisfying jump leap in the direction of the body!
-    // Progressive jump: strictly zero push at start, accelerating exponentially to max (320 px/s) at 3.0s
+    // Progressive 3-tier jump: strictly zero push under 0.5s, then petit saut, moyen saut, gros saut (up to 520 px/s)
     if (power <= 0.005) {
       return;
     }
 
-    const baseMaxSpeed = GAMEPLAY_CONFIG.maxJumpSpeed || 320;
+    const baseMaxSpeed = GAMEPLAY_CONFIG.maxJumpSpeed || 520;
     const jumpSpeed = (power * baseMaxSpeed) * jumpBoostMult * strengthMult * speedMult;
 
     for (let i = 0; i < N; i++) {
@@ -980,11 +981,20 @@ export class Caterpillar {
     }
 
     this.hopTimer = 0.45;
-    this.extensionTimer = 0.32 + 0.14 * power;
+    this.extensionTimer = 0.32 + 0.16 * power;
     this.extensionMomentum.consumed = true;
     this.extensionMomentum.timer = 0;
 
-    particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, Math.round(3 + power * 6), power * 0.75);
+    if (particles) {
+      particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, Math.round(3 + power * 6), power * 0.75);
+      if (power < 0.48) {
+        particles.spawnPopup(this.head.x, this.head.y - 20, 'PETIT SAUT ! 🐾', '#a3f76d');
+      } else if (power < 0.75) {
+        particles.spawnPopup(this.head.x, this.head.y - 20, 'BOND ! 🦘', '#38d84e');
+      } else {
+        particles.spawnPopup(this.head.x, this.head.y - 20, 'GROS SAUT ! 🚀', '#ffd93b');
+      }
+    }
     sound.playLaunch(0.20 + power * 0.70);
   }
 
@@ -1487,8 +1497,19 @@ export class Caterpillar {
                 this.head.vx -= this.head.groundNx * 350 * dt;
                 this.head.vy -= this.head.groundNy * 350 * dt;
               }
-              this.head.vy += 450 * dt;
-              this.nodes[N - 2].vy += 300 * dt;
+              const downForce = 850 * dt;
+              this.head.vy += downForce;
+              this.nodes[N - 2].vy += downForce * 0.70;
+            }
+
+            // Gravity assistance when suspended:
+            // If body is suspended/hanging in the air (nodes not on ground), gravity naturally helps unroll the head down!
+            const isSuspended = !this.head.onGround && !this.nodes[N - 2].onGround;
+            if (isSuspended && (isPressingDown || effSteerY > 0 || !hasSteer)) {
+              const hangGravityAid = (isPressingDown || effSteerY > 0) ? (980 * dt) : (380 * dt);
+              this.head.vy += hangGravityAid;
+              this.nodes[N - 2].vy += hangGravityAid * 0.75;
+              if (N > 3) this.nodes[N - 3].vy += hangGravityAid * 0.45;
             }
           } else if (frontLocked && !rearLocked) {
             // Front is anchored: The player controls the tail with the arrows!
@@ -1521,10 +1542,24 @@ export class Caterpillar {
             // 1. Horizontal tail steering (Left / Right arrows)
             // Allows player to swing, slide, or sway the tail onto ledges or away/closer!
             if (steerX !== 0) {
-              const tailHorizontalForce = 950 * slideEase * resp * dt;
+              const tailHorizontalForce = 1500 * slideEase * resp * dt;
               for (let i = 0; i < N - 2; i++) {
                 const ratio = (N - 2 - i) / (N - 2);
                 this.nodes[i].vx += steerX * tailHorizontalForce * ratio;
+              }
+            }
+
+            // Quick unrolling when tail forms a circle / curled loop with body:
+            const tailToHeadDist = Math.hypot(this.rear.x - this.head.x, this.rear.y - this.head.y);
+            if (tailToHeadDist < this.extendedSegLen * 2.8) {
+              const uncurlThrust = 1350 * resp * dt;
+              const uncurlDirX = steerX !== 0 ? steerX : (this.rear.x - this.head.x);
+              const uncurlDirY = effSteerY !== 0 ? effSteerY : (this.rear.y - this.head.y);
+              const uLen = Math.hypot(uncurlDirX, uncurlDirY) || 1;
+              for (let i = 0; i < N - 2; i++) {
+                const ratio = (N - 2 - i) / (N - 2);
+                this.nodes[i].vx += (uncurlDirX / uLen) * uncurlThrust * ratio;
+                this.nodes[i].vy += (uncurlDirY / uLen) * uncurlThrust * ratio;
               }
             }
 
@@ -1741,8 +1776,8 @@ export class Caterpillar {
           aimY = -fv.dy;
         }
 
-        // Tail unbending is heavier and slower:
-        const thrust = 380 * extRatio;
+        // Tail unbending is fast and responsive:
+        const thrust = 720 * extRatio;
         const anchorPt = this.nodes[N - 2];
         for (let i = 0; i < N - 2; i++) {
           const ratio = (N - 2 - i) / (N - 2);
@@ -1752,8 +1787,8 @@ export class Caterpillar {
           const segCountFromFront = N - 2 - i;
           const idealX = anchorPt.x + aimX * curExtendedSegLen * segCountFromFront;
           const idealY = anchorPt.y + aimY * curExtendedSegLen * segCountFromFront;
-          this.nodes[i].vx += (idealX - this.nodes[i].x) * (14.0 * extRatio) * ratio * dt;
-          this.nodes[i].vy += (idealY - this.nodes[i].y) * (14.0 * extRatio) * ratio * dt;
+          this.nodes[i].vx += (idealX - this.nodes[i].x) * (34.0 * extRatio) * ratio * dt;
+          this.nodes[i].vy += (idealY - this.nodes[i].y) * (34.0 * extRatio) * ratio * dt;
         }
       } else if (!rearLocked && !frontLocked) {
         let aimX = 0;
@@ -1891,6 +1926,54 @@ export class Caterpillar {
     // 5. Handle World Collisions
     this.handleWorldCollisions(dt, world, particles, inputs, isFirstSubstep);
 
+    // 6. Sprite / Texture Flip:
+    // Only flip when landed mostly on its back (dorsal side in contact with surface),
+    // with at least 3 segments touching on the back and at least one foot touching on the back.
+    if (isFirstSubstep && this.flipCooldown <= 0) {
+      let dorsalTouches = 0;
+      let footOnDorsal = false;
+
+      for (let i = 0; i < N; i++) {
+        const n = this.nodes[i];
+        if (!n.onGround) continue;
+
+        let tx = 0, ty = 0;
+        if (i < N - 1) {
+          tx = this.nodes[i + 1].x - this.nodes[i].x;
+          ty = this.nodes[i + 1].y - this.nodes[i].y;
+        } else {
+          tx = this.nodes[i].x - this.nodes[i - 1].x;
+          ty = this.nodes[i].y - this.nodes[i - 1].y;
+        }
+        const tLen = Math.hypot(tx, ty) || 1;
+        const ux = tx / tLen;
+        const uy = ty / tLen;
+
+        const dNx = uy * this.dorsalSign;
+        const dNy = -ux * this.dorsalSign;
+
+        // Ground normal n.groundNx, n.groundNy points outward from surface to node center.
+        // Surface is in direction (-n.groundNx, -n.groundNy) from node center.
+        // If surface contact is in direction of the dorsal side (back against surface):
+        const dot = (n.groundNx || 0) * dNx + (n.groundNy || 0) * dNy;
+        if (dot < -0.25) {
+          dorsalTouches++;
+          if (i === 0 || i === N - 1) {
+            footOnDorsal = true;
+          }
+        }
+      }
+
+      const minDorsalSegments = 3;
+      if (dorsalTouches >= minDorsalSegments && footOnDorsal) {
+        this.dorsalSign = -this.dorsalSign;
+        this.flipCooldown = 0.50;
+        sound.playLaunch(0.35);
+        if (particles) {
+          particles.spawnPopup(this.head.x, this.head.y - 20, 'RETOURNÉE ! 🔄', '#ffd93b');
+        }
+      }
+    }
   }
 
   handleWorldCollisions(dt, world, particles, inputs, isFirstSubstep) {
@@ -1981,12 +2064,15 @@ export class Caterpillar {
 
       // Solid Collision with Heavy Boulder Pinecones & Acorns
       for (const prop of world.props) {
-        // If this prop is currently held by the caterpillar, ignore self-collision with caterpillar body
-        if (
-          prop.isHeld ||
-          (this.rearAnchor.anchored && this.rearAnchor.propRef === prop) ||
-          (this.frontAnchor.anchored && this.frontAnchor.propRef === prop)
-        ) {
+        // Skip only the specific paw node that is currently gripping this prop
+        const isGrippingThisProp = (i === 0 && this.rearAnchor.anchored && this.rearAnchor.propRef === prop) ||
+                                   (i === N - 1 && this.frontAnchor.anchored && this.frontAnchor.propRef === prop);
+        if (isGrippingThisProp) {
+          continue;
+        }
+
+        // For small light acorns when held: skip collision with adjacent nodes to prevent self-propulsion flying glitch
+        if (prop.isHeld && (prop.type === 'acorn' || prop.mass < 15)) {
           continue;
         }
 
@@ -2003,11 +2089,10 @@ export class Caterpillar {
 
           const rearPinned = (i === 0 && this.rearAnchor.anchored);
           const frontPinned = (i === N - 1 && this.frontAnchor.anchored);
-          const isHeldProp = false;
 
           const totalMass = n.mass + prop.mass;
           const wNode = (rearPinned || frontPinned) ? 0 : 1.0;
-          const wProp = (rearPinned || frontPinned) ? 0 : (n.mass / totalMass);
+          const wProp = prop.isHeld ? 0 : ((rearPinned || frontPinned) ? 0 : (n.mass / totalMass));
 
           n.x += nx * overlap * wNode;
           n.y += ny * overlap * wNode;
@@ -2146,7 +2231,7 @@ export class Caterpillar {
             const ny = dy / dist;
             // Snout is in direction of h.facing (+1 right, -1 left)
             const isFrontSnout = (nx * h.facing > 0.35) && (ny > -0.65);
-            if (!isFrontSnout) {
+            if (!isFrontSnout && !h.isDefeated) {
               // Prickly spikes on back or rear!
               const knockDirX = nx * 340;
               const knockDirY = (ny < 0 ? ny * 340 : -220);

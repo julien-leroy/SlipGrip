@@ -1,6 +1,5 @@
-// js/physics.js — Stable 2D Physics World with Continuous Terrain & Heavy Boulder Pinecones / Acorns
-
 import { GAMEPLAY_CONFIG } from './gameplayConfig.js?v=41';
+import { sound } from './sound.js?v=41';
 
 export const MATERIALS = {
   dirt:    { friction: 0.90, gripSlide: 0.0,  restitution: 0.05, name: 'Terre meuble' },
@@ -276,7 +275,12 @@ export class PhysicsWorld {
       facing: 1,
       isHeld: false,
       isFlying: false,
-      mass: 3.5
+      mass: 3.5,
+      maxHp: 40,
+      hp: 40,
+      isDefeated: false,
+      damageCooldown: 0,
+      hpBarTimer: 0
     });
   }
 
@@ -295,10 +299,40 @@ export class PhysicsWorld {
       squashY: 1,
       isHeld: false,
       isFlying: false,
-      mass: 4.5
+      mass: 5.0,
+      maxHp: 75,
+      hp: 75,
+      isDefeated: false,
+      damageCooldown: 0,
+      hpBarTimer: 0
     };
     this.hedgehogs.push(hedgehog);
     return hedgehog;
+  }
+
+  damageEnemy(enemy, amount, impactX, impactY, particles, reason = '') {
+    if (!enemy || enemy.isDefeated || enemy.damageCooldown > 0) return;
+    const dmg = Math.round(Math.max(1, amount));
+    enemy.hp = Math.max(0, enemy.hp - dmg);
+    enemy.damageCooldown = 0.12;
+    enemy.hpBarTimer = 3.5;
+
+    if (sound && sound.playLaunch) {
+      sound.playLaunch(0.30);
+    }
+    if (particles) {
+      particles.spawnPopup(impactX, impactY - 18, `-${dmg} HP`, '#ff4757');
+      particles.spawnMud(impactX, impactY, 0, -1, 5, 0.45);
+    }
+
+    if (enemy.hp <= 0) {
+      enemy.isDefeated = true;
+      enemy.isFlying = false;
+      enemy.vx *= 0.2;
+      if (particles) {
+        particles.spawnPopup(impactX, impactY - 32, 'K.O. ! 💫', '#ffd93b');
+      }
+    }
   }
 
   addStickyCrumb(x, y, radius = 26) {
@@ -310,7 +344,7 @@ export class PhysicsWorld {
     });
   }
 
-  update(dt) {
+  update(dt, particles = null) {
     // 1. Dynamic platforms (including moving translation)
     for (const plat of this.dynamicPlatforms) {
       plat.time += dt;
@@ -368,6 +402,9 @@ export class PhysicsWorld {
 
     // 3. Soft Squishy & Throwable Aphids
     for (const a of this.aphids) {
+      a.damageCooldown = Math.max(0, (a.damageCooldown || 0) - dt);
+      a.hpBarTimer = Math.max(0, (a.hpBarTimer || 0) - dt);
+
       if (a.isHeld) {
         // While held by caterpillar, position is directly controlled by the foot/mouth
         a.squashX += (0.82 - a.squashX) * Math.min(1, dt * 8);
@@ -402,12 +439,33 @@ export class PhysicsWorld {
             a.vy -= hit.ny * vn * 1.45;
             a.squashX = 1.35;
             a.squashY = 0.65;
+
+            // Damage from high impact / throw proportional to inertia!
+            if (vn < -55) {
+              const impactSpeed = -vn;
+              const dmg = Math.pow(impactSpeed / 34, 1.45) * (a.mass || 3.5);
+              this.damageEnemy(a, dmg, a.x, a.y, particles, 'impact');
+            }
           }
           if (Math.hypot(a.vx, a.vy) < 45) {
             a.isFlying = false;
             a.patrolMinX = a.x - 90;
             a.patrolMaxX = a.x + 90;
           }
+        }
+      } else if (a.isDefeated) {
+        // Defeated aphid rests peacefully knocked out on the ground
+        a.vx *= Math.pow(0.85, dt * 60);
+        a.vy += this.gravity * dt;
+        a.x += a.vx * dt;
+        a.y += a.vy * dt;
+        const hit = this.findClosestSurface(a.x, a.y, a.radius + 6);
+        if (hit && hit.dist < a.radius) {
+          const overlap = a.radius - hit.dist;
+          a.x += hit.nx * overlap;
+          a.y += hit.ny * overlap;
+          a.vx *= 0.8;
+          a.vy = 0;
         }
       } else {
         // Standard gentle ground patrol
@@ -437,6 +495,9 @@ export class PhysicsWorld {
 
     // 3b. Hedgehogs (Hérissons) with Spikes on Back and Soft Front Snout
     for (const h of this.hedgehogs) {
+      h.damageCooldown = Math.max(0, (h.damageCooldown || 0) - dt);
+      h.hpBarTimer = Math.max(0, (h.hpBarTimer || 0) - dt);
+
       if (h.isHeld) {
         h.squashX += (0.9 - h.squashX) * Math.min(1, dt * 8);
         h.squashY += (1.15 - h.squashY) * Math.min(1, dt * 8);
@@ -469,12 +530,33 @@ export class PhysicsWorld {
             h.vy -= hit.ny * vn * 1.35;
             h.squashX = 1.35;
             h.squashY = 0.65;
+
+            // Damage from high impact / throw proportional to inertia!
+            if (vn < -55) {
+              const impactSpeed = -vn;
+              const dmg = Math.pow(impactSpeed / 34, 1.45) * (h.mass || 5.0);
+              this.damageEnemy(h, dmg, h.x, h.y, particles, 'impact');
+            }
           }
           if (Math.hypot(h.vx, h.vy) < 45) {
             h.isFlying = false;
             h.patrolMinX = h.x - 110;
             h.patrolMaxX = h.x + 110;
           }
+        }
+      } else if (h.isDefeated) {
+        // Defeated hedgehog rests safely on ground
+        h.vx *= Math.pow(0.85, dt * 60);
+        h.vy += this.gravity * dt;
+        h.x += h.vx * dt;
+        h.y += h.vy * dt;
+        const hit = this.findClosestSurface(h.x, h.y, h.radius + 6);
+        if (hit && hit.dist < h.radius) {
+          const overlap = h.radius - hit.dist;
+          h.x += hit.nx * overlap;
+          h.y += hit.ny * overlap;
+          h.vx *= 0.8;
+          h.vy = 0;
         }
       } else {
         if (h.x < h.patrolMinX) h.vx = Math.abs(h.vx) + 14 * dt;
@@ -607,6 +689,61 @@ export class PhysicsWorld {
             p.vy -= ny * imp * wp;
             q.vx += nx * imp * wq;
             q.vy += ny * imp * wq;
+          }
+        }
+      }
+
+      // Prop-to-Enemy collisions: moving props deal damage proportional to inertia!
+      const propSpeed = Math.hypot(p.vx, p.vy);
+      if (propSpeed > 30) {
+        const allEnemies = [...this.aphids, ...this.hedgehogs];
+        for (const e of allEnemies) {
+          if (e.isHeld) continue;
+          const edx = e.x - p.x;
+          const edy = e.y - p.y;
+          const edist = Math.hypot(edx, edy) || 0.0001;
+          const minHitDist = p.radius + e.radius;
+          if (edist < minHitDist) {
+            const relVx = p.vx - e.vx;
+            const relVy = p.vy - e.vy;
+            const relSpeed = Math.hypot(relVx, relVy);
+            if (relSpeed > 38) {
+              const hitDmg = Math.pow(relSpeed / 36, 1.35) * (p.mass * 0.45);
+              const midX = (p.x + e.x) * 0.5;
+              const midY = (p.y + e.y) * 0.5;
+              this.damageEnemy(e, hitDmg, midX, midY, particles, 'prop_impact');
+
+              // Knockback enemy
+              const enx = edx / edist;
+              const eny = edy / edist;
+              e.vx += enx * relSpeed * 0.70;
+              e.vy += eny * relSpeed * 0.70 - 70;
+              e.isFlying = true;
+
+              // Prop rebound
+              p.vx -= enx * 35;
+              p.vy -= eny * 35;
+            }
+          }
+        }
+      }
+    }
+
+    // Flying enemy-to-enemy bowling collisions:
+    for (let i = 0; i < this.aphids.length; i++) {
+      const a = this.aphids[i];
+      if (!a.isFlying) continue;
+      for (const h of this.hedgehogs) {
+        if (h.isHeld) continue;
+        const dx = h.x - a.x;
+        const dy = h.y - a.y;
+        const dist = Math.hypot(dx, dy) || 0.0001;
+        if (dist < a.radius + h.radius) {
+          const relSpeed = Math.hypot(a.vx - h.vx, a.vy - h.vy);
+          if (relSpeed > 45) {
+            const dmg = Math.pow(relSpeed / 36, 1.35) * 14;
+            this.damageEnemy(h, dmg, (a.x + h.x) * 0.5, (a.y + h.y) * 0.5, particles, 'aphid_bowling');
+            this.damageEnemy(a, dmg * 0.65, a.x, a.y, particles, 'impact');
           }
         }
       }
@@ -782,8 +919,8 @@ export class PhysicsWorld {
         // Never grab hedgehogs through a wall!
         if (!this.hasLineOfSight(px, py, cx, cy)) continue;
 
-        // Front safe snout is oriented in the direction of h.facing (+1 right, -1 left)
-        const isFrontHead = (nx * h.facing > 0.35) && (ny > -0.65);
+        // Front safe snout is oriented in the direction of h.facing (+1 right, -1 left), or whole body if defeated
+        const isFrontHead = (nx * h.facing > 0.35 && ny > -0.65) || !!h.isDefeated;
         const isSpiky = !isFrontHead;
 
         bestDist = surfDist;
