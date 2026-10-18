@@ -715,7 +715,7 @@ class SlipGripGame {
 
     if (anchor.stuckCrumb) {
       widgetEl.classList.add('stuck');
-      stateEl.textContent = 'ENGLUÉE ! (ESPACE)';
+      stateEl.textContent = 'ENGLUÉE !';
       iconEl.textContent = '🍯';
     } else if (anchor.hedgehogRef) {
       widgetEl.classList.add('anchored');

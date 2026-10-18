@@ -238,6 +238,7 @@ export class Caterpillar {
       propLocalAngle: 0,
       stuckCrumb: null,
       stuckStrength: 0,
+      stuckCooldown: 0,
       x,
       y,
       nx: 0,
@@ -491,7 +492,6 @@ export class Caterpillar {
 
     if (!isHolding) {
       if (this.rearAnchor.stuckCrumb && this.rearAnchor.stuckStrength > 0) {
-        particles.spawnPopup(this.rear.x, this.rear.y, 'ENGLUÉ ! (ESPACE)', '#ff4757');
         sound.playSticky(false);
         return;
       }
@@ -507,7 +507,6 @@ export class Caterpillar {
 
     if (!isHolding) {
       if (this.frontAnchor.stuckCrumb && this.frontAnchor.stuckStrength > 0) {
-        particles.spawnPopup(this.head.x, this.head.y, 'ENGLUÉ ! (ESPACE)', '#ff4757');
         sound.playSticky(false);
         return;
       }
@@ -807,6 +806,7 @@ export class Caterpillar {
 
     // SPACEBAR: Pure longitudinal contraction of segment lengths (never lifts body into air!)
     const spaceHeld = !!inputs.space;
+    this.updateStickyExtraction(safeDt, spaceHeld, particles);
     if (spaceHeld) {
       this.extensionTimer = 0; // Never allow extension to fight contraction
       this.extensionMomentum.timer = 0;
@@ -926,15 +926,23 @@ export class Caterpillar {
       const c = this.rearAnchor.stuckCrumb;
       this.rearAnchor.stuckCrumb = null;
       this.rearAnchor.anchored = false;
+      this.rearAnchor.stuckStrength = 0;
+      this.rearAnchor.stuckCooldown = 1.0;
       sound.playSticky(true);
-      particles.spawnStickyGoo(c.x, c.y, 8);
+      if (particles) {
+        particles.spawnStickyGoo(c.x, c.y, 8);
+      }
     }
     if (this.frontAnchor.stuckCrumb && power > 0.40) {
       const c = this.frontAnchor.stuckCrumb;
       this.frontAnchor.stuckCrumb = null;
       this.frontAnchor.anchored = false;
+      this.frontAnchor.stuckStrength = 0;
+      this.frontAnchor.stuckCooldown = 1.0;
       sound.playSticky(true);
-      particles.spawnStickyGoo(c.x, c.y, 8);
+      if (particles) {
+        particles.spawnStickyGoo(c.x, c.y, 8);
+      }
     }
 
     // Ground & anchor check: cannot jump if flying in mid-air!
@@ -2439,6 +2447,7 @@ export class Caterpillar {
 
   checkStickyTrap(anchor, node, isFront, crumb, particles) {
     if (anchor.stuckCrumb === crumb) return;
+    if (anchor.stuckCooldown > 0) return;
     const dist = Math.hypot(node.x - crumb.x, node.y - crumb.y);
     if (dist < node.r + crumb.radius * 0.7) {
       anchor.stuckCrumb = crumb;
@@ -2452,8 +2461,80 @@ export class Caterpillar {
       anchor.ty = 0;
       anchor.material = 'sticky';
       sound.playSticky(false);
-      particles.spawnStickyGoo(crumb.x, crumb.y, 7);
-      particles.spawnPopup(crumb.x, crumb.y - 20, 'ENGLUÉ ! (ESPACE)', '#ff4757');
+      if (particles) {
+        particles.spawnStickyGoo(crumb.x, crumb.y, 7);
+      }
+    }
+  }
+
+  updateStickyExtraction(safeDt, spaceHeld, particles) {
+    if (this.rearAnchor.stuckCooldown > 0) {
+      this.rearAnchor.stuckCooldown = Math.max(0, this.rearAnchor.stuckCooldown - safeDt);
+    }
+    if (this.frontAnchor.stuckCooldown > 0) {
+      this.frontAnchor.stuckCooldown = Math.max(0, this.frontAnchor.stuckCooldown - safeDt);
+    }
+
+    const rearStuck = !!this.rearAnchor.stuckCrumb;
+    const frontStuck = !!this.frontAnchor.stuckCrumb;
+    if (!rearStuck && !frontStuck) return;
+
+    // Pulling occurs when holding space or when contracting
+    const isPulling = spaceHeld || this.contraction > 0.18;
+
+    // 1. Rear paw is stuck, front paw grips a surface/prop/branch:
+    if (rearStuck && this.frontAnchor.anchored && !frontStuck) {
+      if (isPulling) {
+        this.rearAnchor.stuckStrength = Math.max(0, (this.rearAnchor.stuckStrength !== undefined ? this.rearAnchor.stuckStrength : 1.0) - safeDt * (3.0 + this.contraction * 4.5));
+        if (particles && Math.random() < 0.35) {
+          particles.spawnStickyGoo(this.rear.x, this.rear.y, 2);
+        }
+        if (this.rearAnchor.stuckStrength <= 0 || this.contraction >= 0.30) {
+          const c = this.rearAnchor.stuckCrumb;
+          this.rearAnchor.stuckCrumb = null;
+          this.rearAnchor.anchored = false;
+          this.rearAnchor.stuckStrength = 0;
+          this.rearAnchor.stuckCooldown = 1.0;
+          sound.playSticky(true);
+          sound.playLaunch(0.35);
+          if (particles) {
+            particles.spawnStickyGoo(c.x, c.y, 12);
+            particles.spawnMud(this.rear.x, this.rear.y, 0, -1, 6, 0.45);
+          }
+          const pullDx = this.head.x - this.rear.x;
+          const pullDy = this.head.y - this.rear.y;
+          const pDist = Math.hypot(pullDx, pullDy) || 1;
+          this.rear.vx += (pullDx / pDist) * 260;
+          this.rear.vy += (pullDy / pDist) * 260 - 70;
+        }
+      }
+    }
+    // 2. Front paw is stuck, rear paw grips a surface/prop/branch:
+    else if (frontStuck && this.rearAnchor.anchored && !rearStuck) {
+      if (isPulling) {
+        this.frontAnchor.stuckStrength = Math.max(0, (this.frontAnchor.stuckStrength !== undefined ? this.frontAnchor.stuckStrength : 1.0) - safeDt * (3.0 + this.contraction * 4.5));
+        if (particles && Math.random() < 0.35) {
+          particles.spawnStickyGoo(this.head.x, this.head.y, 2);
+        }
+        if (this.frontAnchor.stuckStrength <= 0 || this.contraction >= 0.30) {
+          const c = this.frontAnchor.stuckCrumb;
+          this.frontAnchor.stuckCrumb = null;
+          this.frontAnchor.anchored = false;
+          this.frontAnchor.stuckStrength = 0;
+          this.frontAnchor.stuckCooldown = 1.0;
+          sound.playSticky(true);
+          sound.playLaunch(0.35);
+          if (particles) {
+            particles.spawnStickyGoo(c.x, c.y, 12);
+            particles.spawnMud(this.head.x, this.head.y, 0, -1, 6, 0.45);
+          }
+          const pullDx = this.rear.x - this.head.x;
+          const pullDy = this.rear.y - this.head.y;
+          const pDist = Math.hypot(pullDx, pullDy) || 1;
+          this.head.vx += (pullDx / pDist) * 260;
+          this.head.vy += (pullDy / pDist) * 260 - 70;
+        }
+      }
     }
   }
 
