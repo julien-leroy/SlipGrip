@@ -319,6 +319,39 @@ export class Caterpillar {
     }
   }
 
+  addPermanentSegment(particles) {
+    const N = this.numNodes;
+    if (N >= 10) return; // reasonable max
+    const preHead = this.nodes[N - 2];
+    const head = this.nodes[N - 1];
+    const mx = (preHead.x + head.x) * 0.5;
+    const my = (preHead.y + head.y) * 0.5;
+    const midR = (preHead.r + head.r) * 0.5;
+    const newNode = {
+      index: N - 1,
+      x: mx,
+      y: my,
+      prevX: mx,
+      prevY: my,
+      vx: (preHead.vx + head.vx) * 0.5,
+      vy: (preHead.vy + head.vy) * 0.5,
+      r: midR,
+      mass: 1.0,
+      onGround: false
+    };
+    head.index = N;
+    this.nodes.splice(N - 1, 0, newNode);
+    this.numNodes = this.nodes.length;
+    this.fullLength = this.extendedSegLen * (this.numNodes - 1);
+    this.hp = Math.min(this.maxHp, this.hp + 50);
+    this.expression = 'happy';
+    if (sound) sound.playCheckpoint();
+    if (particles) {
+      particles.spawnPopup(this.head.x, this.head.y - 30, '+1 SEGMENT ! 🍏', '#38d84e');
+      particles.spawnConfetti(this.head.x, this.head.y - 10, 20);
+    }
+  }
+
   loadCosmetics() {
     try {
       const saved = localStorage.getItem('slipgrip_cosmetics');
@@ -504,7 +537,6 @@ export class Caterpillar {
 
       sound.playLaunch(0.85);
       if (particles) {
-        particles.spawnPopup(node.x, node.y - 28, 'PROJETÉ ! 🚀🐛', '#a8ff78');
         particles.spawnMud(node.x, node.y, -dx, -dy, 8, 0.75);
       }
       anchor.aphidRef = null;
@@ -544,7 +576,6 @@ export class Caterpillar {
 
       sound.playLaunch(0.85);
       if (particles) {
-        particles.spawnPopup(node.x, node.y - 28, 'HÉRISSON ÉJECTÉ ! 🦔🚀', '#ffd93b');
         particles.spawnMud(node.x, node.y, -aimX, -aimY, 8, 0.75);
       }
       anchor.hedgehogRef = null;
@@ -583,7 +614,6 @@ export class Caterpillar {
 
         sound.playLaunch(0.70);
         if (particles) {
-          particles.spawnPopup(node.x, node.y - 24, 'LANCÉ ! 🌰🚀', '#ffd93b');
           particles.spawnMud(node.x, node.y, -aimX, -aimY, 7, 0.65);
         }
       }
@@ -883,7 +913,6 @@ export class Caterpillar {
       this.rearAnchor.anchored = false;
       sound.playSticky(true);
       particles.spawnStickyGoo(c.x, c.y, 8);
-      particles.spawnPopup(this.rear.x, this.rear.y, 'LIBÉRÉ !', '#38d84e');
     }
     if (this.frontAnchor.stuckCrumb && power > 0.40) {
       const c = this.frontAnchor.stuckCrumb;
@@ -891,7 +920,6 @@ export class Caterpillar {
       this.frontAnchor.anchored = false;
       sound.playSticky(true);
       particles.spawnStickyGoo(c.x, c.y, 8);
-      particles.spawnPopup(this.head.x, this.head.y, 'LIBÉRÉ !', '#38d84e');
     }
 
     // Ground & anchor check: cannot jump if flying in mid-air!
@@ -949,6 +977,18 @@ export class Caterpillar {
     this.launchSpineDir = { x: aimX, y: aimY };
     this.launchSpinePower = power;
 
+    // Jump stance multipliers:
+    // Jump is always possible (unless in mid-air).
+    // Better when jumping off rear paws, and even better when rear paws are anchored!
+    const hadRearAnchor = this.rearAnchor.anchored;
+    const rearOnGround = (this.rear && this.rear.onGround) || (this.nodes[1] && this.nodes[1].onGround) || hadRearAnchor;
+    let stanceMult = 1.0;
+    if (hadRearAnchor) {
+      stanceMult = 1.55; // Maximum catapult boost!
+    } else if (rearOnGround) {
+      stanceMult = 1.25; // Good strong push off the rear feet!
+    }
+
     // If holding a prop/enemy with one paw while the other was anchored to ground:
     // The spring uncoiling catapults the object!
     if (this.frontAnchor.propRef && !this.rearAnchor.propRef) {
@@ -957,7 +997,7 @@ export class Caterpillar {
       this.releaseAnchor(this.rearAnchor, false, particles);
     }
 
-    // Release any anchor grips so the caterpillar can jump into the air with momentum
+    // Release any anchor grips immediately so the caterpillar launches into the air with full momentum
     if (this.rearAnchor.anchored) {
       this.releaseAnchor(this.rearAnchor, false, particles);
     }
@@ -965,14 +1005,13 @@ export class Caterpillar {
       this.releaseAnchor(this.frontAnchor, true, particles);
     }
 
-    // Dynamic, satisfying jump leap in the direction of the body!
-    // Progressive 3-tier jump: strictly zero push under 0.5s, then petit saut, moyen saut, gros saut (up to 520 px/s)
+    // Progressive jump power
     if (power <= 0.005) {
       return;
     }
 
     const baseMaxSpeed = GAMEPLAY_CONFIG.maxJumpSpeed || 520;
-    const jumpSpeed = (power * baseMaxSpeed) * jumpBoostMult * strengthMult * speedMult;
+    const jumpSpeed = (power * baseMaxSpeed) * jumpBoostMult * strengthMult * speedMult * stanceMult;
 
     for (let i = 0; i < N; i++) {
       const trunkBonus = Math.sin((i / (N - 1)) * Math.PI) * 0.16;
@@ -988,16 +1027,10 @@ export class Caterpillar {
     this.extensionMomentum.timer = 0;
 
     if (particles) {
-      particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, Math.round(3 + power * 6), power * 0.75);
-      if (power < 0.48) {
-        particles.spawnPopup(this.head.x, this.head.y - 20, 'PETIT SAUT ! 🐾', '#a3f76d');
-      } else if (power < 0.75) {
-        particles.spawnPopup(this.head.x, this.head.y - 20, 'BOND ! 🦘', '#38d84e');
-      } else {
-        particles.spawnPopup(this.head.x, this.head.y - 20, 'GROS SAUT ! 🚀', '#ffd93b');
-      }
+      const mudCount = Math.round((4 + power * 8) * (hadRearAnchor ? 1.6 : 1.0));
+      particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, mudCount, power * (hadRearAnchor ? 1.1 : 0.75));
     }
-    sound.playLaunch(0.20 + power * 0.70);
+    sound.playLaunch(0.20 + power * 0.70 + (hadRearAnchor ? 0.30 : 0));
   }
 
   // Locked segment alignment: when a paw grabs a surface (rear foot or front foot),
@@ -1232,7 +1265,19 @@ export class Caterpillar {
         const bendMult = isBending ? (GAMEPLAY_CONFIG.bendOrientationPower !== undefined ? GAMEPLAY_CONFIG.bendOrientationPower : 0.50) : 1.0;
         const agilityRatio = (clsAgility / clsMass) * bendMult;
 
-        const sideCurlForce = 1250 * resp * agilityRatio;
+        if (bothOnSameProp) {
+          const prop = this.rearAnchor.propRef;
+          // Natural physics: Caterpillar weight causes the prop to tilt or roll according to gravity!
+          const com = this.centerOfMass;
+          const relX = com.x - prop.x;
+          // Gravitational torque rolls the prop towards whichever side the caterpillar hangs on:
+          const rollTorque = (relX / Math.max(12, prop.radius)) * 5.5;
+          prop.angVel += rollTorque * dt;
+          prop.angVel *= Math.pow(0.92, dt * 60);
+          prop.vx *= Math.pow(0.94, dt * 60);
+          // Downward weight of the caterpillar:
+          prop.vy += 160 * dt;
+        }
 
         if (!bothAnchored) {
           if (!rearLocked && !frontLocked) {
@@ -1878,6 +1923,30 @@ export class Caterpillar {
           }
         }
       }
+
+      // Extension damage: uncoiling/extending body strikes nearby enemies and knocks them back!
+      const allEnemies = [...(world.aphids || []), ...(world.hedgehogs || [])];
+      for (const e of allEnemies) {
+        if (e.isHeld || e.isDefeated) continue;
+        for (let i = 0; i < N; i++) {
+          const n = this.nodes[i];
+          const edx = e.x - n.x;
+          const edy = e.y - n.y;
+          const edist = Math.hypot(edx, edy) || 0.0001;
+          const minHitDist = n.r + e.radius + 6;
+          if (edist < minHitDist) {
+            const pushDirX = edx / edist;
+            const pushDirY = edy / edist;
+            e.vx += pushDirX * 260;
+            e.vy += (pushDirY < 0 ? pushDirY * 260 : -140);
+            e.isFlying = true;
+            if (world.damageEnemy) {
+              world.damageEnemy(e, 8 + extRatio * 14, e.x, e.y, particles, 'extension_kick');
+            }
+            break;
+          }
+        }
+      }
     }
 
     // 4. SKELETON CONSTRAINTS:
@@ -2007,9 +2076,6 @@ export class Caterpillar {
         this.dorsalSign = -this.dorsalSign;
         this.flipCooldown = 0.50;
         sound.playLaunch(0.35);
-        if (particles) {
-          particles.spawnPopup(this.head.x, this.head.y - 20, 'RETOURNÉE ! 🔄', '#ffd93b');
-        }
       }
     }
   }
@@ -2128,9 +2194,11 @@ export class Caterpillar {
           const rearPinned = (i === 0 && this.rearAnchor.anchored);
           const frontPinned = (i === N - 1 && this.frontAnchor.anchored);
 
+          const bothOnThisProp = (this.rearAnchor.anchored && this.rearAnchor.propRef === prop) &&
+                                 (this.frontAnchor.anchored && this.frontAnchor.propRef === prop);
           const totalMass = n.mass + prop.mass;
           const wNode = (rearPinned || frontPinned) ? 0 : 1.0;
-          const wProp = prop.isHeld ? 0 : ((rearPinned || frontPinned) ? 0 : (n.mass / totalMass));
+          const wProp = (prop.isHeld || bothOnThisProp || rearPinned || frontPinned) ? 0 : (n.mass / totalMass);
 
           n.x += nx * overlap * wNode;
           n.y += ny * overlap * wNode;
@@ -2300,6 +2368,21 @@ export class Caterpillar {
             p.collected = true;
             p.respawnTimer = 20.0;
             this.applyPowerUp(p.type, 15.0, particles, sound);
+            break;
+          }
+        }
+      }
+
+      // Collectible Healing Apples (+1 Permanent Segment for whole game!)
+      if (world.apples && world.apples.length > 0) {
+        for (const apple of world.apples) {
+          if (apple.collected) continue;
+          const adx = n.x - apple.x;
+          const ady = n.y - apple.y;
+          const adist = Math.hypot(adx, ady);
+          if (adist < n.r + apple.radius + 6) {
+            apple.collected = true;
+            this.addPermanentSegment(particles);
             break;
           }
         }
@@ -2580,7 +2663,6 @@ export class Caterpillar {
 
           sound.playGrip(isFront);
           particles.spawnSuctionRing(anchor.x, anchor.y, '#ffd93b');
-          particles.spawnPopup(node.x, node.y - 20, 'HÉRISSON SAISI ! 🦔', '#ffd93b');
           return;
         } else if (hHit.isSpiky) {
           this.takeDamage(25, hHit.nx * 340, -220, particles, sound);
@@ -2612,7 +2694,6 @@ export class Caterpillar {
 
       sound.playGrip(isFront);
       particles.spawnSuctionRing(anchor.x, anchor.y, '#a8ff78');
-      particles.spawnPopup(node.x, node.y - 20, 'SAISI ! 🐛', '#a8ff78');
       return;
     }
 

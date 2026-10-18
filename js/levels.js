@@ -649,6 +649,18 @@ export class LevelRenderer {
     // 9. Draw Grabbable Dynamic Acorns (Glands) & Pinecones (Pommes de pin)!
     for (const prop of world.props) {
       this.drawGrabbableProp(ctx, prop, time);
+      if (prop.type === 'acorn') {
+        this.drawEnemyHealthBar(ctx, prop);
+      }
+    }
+
+    // 9b. Draw Bonus Apples (Healing & Segment upgrade!)
+    if (world.apples) {
+      for (const apple of world.apples) {
+        if (!apple.collected) {
+          this.drawBonusApple(ctx, apple, time);
+        }
+      }
     }
 
     // 10. Start & Finish Banners
@@ -1359,12 +1371,73 @@ export class LevelRenderer {
     ctx.restore();
   }
 
+  drawBonusApple(ctx, apple, time) {
+    ctx.save();
+    const bob = Math.sin(time * 5 + apple.x * 0.1) * 3;
+    ctx.translate(apple.x, apple.y + bob);
+
+    const r = apple.radius || 14;
+
+    // Golden halo glow
+    const pulse = 1.0 + Math.sin(time * 6 + apple.x) * 0.15;
+    ctx.fillStyle = 'rgba(255, 215, 0, 0.35)';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.8 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Stem
+    ctx.strokeStyle = '#4a2810';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.7);
+    ctx.quadraticCurveTo(r * 0.2, -r * 1.25, r * 0.45, -r * 1.35);
+    ctx.stroke();
+
+    // Cute Green Leaf
+    ctx.fillStyle = '#2ecc71';
+    ctx.strokeStyle = '#1b4332';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.2, -r * 1.1);
+    ctx.quadraticCurveTo(r * 0.8, -r * 1.45, r * 1.05, -r * 1.15);
+    ctx.quadraticCurveTo(r * 0.65, -r * 0.85, r * 0.2, -r * 1.1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Red Apple Body
+    ctx.fillStyle = '#e74c3c';
+    ctx.strokeStyle = '#962d22';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.65);
+    ctx.bezierCurveTo(r * 0.8, -r * 1.1, r * 1.25, -r * 0.2, r * 1.05, r * 0.6);
+    ctx.bezierCurveTo(r * 0.8, r * 1.15, r * 0.2, r * 1.1, 0, r * 0.8);
+    ctx.bezierCurveTo(-r * 0.2, r * 1.1, -r * 0.8, r * 1.15, -r * 1.05, r * 0.6);
+    ctx.bezierCurveTo(-r * 1.25, -r * 0.2, -r * 0.8, -r * 1.1, 0, -r * 0.65);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Specular Highlight
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.beginPath();
+    ctx.arc(-r * 0.4, -r * 0.35, r * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
   drawEnemyHealthBar(ctx, enemy) {
     if (!enemy || enemy.maxHp === undefined) return;
-    // Show if damaged, defeated, or timer > 0
-    if (enemy.hp >= enemy.maxHp && (!enemy.hpBarTimer || enemy.hpBarTimer <= 0)) return;
+    // Show strictly when HP is lost
+    if (enemy.hp >= enemy.maxHp) return;
 
     ctx.save();
+    if (enemy.isDefeated && enemy.deathTimer !== undefined) {
+      ctx.globalAlpha = Math.max(0, Math.min(1, enemy.deathTimer / 1.5));
+    }
     const barW = Math.max(34, enemy.radius * 1.5);
     const barH = 5;
     const barX = enemy.x - barW * 0.5;
@@ -1404,7 +1477,17 @@ export class LevelRenderer {
 
   drawAphid(ctx, a, time) {
     ctx.save();
-    ctx.translate(a.x, a.y);
+    let alpha = 1.0;
+    let floatY = 0;
+    if (a.isDefeated && a.deathTimer !== undefined) {
+      alpha = Math.max(0, Math.min(1, a.deathTimer / 1.5));
+      floatY = -Math.sin((3.0 - a.deathTimer) * 1.5) * 14;
+    }
+    ctx.globalAlpha = alpha;
+    ctx.translate(a.x, a.y + floatY);
+    if (a.isDefeated) {
+      ctx.rotate(Math.sin(time * 6) * 0.15);
+    }
     ctx.scale(a.squashX * a.facing, a.squashY);
 
     const r = a.radius;
@@ -1539,7 +1622,17 @@ export class LevelRenderer {
 
   drawHedgehog(ctx, h, time) {
     ctx.save();
-    ctx.translate(h.x, h.y);
+    let alpha = 1.0;
+    let floatY = 0;
+    if (h.isDefeated && h.deathTimer !== undefined) {
+      alpha = Math.max(0, Math.min(1, h.deathTimer / 1.5));
+      floatY = -Math.sin((3.0 - h.deathTimer) * 1.5) * 14;
+    }
+    ctx.globalAlpha = alpha;
+    ctx.translate(h.x, h.y + floatY);
+    if (h.isDefeated) {
+      ctx.rotate(Math.sin(time * 6) * 0.15);
+    }
     ctx.scale(h.squashX * (h.facing || 1), h.squashY);
 
     const r = h.radius;

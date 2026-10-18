@@ -25,6 +25,7 @@ export class PhysicsWorld {
     this.powerUps = [];
     this.stickyCrumbs = [];
     this.props = [];
+    this.apples = [];
     this.checkpoints = [];
     this.decorations = [];
     this.nextSegId = 1;
@@ -49,9 +50,25 @@ export class PhysicsWorld {
     this.powerUps = [];
     this.stickyCrumbs = [];
     this.props = [];
+    this.apples = [];
     this.checkpoints = [];
     this.decorations = [];
     this.nextSegId = 1;
+  }
+
+  addBonusApple(x, y) {
+    const apple = {
+      id: this.nextSegId++,
+      x,
+      y,
+      vx: (Math.random() - 0.5) * 80,
+      vy: -150 - Math.random() * 90,
+      radius: 14,
+      collected: false,
+      time: Math.random() * 10
+    };
+    this.apples.push(apple);
+    return apple;
   }
 
   addPowerUp(x, y, type = 'speed') {
@@ -127,6 +144,11 @@ export class PhysicsWorld {
       scale,
       // Heavy boulder masses so they never glitch or fly away when gripped
       mass: isPinecone ? 36.0 : 6.5,
+      maxHp: isPinecone ? 9999 : 35,
+      hp: isPinecone ? 9999 : 35,
+      isBroken: false,
+      damageCooldown: 0,
+      hpBarTimer: 0,
       localPoints: this.buildPropLocalPolygon(type, radius),
       onGround: false,
       isHeld: false
@@ -327,11 +349,36 @@ export class PhysicsWorld {
 
     if (enemy.hp <= 0) {
       enemy.isDefeated = true;
+      if (enemy.deathTimer === undefined || enemy.deathTimer <= 0) {
+        enemy.deathTimer = 3.0;
+      }
       enemy.isFlying = false;
       enemy.vx *= 0.2;
       if (particles) {
         particles.spawnPopup(impactX, impactY - 32, 'K.O. ! 💫', '#ffd93b');
       }
+    }
+  }
+
+  damageProp(prop, amount, impactX, impactY, particles, reason = '') {
+    if (!prop || prop.isBroken || prop.damageCooldown > 0 || prop.hp === undefined || prop.type !== 'acorn') return;
+    const dmg = Math.round(Math.max(1, amount));
+    prop.hp = Math.max(0, prop.hp - dmg);
+    prop.damageCooldown = 0.14;
+    prop.hpBarTimer = 3.5;
+
+    if (particles) {
+      particles.spawnPopup(impactX, impactY - 14, `-${dmg} HP`, '#e67e22');
+      particles.spawnMud(impactX, impactY, 0, -1, 4, 0.35);
+    }
+
+    if (prop.hp <= 0) {
+      prop.isBroken = true;
+      if (particles) {
+        particles.spawnPopup(impactX, impactY - 24, 'GLAND CASSÉ ! 💥', '#ffd93b');
+        particles.spawnConfetti(impactX, impactY, 14);
+      }
+      this.addBonusApple(prop.x, prop.y);
     }
   }
 
@@ -440,10 +487,10 @@ export class PhysicsWorld {
             a.squashX = 1.35;
             a.squashY = 0.65;
 
-            // Damage from high impact / throw proportional to inertia!
-            if (vn < -55) {
+            // Damage from high impact / throw proportional to inertia (raised threshold so small falls don't kill)
+            if (vn < -110) {
               const impactSpeed = -vn;
-              const dmg = Math.pow(impactSpeed / 34, 1.45) * (a.mass || 3.5);
+              const dmg = Math.pow((impactSpeed - 75) / 34, 1.35) * (a.mass || 3.5);
               this.damageEnemy(a, dmg, a.x, a.y, particles, 'impact');
             }
           }
@@ -454,7 +501,17 @@ export class PhysicsWorld {
           }
         }
       } else if (a.isDefeated) {
-        // Defeated aphid rests peacefully knocked out on the ground
+        // Defeated aphid: 3-second death animation countdown
+        if (a.deathTimer !== undefined) {
+          a.deathTimer -= dt;
+          if (a.deathTimer <= 0) {
+            a._remove = true;
+            this.addBonusApple(a.x, a.y);
+            if (particles) {
+              particles.spawnConfetti(a.x, a.y, 16);
+            }
+          }
+        }
         a.vx *= Math.pow(0.85, dt * 60);
         a.vy += this.gravity * dt;
         a.x += a.vx * dt;
@@ -531,10 +588,10 @@ export class PhysicsWorld {
             h.squashX = 1.35;
             h.squashY = 0.65;
 
-            // Damage from high impact / throw proportional to inertia!
-            if (vn < -55) {
+            // Damage from high impact / throw proportional to inertia (raised threshold so small falls don't kill)
+            if (vn < -110) {
               const impactSpeed = -vn;
-              const dmg = Math.pow(impactSpeed / 34, 1.45) * (h.mass || 5.0);
+              const dmg = Math.pow((impactSpeed - 75) / 34, 1.35) * (h.mass || 5.0);
               this.damageEnemy(h, dmg, h.x, h.y, particles, 'impact');
             }
           }
@@ -545,7 +602,17 @@ export class PhysicsWorld {
           }
         }
       } else if (h.isDefeated) {
-        // Defeated hedgehog rests safely on ground
+        // Defeated hedgehog: 3-second death animation countdown
+        if (h.deathTimer !== undefined) {
+          h.deathTimer -= dt;
+          if (h.deathTimer <= 0) {
+            h._remove = true;
+            this.addBonusApple(h.x, h.y);
+            if (particles) {
+              particles.spawnConfetti(h.x, h.y, 18);
+            }
+          }
+        }
         h.vx *= Math.pow(0.85, dt * 60);
         h.vy += this.gravity * dt;
         h.x += h.vx * dt;
@@ -583,10 +650,16 @@ export class PhysicsWorld {
       }
     }
 
+    this.aphids = this.aphids.filter(a => !a._remove);
+    this.hedgehogs = this.hedgehogs.filter(h => !h._remove);
+
     // 4. Heavy Boulder Pinecones & Acorns
     for (let i = 0; i < this.props.length; i++) {
       const p = this.props[i];
       p.onGround = false;
+      p.damageCooldown = Math.max(0, (p.damageCooldown || 0) - dt);
+      p.hpBarTimer = Math.max(0, (p.hpBarTimer || 0) - dt);
+
       if (p.isHeld) {
         this.resolvePropSegmentCollisions(p);
         this.resolvePropPropCollisions(p);
@@ -646,6 +719,11 @@ export class PhysicsWorld {
             const vn = p.vx * cp.nx + p.vy * cp.ny;
             const vt = p.vx * cp.tx + p.vy * cp.ty;
             if (vn < 0) {
+              // High velocity impact damages acorns
+              if (vn < -75 && p.type === 'acorn') {
+                this.damageProp(p, Math.pow(-vn / 36, 1.35) * 8, p.x, p.y, particles, 'impact');
+              }
+
               const newVn = -vn * 0.08;
               const rollVel = p.angVel * p.radius * (cp.tx >= 0 ? 1 : -1);
               const rollDamp = p.type === 'pinecone' ? 5.0 : 3.0;
@@ -693,7 +771,7 @@ export class PhysicsWorld {
         }
       }
 
-      // Prop-to-Enemy collisions: moving props deal damage proportional to inertia!
+      // Prop-to-Enemy collisions: heavy objects (pinecone) inflict crushing damage!
       const propSpeed = Math.hypot(p.vx, p.vy);
       if (propSpeed > 30) {
         const allEnemies = [...this.aphids, ...this.hedgehogs];
@@ -708,10 +786,15 @@ export class PhysicsWorld {
             const relVy = p.vy - e.vy;
             const relSpeed = Math.hypot(relVx, relVy);
             if (relSpeed > 38) {
-              const hitDmg = Math.pow(relSpeed / 36, 1.35) * (p.mass * 0.45);
+              const massFactor = p.type === 'pinecone' ? 1.65 : 0.45;
+              const hitDmg = Math.pow(relSpeed / 30, 1.35) * (p.mass * massFactor);
               const midX = (p.x + e.x) * 0.5;
               const midY = (p.y + e.y) * 0.5;
               this.damageEnemy(e, hitDmg, midX, midY, particles, 'prop_impact');
+
+              if (p.type === 'acorn') {
+                this.damageProp(p, hitDmg * 0.70, midX, midY, particles, 'enemy_impact');
+              }
 
               // Knockback enemy
               const enx = edx / edist;
@@ -727,6 +810,34 @@ export class PhysicsWorld {
           }
         }
       }
+    }
+
+    this.props = this.props.filter(p => !p.isBroken);
+
+    // 5. Bonus Apples Physics (Healing + Permanent Segment item!)
+    if (this.apples && this.apples.length > 0) {
+      for (const apple of this.apples) {
+        if (apple.collected) continue;
+        apple.time += dt;
+        apple.vy += this.gravity * dt;
+        apple.x += apple.vx * dt;
+        apple.y += apple.vy * dt;
+        apple.vx *= Math.pow(0.96, dt * 60);
+
+        const hit = this.findClosestSurface(apple.x, apple.y, apple.radius + 4);
+        if (hit && hit.dist < apple.radius) {
+          const overlap = apple.radius - hit.dist;
+          apple.x += hit.nx * overlap;
+          apple.y += hit.ny * overlap;
+          const vn = apple.vx * hit.nx + apple.vy * hit.ny;
+          if (vn < 0) {
+            apple.vx -= hit.nx * vn * 1.35;
+            apple.vy -= hit.ny * vn * 1.35;
+            apple.vx *= 0.82;
+          }
+        }
+      }
+      this.apples = this.apples.filter(a => !a.collected);
     }
 
     // Flying enemy-to-enemy bowling collisions:
