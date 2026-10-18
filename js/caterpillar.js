@@ -1397,15 +1397,15 @@ export class Caterpillar {
 
               let groundX, groundY;
               if (rearProp) {
-                const nodeWrapAngle = rearAngleOnProp + facingSign * (i * (bodySegLen / effPropR));
+                const nodeWrapAngle = rearAngleOnProp + facingSign * (this.extendedSegLen / effPropR + (i - 1) * (bodySegLen / effPropR));
                 groundX = rearProp.x + Math.cos(nodeWrapAngle) * effPropR;
                 groundY = rearProp.y + Math.sin(nodeWrapAngle) * effPropR;
               } else {
-                groundX = tx[0] + surfTx * (bodySegLen * i);
-                groundY = ty[0] + surfTy * (bodySegLen * i);
+                groundX = tx[1] + surfTx * (bodySegLen * (i - 1));
+                groundY = ty[1] + surfTy * (bodySegLen * (i - 1));
               }
               tx[i] = groundX * (1 - segProg) + rearedX[i] * segProg;
-              ty[i] = groundY * (1 - segProg) + rearedY * segProg;
+              ty[i] = groundY * (1 - segProg) + rearedY[i] * segProg;
 
               const errX = tx[i] - this.nodes[i].x;
               let errY = ty[i] - this.nodes[i].y;
