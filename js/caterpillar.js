@@ -1211,7 +1211,7 @@ export class Caterpillar {
 
     // 2. Front gripped segment lock (Segment N-2 between Node N-2 and Node N-1)
     if (frontIsGround) {
-      const isCoiling = this.contraction > 0.15;
+      const isCoiling = this.contraction > 0.15 || (this.frontAnchor.anchored && (this.rear.y < this.head.y - 15 || (this.lastInputs && this.lastInputs.up)));
       const headIdx = N - 1;
       const neckIdx = N - 2;
 
@@ -1706,13 +1706,16 @@ export class Caterpillar {
               for (let i = 0; i < N - 2; i++) {
                 const ratio = (N - 2 - i) / (N - 2);
                 this.nodes[i].vx += dirX * pullForce * ratio;
-                this.nodes[i].vy += dirY * pullForce * ratio;
+                if (effSteerY >= 0 || dirY < 0) {
+                  this.nodes[i].vy += dirY * pullForce * ratio;
+                }
               }
             }
 
             // 3. Vertical tail control (Up / Down arrows):
             // - Down arrow: presses tail firmly against ground/surface for easy Q gripping
-            // - Up arrow: lifts and arches the tail to aim direction before launching or flinging
+            // - Up arrow: lifts and arches the tail upward into the air.
+            // When tail rises higher than the head and rest of the body, it is harder and slower, but ALWAYS possible (no ceiling clamp)!
             if (effSteerY > 0) {
               // Press tail down
               const downForce = 850 * resp * dt;
@@ -1721,18 +1724,35 @@ export class Caterpillar {
                 this.nodes[i].vy += downForce * ratio;
               }
             } else if (effSteerY < 0) {
-              // Lift tail up! Responsive lift to point tail upward or diagonally (boosted if holding object)
-              const liftForce = (isHoldingRear ? 1300 : 1050) * resp * dt;
+              // Measure elevation relative to the head and the rest of the body
+              let minBodyY = this.head.y;
+              for (let i = 1; i < N; i++) {
+                if (this.nodes[i].y < minBodyY) minBodyY = this.nodes[i].y;
+              }
+              const heightAboveBody = minBodyY - tail.y; // Positive when tail is higher than head and rest of body
+
+              // When the tail goes higher than the head and rest of the body, lifting is harder and slower, but always possible!
+              let effortFactor = 1.0;
+              if (heightAboveBody > 0) {
+                effortFactor = Math.max(0.24, 1.0 / (1.0 + heightAboveBody * 0.010));
+              }
+
+              const baseLift = (isHoldingRear ? 1400 : 1150) * resp * dt;
+              const liftForce = baseLift * effortFactor;
               for (let i = 0; i < N - 2; i++) {
-                const ratio = Math.pow((N - 2 - i) / (N - 2), 0.95);
+                const ratio = Math.pow((N - 2 - i) / (N - 2), 0.90);
                 this.nodes[i].vy -= liftForce * ratio;
               }
-              // Ceiling clamp: allows generous natural lift (up to 85px above front anchor)
-              const maxTailElevation = this.frontAnchor.y - 85;
-              if (tail.y < maxTailElevation) {
-                tail.y = maxTailElevation;
-                tail.vy = Math.max(0, tail.vy);
+
+              // Smoothly cap maximum upward velocity when higher than body to feel muscular and heavy,
+              // while guaranteeing that upward progress is ALWAYS possible:
+              if (heightAboveBody > 0 && tail.vy < 0) {
+                const maxAscentSpeed = -60 - 240 * effortFactor;
+                if (tail.vy < maxAscentSpeed) {
+                  tail.vy = maxAscentSpeed;
+                }
               }
+              // Absolutely NO artificial ceiling clamp! The tail can rise as high as body length permits.
             }
           }
         }
