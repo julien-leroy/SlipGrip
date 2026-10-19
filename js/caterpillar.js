@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=48';
-import { sound } from './audio.js?v=48';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES, BODY_SHAPES } from './gameplayConfig.js?v=48';
+import { MATERIALS } from './physics.js?v=72';
+import { sound } from './audio.js?v=72';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES, BODY_SHAPES, RACE_MODIFIERS, GRIP_STYLES } from './gameplayConfig.js?v=72';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -98,15 +98,28 @@ export const COSMETIC_PALETTES = {
 };
 
 export class Caterpillar {
-  constructor(startX, startY) {
+  constructor(startX, startY, options = {}) {
+    this.playerId = options.playerId || null;
+    this.pseudo = options.pseudo || '';
+    this.isRemote = !!options.isRemote;
+    this.modifiers = Array.isArray(options.modifiers) ? [...options.modifiers] : [];
+    this.roomConfig = options.roomConfig || null;
+    this.onThrowEntityCallback = options.onThrowEntityCallback || null;
+    this.onPvpActionCallback = options.onPvpActionCallback || null;
+
     this.cosmetics = {
       palette: 'emerald',
-      hat: 'crown',
+      hat: 'cap',
       face: 'cute',
+      grip: 'classic',
       bodyType: 'classique',
       bodyShape: 'larve'
     };
-    this.loadCosmetics();
+    if (!this.isRemote) {
+      this.loadCosmetics();
+    } else if (options.cosmetics) {
+      Object.assign(this.cosmetics, options.cosmetics);
+    }
     this.loadAppleSegments();
 
     this.nodes = [];
@@ -189,15 +202,69 @@ export class Caterpillar {
     // Session only: do not persist extra segments to localStorage
   }
 
+  // Compute combined multipliers from roomConfig and cumulative race modifiers
+  getModifierStats() {
+    let scaleMult = (this.roomConfig && this.roomConfig.startScale) ? this.roomConfig.startScale : 1.0;
+    let massMult = 1.0;
+    let hpBonus = 0;
+    let speedMult = 1.0;
+    let jumpMult = (this.roomConfig && this.roomConfig.jumpBoost) ? this.roomConfig.jumpBoost : 1.0;
+    let extraSegments = 0;
+    let reachMult = 1.0;
+    let gravityMult = 1.0;
+    let strengthMult = 1.0;
+
+    if (this.roomConfig && this.roomConfig.startSegments !== undefined) {
+      extraSegments += (this.roomConfig.startSegments - 5);
+    }
+
+    if (Array.isArray(this.modifiers)) {
+      for (const modId of this.modifiers) {
+        const mod = RACE_MODIFIERS[modId];
+        if (!mod) continue;
+        scaleMult *= (mod.scaleMult || 1.0);
+        massMult *= (mod.massMult || 1.0);
+        hpBonus += (mod.hpBonus || 0);
+        speedMult *= (mod.speedMult || 1.0);
+        jumpMult *= (mod.jumpMult || 1.0);
+        extraSegments += (mod.extraSegments || 0);
+        reachMult *= (mod.reachMult || 1.0);
+        gravityMult *= (mod.gravityMult || 1.0);
+        strengthMult *= (mod.strengthMult || 1.0);
+      }
+    }
+
+    return {
+      scaleMult,
+      massMult,
+      hpBonus,
+      speedMult,
+      jumpMult,
+      extraSegments,
+      reachMult,
+      gravityMult,
+      strengthMult,
+      extraGrip: 0
+    };
+  }
+
+  setModifiers(modIds = [], roomConfig = null) {
+    this.modifiers = Array.isArray(modIds) ? [...modIds] : [];
+    if (roomConfig) this.roomConfig = roomConfig;
+    this.applyBodyClass(this.cosmetics.bodyType || 'classique', true);
+  }
+
   applyBodyClass(typeId, morphExisting = false) {
     const cls = CATERPILLAR_CLASSES[typeId] || CATERPILLAR_CLASSES.classique;
     this.bodyClass = cls;
     this.cosmetics.bodyType = cls.id;
-    const reachMult = GAMEPLAY_CONFIG.unbendReachBonus || 1.0;
+    const mStats = this.getModifierStats();
+    const reachMult = (GAMEPLAY_CONFIG.unbendReachBonus || 1.0) * mStats.reachMult;
     this.extendedSegLen = cls.extendedSegLen * reachMult;
     this.contractedSegLen = cls.contractedSegLen;
-    const targetNum = cls.numNodes + (this.extraAppleSegments || 0);
+    const targetNum = Math.max(4, Math.min(12, cls.numNodes + (this.extraAppleSegments || 0) + mStats.extraSegments));
     this.fullLength = this.extendedSegLen * (targetNum - 1);
+    this.sizeScale = mStats.scaleMult;
 
     if (morphExisting && this.nodes && this.nodes.length > 0) {
       const oldLen = this.nodes.length;
@@ -215,8 +282,8 @@ export class Caterpillar {
           y: nA.y + (nB.y - nA.y) * f,
           vx: nA.vx + (nB.vx - nA.vx) * f,
           vy: nA.vy + (nB.vy - nA.vy) * f,
-          r: this.getDefaultRadius(cls, i, targetNum),
-          mass: cls.massMult || 1.0,
+          r: this.getDefaultRadius(cls, i, targetNum) * mStats.scaleMult,
+          mass: (cls.massMult || 1.0) * mStats.massMult,
           onGround: nA.onGround || nB.onGround,
           groundSlopeGrade: nA.groundSlopeGrade,
           groundNx: nA.groundNx,
@@ -259,6 +326,8 @@ export class Caterpillar {
       propRef: null,
       aphidRef: null,
       hedgehogRef: null,
+      playerRef: null,
+      playerNodeIndex: 0,
       propLocalAngle: 0,
       stuckCrumb: null,
       stuckStrength: 0,
@@ -275,7 +344,7 @@ export class Caterpillar {
     };
   }
 
-  takeDamage(amount, knockX = 0, knockY = -180, particles = null, sound = null) {
+  takeDamage(amount, knockX = 0, knockY = -180, particles = null, sound = null, detachAnchors = false) {
     if (this.activePowerUp && this.activePowerUp.type === 'giant') {
       if (particles) {
         particles.spawnPopup(this.head.x, this.head.y - 28, 'INVULNÉRABLE ! 🛡️', '#ffd93b');
@@ -287,9 +356,21 @@ export class Caterpillar {
     this.invulnerableTimer = 1.3;
     this.expression = 'scared';
 
+    if (detachAnchors) {
+      this.rearAnchor.anchored = false;
+      this.rearAnchor.propRef = null;
+      this.rearAnchor.playerRef = null;
+      this.frontAnchor.anchored = false;
+      this.frontAnchor.propRef = null;
+      this.frontAnchor.playerRef = null;
+    }
+
+    const mStats = this.getModifierStats();
+    const kbResist = mStats.massMult > 1.2 ? 0.65 : 1.0;
+
     for (let i = 0; i < this.numNodes; i++) {
-      this.nodes[i].vx += knockX * 0.8;
-      this.nodes[i].vy += knockY * 0.8;
+      this.nodes[i].vx += knockX * 0.8 * kbResist;
+      this.nodes[i].vy += knockY * 0.8 * kbResist;
       this.nodes[i].onGround = false;
     }
 
@@ -309,16 +390,17 @@ export class Caterpillar {
     };
 
     const cls = this.bodyClass || CATERPILLAR_CLASSES[this.cosmetics.bodyType] || CATERPILLAR_CLASSES.classique;
+    const mStats = this.getModifierStats();
 
     if (type === 'giant') {
-      this.sizeScale = 1.45;
+      this.sizeScale = 1.45 * mStats.scaleMult;
       for (let i = 0; i < this.numNodes; i++) {
-        if (this.nodes[i]) this.nodes[i].r = this.getDefaultRadius(cls, i, this.numNodes) * 1.45;
+        if (this.nodes[i]) this.nodes[i].r = this.getDefaultRadius(cls, i, this.numNodes) * this.sizeScale;
       }
     } else {
-      this.sizeScale = 1.0;
+      this.sizeScale = mStats.scaleMult;
       for (let i = 0; i < this.numNodes; i++) {
-        if (this.nodes[i]) this.nodes[i].r = this.getDefaultRadius(cls, i, this.numNodes);
+        if (this.nodes[i]) this.nodes[i].r = this.getDefaultRadius(cls, i, this.numNodes) * this.sizeScale;
       }
     }
 
@@ -368,7 +450,8 @@ export class Caterpillar {
     this.nodes.splice(N - 1, 0, newNode);
     this.numNodes = this.nodes.length;
     this.fullLength = this.extendedSegLen * (this.numNodes - 1);
-    this.maxHp = 100 + (this.extraAppleSegments || 0) * 10;
+    const mStats = this.getModifierStats();
+    this.maxHp = 100 + (this.extraAppleSegments || 0) * 10 + mStats.hpBonus;
     this.hp = Math.min(this.maxHp, this.hp + 50);
     this.expression = 'happy';
     if (sound) sound.playCheckpoint();
@@ -386,6 +469,7 @@ export class Caterpillar {
         if (parsed.palette && COSMETIC_PALETTES[parsed.palette]) this.cosmetics.palette = parsed.palette;
         if (parsed.hat) this.cosmetics.hat = parsed.hat;
         if (parsed.face) this.cosmetics.face = parsed.face;
+        if (parsed.grip && GRIP_STYLES[parsed.grip]) this.cosmetics.grip = parsed.grip;
         if (parsed.bodyType && CATERPILLAR_CLASSES[parsed.bodyType]) this.cosmetics.bodyType = parsed.bodyType;
         if (parsed.bodyShape && BODY_SHAPES[parsed.bodyShape]) this.cosmetics.bodyShape = parsed.bodyShape;
       }
@@ -395,6 +479,7 @@ export class Caterpillar {
   }
 
   saveCosmetics() {
+    if (this.isRemote) return;
     try {
       localStorage.setItem('slipgrip_cosmetics', JSON.stringify(this.cosmetics));
     } catch {
@@ -404,13 +489,14 @@ export class Caterpillar {
 
   reset(startX, startY) {
     const cls = this.bodyClass || CATERPILLAR_CLASSES[this.cosmetics.bodyType] || CATERPILLAR_CLASSES.classique;
-    this.numNodes = cls.numNodes + (this.extraAppleSegments || 0);
-    const reachMult = GAMEPLAY_CONFIG.unbendReachBonus || 1.0;
+    const mStats = this.getModifierStats();
+    this.numNodes = Math.max(4, Math.min(12, cls.numNodes + (this.extraAppleSegments || 0) + mStats.extraSegments));
+    const reachMult = (GAMEPLAY_CONFIG.unbendReachBonus || 1.0) * mStats.reachMult;
     this.extendedSegLen = cls.extendedSegLen * reachMult;
     this.contractedSegLen = cls.contractedSegLen;
     this.fullLength = this.extendedSegLen * (this.numNodes - 1);
 
-    this.maxHp = 100 + (this.extraAppleSegments || 0) * 10;
+    this.maxHp = 100 + (this.extraAppleSegments || 0) * 10 + mStats.hpBonus;
     this.hp = this.maxHp;
     this.invulnerableTimer = 0;
 
@@ -419,7 +505,7 @@ export class Caterpillar {
       timer: 0,
       duration: 15.0
     };
-    this.sizeScale = 1.0;
+    this.sizeScale = mStats.scaleMult;
     this.jumpCooldown = 0;
 
     this.nodes = [];
@@ -432,8 +518,8 @@ export class Caterpillar {
         y,
         vx: 0,
         vy: 0,
-        r: this.getDefaultRadius(cls, i, this.numNodes),
-        mass: cls.massMult || 1.0,
+        r: this.getDefaultRadius(cls, i, this.numNodes) * mStats.scaleMult,
+        mass: (cls.massMult || 1.0) * mStats.massMult,
         onGround: false,
         groundSlopeGrade: 0,
         groundNx: 0,
@@ -449,6 +535,9 @@ export class Caterpillar {
     this.wasSpaceHeld = false;
     this.storedContraction = 0;
     this.hadAnchorDuringContraction = false;
+    this.hadRearAnchorDuringContraction = false;
+    this.hadFrontAnchorDuringContraction = false;
+    this.launchedFromHead = false;
     this.chargeDuration = 0;
     this.chargeShake = 0;
     this.wasFullyCharged = false;
@@ -504,8 +593,9 @@ export class Caterpillar {
 
   isHoldingMovable(anchor) {
     if (!anchor || !anchor.anchored) return false;
-    if (anchor.hedgehogRef || anchor.aphidRef) return true;
-    const hasStrength = (this.activePowerUp && this.activePowerUp.type === 'strength');
+    if (anchor.hedgehogRef || anchor.aphidRef || anchor.playerRef) return true;
+    const mStats = this.getModifierStats();
+    const hasStrength = (this.activePowerUp && this.activePowerUp.type === 'strength') || mStats.strengthMult > 1.35;
     if (anchor.propRef && (anchor.propRef.type === 'acorn' || anchor.propRef.mass < 15 || hasStrength)) return true;
     return false;
   }
@@ -542,6 +632,56 @@ export class Caterpillar {
 
   releaseAnchor(anchor, isFront, particles) {
     const node = isFront ? this.head : this.rear;
+    const mStats = this.getModifierStats();
+    const hasStrength = (this.activePowerUp && this.activePowerUp.type === 'strength') || mStats.strengthMult > 1.35;
+    const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength' ? 2.5 : 1.0) * mStats.strengthMult;
+
+    // Fling / Throw a grabbed rival caterpillar!
+    if (anchor.playerRef) {
+      const rival = anchor.playerRef;
+      let { dx, dy } = this.getFrontVector();
+      if (!isFront) { dx = -dx; dy = -dy; }
+      const steerX = (this.lastInputs.right ? 1 : 0) - (this.lastInputs.left ? 1 : 0);
+      const steerY = (this.lastInputs.up ? -1 : 0) + (this.lastInputs.down ? 1 : 0);
+      let aimX = dx;
+      let aimY = dy;
+      if (steerX !== 0 || steerY !== 0) {
+        const sLen = Math.hypot(steerX, steerY) || 1;
+        aimX = dx * 0.30 + (steerX / sLen) * 0.70;
+        aimY = dy * 0.30 + (steerY / sLen) * 0.70;
+        const aLen = Math.hypot(aimX, aimY) || 1;
+        aimX /= aLen;
+        aimY /= aLen;
+      }
+      const boost = (this.extensionTimer > 0 || this.chargeDuration > 0.4) ? 2.0 : 1.25;
+      const throwSpeed = 280 * boost * Math.min(2.4, strengthMult);
+      const tvx = node.vx * 0.5 + aimX * throwSpeed;
+      const tvy = node.vy * 0.5 + aimY * throwSpeed - 140;
+      const dmg = hasStrength ? Math.round(18 * mStats.strengthMult) : 10;
+
+      if (rival.nodes) {
+        for (const rn of rival.nodes) {
+          rn.vx = tvx;
+          rn.vy = tvy;
+        }
+      }
+      if (this.onPvpActionCallback && rival.playerId) {
+        this.onPvpActionCallback({
+          targetId: rival.playerId,
+          actionType: 'throw_player',
+          damage: dmg,
+          vx: tvx,
+          vy: tvy,
+          reason: 'PROJECTION ! 🤼'
+        });
+      }
+      sound.playLaunch(0.75);
+      if (particles) {
+        particles.spawnMud(node.x, node.y, -aimX, -aimY, 7, 0.65);
+        particles.spawnPopup(node.x, node.y - 28, `ÉJECTÉ ! 🤼`, '#ffd93b');
+      }
+      anchor.playerRef = null;
+    }
 
     // Fling / Throw grabbable enemy aphids!
     if (anchor.aphidRef) {
@@ -552,14 +692,27 @@ export class Caterpillar {
       let { dx, dy } = this.getFrontVector();
       if (!isFront) { dx = -dx; dy = -dy; }
 
-      const hasStrength = (this.activePowerUp && this.activePowerUp.type === 'strength');
-      const strengthMult = hasStrength ? 3.0 : 1.0;
       const boost = (this.extensionTimer > 0 ? 2.5 : 1.7);
       const throwSpeed = (320 + (this.extensionMomentum.power || 0) * 380) * boost * strengthMult;
       aphid.vx = node.vx * 0.8 + dx * throwSpeed;
       aphid.vy = node.vy * 0.8 + dy * throwSpeed - (hasStrength ? 200 : 120);
       aphid.squashX = 1.45;
       aphid.squashY = 0.55;
+      aphid.thrownBy = this.playerId || 'local';
+      aphid.thrownByPseudo = this.pseudo || 'Joueur';
+      aphid.throwGraceTimer = 0.25;
+      aphid.throwDamageMult = mStats.strengthMult;
+
+      if (this.onThrowEntityCallback) {
+        this.onThrowEntityCallback({
+          entityType: 'aphid',
+          x: aphid.x,
+          y: aphid.y,
+          vx: aphid.vx,
+          vy: aphid.vy,
+          damageMult: mStats.strengthMult
+        });
+      }
 
       sound.playLaunch(0.85);
       if (particles) {
@@ -595,14 +748,27 @@ export class Caterpillar {
 
       const chargeT = (this.extensionMomentum && this.extensionMomentum.chargeTime) || this.chargeDuration || 0;
       const boost = (this.extensionTimer > 0 || chargeT >= 1.0) ? 2.5 : 1.5;
-      const hasStrength = (this.activePowerUp && this.activePowerUp.type === 'strength');
-      const strengthMult = hasStrength ? 3.0 : 1.0;
       const throwSpeed = (300 + Math.pow(Math.min(1.0, chargeT / 3.0), 2.0) * 400) * boost * strengthMult;
 
       hedgehog.vx = node.vx * 0.7 + aimX * throwSpeed;
       hedgehog.vy = node.vy * 0.7 + aimY * throwSpeed - (hasStrength ? 200 : 120);
       hedgehog.squashX = 1.45;
       hedgehog.squashY = 0.55;
+      hedgehog.thrownBy = this.playerId || 'local';
+      hedgehog.thrownByPseudo = this.pseudo || 'Joueur';
+      hedgehog.throwGraceTimer = 0.25;
+      hedgehog.throwDamageMult = mStats.strengthMult;
+
+      if (this.onThrowEntityCallback) {
+        this.onThrowEntityCallback({
+          entityType: 'hedgehog',
+          x: hedgehog.x,
+          y: hedgehog.y,
+          vx: hedgehog.vx,
+          vy: hedgehog.vy,
+          damageMult: mStats.strengthMult
+        });
+      }
 
       sound.playLaunch(0.85);
       if (particles) {
@@ -618,7 +784,6 @@ export class Caterpillar {
     if (anchor.propRef) {
       const prop = anchor.propRef;
       prop.isHeld = false;
-      const hasStrength = (this.activePowerUp && this.activePowerUp.type === 'strength');
       if (prop.type === 'acorn' || prop.mass < 15 || hasStrength || (this.bodyClass && this.bodyClass.massMult > 1.4)) {
         let { dx, dy } = this.getFrontVector();
         if (!isFront) { dx = -dx; dy = -dy; }
@@ -638,14 +803,29 @@ export class Caterpillar {
 
         const chargeT = (this.extensionMomentum && this.extensionMomentum.chargeTime) || this.chargeDuration || 0;
         const boost = (this.extensionTimer > 0 || chargeT >= 1.0) ? 2.5 : 1.5;
-        const strengthMult = hasStrength ? 3.0 : 1.0;
-        const clsMass = (this.bodyClass && this.bodyClass.massMult) || 1.0;
+        const clsMass = ((this.bodyClass && this.bodyClass.massMult) || 1.0) * mStats.massMult;
         const baseSpeed = prop.type === 'pinecone' ? 320 : 350;
         const throwSpeed = (baseSpeed + Math.pow(Math.min(1.0, chargeT / 2.5), 2.0) * 440) * boost * strengthMult * (clsMass > 1.2 ? 1.35 : 1.0);
 
         prop.vx = node.vx * 0.7 + aimX * throwSpeed;
         prop.vy = node.vy * 0.7 + aimY * throwSpeed - (hasStrength ? 180 : 100);
         prop.angVel = aimX * (hasStrength ? 20.0 : 14.0);
+        prop.thrownBy = this.playerId || 'local';
+        prop.thrownByPseudo = this.pseudo || 'Joueur';
+        prop.throwGraceTimer = 0.25;
+        prop.throwDamageMult = mStats.strengthMult;
+
+        if (this.onThrowEntityCallback) {
+          this.onThrowEntityCallback({
+            entityType: 'prop',
+            x: prop.x,
+            y: prop.y,
+            vx: prop.vx,
+            vy: prop.vy,
+            angVel: prop.angVel,
+            damageMult: mStats.strengthMult
+          });
+        }
 
         sound.playLaunch(0.70);
         if (particles) {
@@ -662,6 +842,7 @@ export class Caterpillar {
     anchor.propRef = null;
     anchor.aphidRef = null;
     anchor.hedgehogRef = null;
+    anchor.playerRef = null;
     anchor.segRef = null;
     anchor.localPt = null;
     sound.playRelease(isFront);
@@ -676,14 +857,14 @@ export class Caterpillar {
         const p = Math.min(1.0, Math.max(0, (chargeTime - 1.0) / (maxChargeTime - 1.0)));
         // Strictly quadratic scaling (power = p^2): almost zero push at 1-2s, max at 4s
         const quadPower = p * p;
-        const baseMaxSpeed = GAMEPLAY_CONFIG.maxJumpSpeed || 175;
-        let launchSpeed = quadPower * baseMaxSpeed;
+        const baseMaxSpeed = GAMEPLAY_CONFIG.maxJumpSpeed || 300;
+        let launchSpeed = quadPower * baseMaxSpeed * 0.75;
 
         const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
-        const jumpMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.00) * clsJump;
-        const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength') ? 1.55 : 1.0;
-        const speedMult = (this.activePowerUp && this.activePowerUp.type === 'speed') ? 1.35 : 1.0;
-        launchSpeed *= jumpMult * strengthMult * speedMult;
+        const jumpMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.00) * clsJump * mStats.jumpMult;
+        const powStrengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength') ? 1.35 : 1.0;
+        const speedMult = ((this.activePowerUp && this.activePowerUp.type === 'speed') ? 1.25 : 1.0) * mStats.speedMult;
+        launchSpeed *= jumpMult * powStrengthMult * speedMult;
 
         let aimX = 0;
         let aimY = 0;
@@ -700,7 +881,8 @@ export class Caterpillar {
         }
 
         for (let i = 0; i < this.numNodes; i++) {
-          const frontRatio = 0.85 + 0.30 * (i / (this.numNodes - 1));
+          const leadRatio = isFront ? ((this.numNodes - 1 - i) / (this.numNodes - 1)) : (i / (this.numNodes - 1));
+          const frontRatio = 0.88 + 0.16 * leadRatio;
           this.nodes[i].vx = aimX * launchSpeed * frontRatio;
           this.nodes[i].vy = aimY * launchSpeed * frontRatio;
           this.nodes[i].onGround = false;
@@ -742,20 +924,21 @@ export class Caterpillar {
     if (steerX !== 0 || steerY !== 0) {
       const sDist = Math.hypot(steerX, steerY) || 1;
       aimX = dx * 0.40 + (steerX / sDist) * 0.60;
-      aimY = dy * 0.40 + ((steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist) * 0.60;
+      aimY = dy * 0.40 + ((steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.25) : steerY) / sDist) * 0.60;
       const len = Math.hypot(aimX, aimY) || 1;
       aimX /= len;
       aimY /= len;
     }
 
+    const mStats = this.getModifierStats();
     const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
-    const jumpMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.10) * clsJump;
-    const hopSpeed = (160 + power * 190) * jumpMult;
+    const jumpMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.00) * clsJump * mStats.jumpMult;
+    const hopSpeed = (120 + power * 140) * jumpMult;
     const vx = aimX * hopSpeed;
     const vy = aimY * hopSpeed;
 
     for (let i = 0; i < this.numNodes; i++) {
-      const frontBias = 0.85 + 0.30 * (i / (this.numNodes - 1));
+      const frontBias = 0.88 + 0.16 * (i / (this.numNodes - 1));
       this.nodes[i].vx = vx * frontBias;
       this.nodes[i].vy = vy * frontBias;
       this.nodes[i].onGround = false;
@@ -765,12 +948,40 @@ export class Caterpillar {
     particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, 6, power * 0.6);
   }
 
+  findClosestGripCandidate(world, px, py, range) {
+    const candidates = [];
+    if (world.findClosestOtherCaterpillar) {
+      const r = world.findClosestOtherCaterpillar(this, px, py, range);
+      if (r) candidates.push(r);
+    }
+    if (world.findClosestHedgehog) {
+      const h = world.findClosestHedgehog(px, py, range);
+      if (h) candidates.push(h);
+    }
+    const a = world.findClosestAphid(px, py, range);
+    if (a) candidates.push(a);
+    const p = world.findClosestPropSurface(px, py, range);
+    if (p) candidates.push(p);
+    const s = world.findClosestSurface(px, py, range);
+    if (s) candidates.push(s);
+
+    if (candidates.length === 0) return null;
+    candidates.sort((c1, c2) => (c1.dist ?? 999) - (c2.dist ?? 999));
+    return candidates[0];
+  }
+
   update(dt, world, inputs, particles) {
+    if (this.isRemote) {
+      this.updateRemote(dt);
+      return;
+    }
+
     const safeDt = Math.min(dt, 1 / 30);
+    const mStats = this.getModifierStats();
     const speed = Math.hypot(this.head.vx, this.head.vy);
     this.propellerAngle += safeDt * (10 + speed * 0.08);
-    this.crawlPhase += safeDt * (5.5 + speed * 0.08);
-    this.wiggleTime += safeDt * (3.0 + speed * 0.05);
+    this.crawlPhase += safeDt * (5.5 + speed * 0.08) * mStats.speedMult;
+    this.wiggleTime += safeDt * (3.0 + speed * 0.05) * mStats.speedMult;
     this.lastInputs = { ...inputs };
 
     if (this.invulnerableTimer > 0) {
@@ -783,10 +994,10 @@ export class Caterpillar {
       this.activePowerUp.timer = Math.max(0, this.activePowerUp.timer - safeDt);
       if (this.activePowerUp.timer <= 0) {
         if (this.activePowerUp.type === 'giant') {
-          this.sizeScale = 1.0;
+          this.sizeScale = mStats.scaleMult;
           const cls = this.bodyClass || CATERPILLAR_CLASSES[this.cosmetics.bodyType] || CATERPILLAR_CLASSES.classique;
           for (let i = 0; i < this.numNodes; i++) {
-            if (this.nodes[i]) this.nodes[i].r = this.getDefaultRadius(cls, i, this.numNodes);
+            if (this.nodes[i]) this.nodes[i].r = this.getDefaultRadius(cls, i, this.numNodes) * this.sizeScale;
           }
         }
         this.activePowerUp.type = null;
@@ -805,23 +1016,18 @@ export class Caterpillar {
       this.flipCooldown = Math.max(0, this.flipCooldown - safeDt);
     }
 
-    // Live surface proximity detection for Q and D visual aids
-    const extraGrip = (this.bodyClass && this.bodyClass.gripExtraDistance) || 0;
-    const gripDist = (GAMEPLAY_CONFIG.gripDistance || 24) + extraGrip;
+    // Live surface proximity detection for Q and D visual aids (strictly closest within paw radius!)
+    const extraGrip = ((this.bodyClass && this.bodyClass.gripExtraDistance) || 0) + (mStats.extraGrip || 0);
+    const baseGripDist = (this.roomConfig && this.roomConfig.gripDistance) || GAMEPLAY_CONFIG.gripDistance || 22;
+    const gripDist = Math.max(8, Math.min(36, baseGripDist + extraGrip));
     const rearRange = this.rear.r + gripDist;
     const headRange = this.head.r + gripDist;
 
-    const rearHedgehog = world.findClosestHedgehog ? world.findClosestHedgehog(this.rear.x, this.rear.y, rearRange) : null;
-    const rearAphid = world.findClosestAphid(this.rear.x, this.rear.y, rearRange);
-    const rearProp = world.findClosestPropSurface(this.rear.x, this.rear.y, rearRange);
-    const rearSurf = rearHedgehog || rearAphid || rearProp || world.findClosestSurface(this.rear.x, this.rear.y, rearRange);
+    const rearSurf = this.findClosestGripCandidate(world, this.rear.x, this.rear.y, rearRange);
     this.rearCanGrip = !!rearSurf;
     this.rearTargetPt = rearSurf ? { x: rearSurf.cx, y: rearSurf.cy } : null;
 
-    const headHedgehog = world.findClosestHedgehog ? world.findClosestHedgehog(this.head.x, this.head.y, headRange) : null;
-    const headAphid = world.findClosestAphid(this.head.x, this.head.y, headRange);
-    const headProp = world.findClosestPropSurface(this.head.x, this.head.y, headRange);
-    const headSurf = headHedgehog || headAphid || headProp || world.findClosestSurface(this.head.x, this.head.y, headRange);
+    const headSurf = this.findClosestGripCandidate(world, this.head.x, this.head.y, headRange);
     this.frontCanGrip = !!headSurf;
     this.frontTargetPt = headSurf ? { x: headSurf.cx, y: headSurf.cy } : null;
 
@@ -835,7 +1041,7 @@ export class Caterpillar {
       this.extensionMomentum.timer = 0;
       this.extensionMomentum.consumed = false;
       const maxChargeTime = Math.max(1.0, GAMEPLAY_CONFIG.jumpChargeTime || 3.0);
-      const chargeSpeed = (this.bodyClass && this.bodyClass.chargeSpeedMult) || 1.0;
+      const chargeSpeed = ((this.bodyClass && this.bodyClass.chargeSpeedMult) || 1.0) * mStats.speedMult;
       this.chargeDuration = Math.min(maxChargeTime, this.chargeDuration + safeDt * chargeSpeed);
       const chargeRatio = this.chargeDuration / maxChargeTime;
 
@@ -855,11 +1061,17 @@ export class Caterpillar {
       }
 
       // Clean, solid contraction into bent pose like an inchworm walking
-      const bendSpeed = GAMEPLAY_CONFIG.bendContractSpeed || 20.0;
+      const bendSpeed = (GAMEPLAY_CONFIG.bendContractSpeed || 20.0) * mStats.speedMult;
       this.contraction += (1 - this.contraction) * Math.min(1, safeDt * bendSpeed);
       this.storedContraction = Math.max(this.storedContraction, chargeRatio);
       if (anyAnchored) {
         this.hadAnchorDuringContraction = true;
+      }
+      if (this.rearAnchor.anchored) {
+        this.hadRearAnchorDuringContraction = true;
+      }
+      if (this.frontAnchor.anchored) {
+        this.hadFrontAnchorDuringContraction = true;
       }
       this.rigidityTimer = 0.38;
       this.bodyRigidity += (0.85 - this.bodyRigidity) * Math.min(1, safeDt * 10.0);
@@ -884,18 +1096,14 @@ export class Caterpillar {
         const maxChargeTime = Math.max(1.0, GAMEPLAY_CONFIG.jumpChargeTime || 3.0);
         const canJump = this.chargeDuration >= minJumpCharge && this.jumpCooldown <= 0;
         if (canJump) {
-          // 3-tier progressive jump: strictly 0 jump below 0.5s of charge!
-          // 0.5-1.2s: petit saut (~0.35-0.48), 1.2-2.2s: moyen saut (~0.48-0.74), 2.2-3.0s: gros saut (~0.75-1.00)
           const u = Math.min(1.0, Math.max(0, (this.chargeDuration - minJumpCharge) / (maxChargeTime - minJumpCharge)));
-          const effectivePower = 0.35 + 0.65 * Math.pow(u, 1.35);
+          const effectivePower = 0.16 + 0.84 * Math.pow(u, 1.45);
           this.rigidityTimer = 0.35;
           this.bodyRigidity = 0.85;
-          this.extensionTimer = 0.32 + 0.16 * effectivePower; // Active deployment phase
+          this.extensionTimer = 0.30 + 0.14 * effectivePower; // Active deployment phase
           this.jumpCooldown = 0.35;
           this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles);
         } else {
-          // Under 0.5s: purely release contraction without any jump impulse (no spam jumping/flying!)
-          // BUT actively unfurl and extend LENGTHWISE in the direction of the body (never curling into a round circle!)
           this.rigidityTimer = 0.22;
           this.bodyRigidity = 0.55;
           this.extensionTimer = 0.24;
@@ -904,6 +1112,8 @@ export class Caterpillar {
           this.extensionMomentum.consumed = true;
           this.extensionMomentum.chargeTime = 0;
         }
+        this.hadRearAnchorDuringContraction = false;
+        this.hadFrontAnchorDuringContraction = false;
       }
       this.chargeDuration = 0;
       this.chargeShake = 0;
@@ -911,12 +1121,14 @@ export class Caterpillar {
       if (this.extensionTimer > 0) {
         this.extensionTimer = Math.max(0, this.extensionTimer - safeDt);
       }
-      const unbendSpeed = GAMEPLAY_CONFIG.unbendExtensionSpeed || 28.0;
+      const unbendSpeed = (GAMEPLAY_CONFIG.unbendExtensionSpeed || 28.0) * mStats.speedMult;
       this.contraction += (0 - this.contraction) * Math.min(1, safeDt * unbendSpeed);
       if (this.contraction < 0.02 && this.extensionTimer <= 0) {
         this.contraction = 0;
         this.storedContraction = 0;
         this.hadAnchorDuringContraction = false;
+        this.hadRearAnchorDuringContraction = false;
+        this.hadFrontAnchorDuringContraction = false;
       }
 
       if (this.rigidityTimer > 0) {
@@ -978,8 +1190,8 @@ export class Caterpillar {
     const steerX = (inputs.right ? 1 : 0) - (inputs.left ? 1 : 0);
     const steerY = (inputs.up ? -1 : 0) + (inputs.down ? 1 : 0);
 
-    if (this.bodyClass && this.bodyClass.canJump === false) {
-      // Mastodonte is too heavy to jump!
+    if (this.bodyClass && this.bodyClass.canJump === false && !this.modifiers.includes('sauteuse')) {
+      // Mastodonte is too heavy to jump unless modified with Sauteuse!
       sound.playSticky(false);
       if (particles) {
         particles.spawnPopup(this.head.x, this.head.y - 20, 'TROP LOURD POUR SAUTER ! 🦣', '#ffd93b');
@@ -987,59 +1199,74 @@ export class Caterpillar {
       return;
     }
 
+    const mStats = this.getModifierStats();
     const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
-    const jumpBoostMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.00) * clsJump;
-    const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength') ? 1.55 : 1.0;
-    const speedMult = (this.activePowerUp && this.activePowerUp.type === 'speed') ? 1.35 : 1.0;
+    const jumpBoostMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.00) * (clsJump || 1.0) * mStats.jumpMult;
+    const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength') ? 1.35 : 1.0;
+    const speedMult = ((this.activePowerUp && this.activePowerUp.type === 'speed') ? 1.25 : 1.0) * mStats.speedMult;
 
-    // 1. Average direction of all body segments (organic spine orientation from tail to head)
-    let avgDx = 0;
-    let avgDy = 0;
+    const hadRearAnchor = (this.rearAnchor.anchored && !this.isHoldingMovable(this.rearAnchor)) || this.hadRearAnchorDuringContraction;
+    const hadFrontAnchor = (this.frontAnchor.anchored && !this.isHoldingMovable(this.frontAnchor)) || this.hadFrontAnchorDuringContraction;
+    // When gripping by the head (D) without rear anchor (Q), the jump launches in the direction of the TAIL!
+    const jumpingFromHead = hadFrontAnchor && !hadRearAnchor;
+    this.launchedFromHead = jumpingFromHead;
+
+    // 1. Average direction of all body segments:
+    // - Normal / Rear-anchored (Q): from tail (0) toward head (N-1)
+    // - Head-anchored (D): from head (N-1) toward tail (0)
+    let tailToHeadDx = 0;
+    let tailToHeadDy = 0;
     for (let i = 0; i < N - 1; i++) {
       const segDx = this.nodes[i + 1].x - this.nodes[i].x;
       const segDy = this.nodes[i + 1].y - this.nodes[i].y;
       const len = Math.hypot(segDx, segDy) || 1;
-      avgDx += segDx / len;
-      avgDy += segDy / len;
+      tailToHeadDx += segDx / len;
+      tailToHeadDy += segDy / len;
     }
-    const avgLen = Math.hypot(avgDx, avgDy) || 1;
-    avgDx /= avgLen;
-    avgDy /= avgLen;
+    const avgLen = Math.hypot(tailToHeadDx, tailToHeadDy) || 1;
+    tailToHeadDx /= avgLen;
+    tailToHeadDy /= avgLen;
+
+    // Direction of the jump: toward the tail if gripping by the head, otherwise toward the head
+    const avgDx = jumpingFromHead ? -tailToHeadDx : tailToHeadDx;
+    const avgDy = jumpingFromHead ? -tailToHeadDy : tailToHeadDy;
 
     let aimX = avgDx;
     let aimY = avgDy;
     if (steerX !== 0 || steerY !== 0) {
       const sDist = Math.hypot(steerX, steerY) || 1;
-      const keyAimX = steerX / sDist;
-      const keyAimY = (steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.30) : steerY) / sDist;
+      // When jumping from head, if the player hasn't steered horizontally toward the tail, keep horizontal direction toward the tail
+      const effSteerX = (jumpingFromHead && steerX * avgDx < 0) ? avgDx : (steerX / sDist);
+      const keyAimX = effSteerX;
+      const keyAimY = (steerY < 0 ? steerY * (GAMEPLAY_CONFIG.jumpUpAngleBonus || 1.25) : steerY) / sDist;
       const kLen = Math.hypot(keyAimX, keyAimY) || 1;
-      aimX = avgDx * 0.45 + (keyAimX / kLen) * 0.55;
-      aimY = avgDy * 0.45 + (keyAimY / kLen) * 0.55;
+      aimX = avgDx * 0.50 + (keyAimX / kLen) * 0.50;
+      aimY = avgDy * 0.50 + (keyAimY / kLen) * 0.50;
       const len = Math.hypot(aimX, aimY) || 1;
       aimX /= len;
       aimY /= len;
     }
 
-    this.launchSpineDir = { x: aimX, y: aimY };
+    // Keep launchSpineDir oriented from tail to head so mid-air uncoiling preserves node order (0..N-1)
+    this.launchSpineDir = {
+      x: jumpingFromHead ? -aimX : aimX,
+      y: jumpingFromHead ? -aimY : aimY
+    };
     this.launchSpinePower = power;
 
-    // Jump stance multipliers:
-    // Jump is always possible (unless in mid-air).
-    // Better when jumping off rear paws, and even better when rear paws are anchored!
-    const hadRearAnchor = this.rearAnchor.anchored;
-    const rearOnGround = (this.rear && this.rear.onGround) || (this.nodes[1] && this.nodes[1].onGround) || hadRearAnchor;
-    let stanceMult = 1.0;
-    if (hadRearAnchor) {
-      stanceMult = 1.55; // Maximum catapult boost!
-    } else if (rearOnGround) {
-      stanceMult = 1.25; // Good strong push off the rear feet!
+    const rearOnGround = (this.rear && this.rear.onGround) || (this.nodes[1] && this.nodes[1].onGround);
+    const frontOnGround = (this.head && this.head.onGround) || (this.nodes[N - 2] && this.nodes[N - 2].onGround);
+    let stanceMult = 0.88;
+    if (hadRearAnchor || hadFrontAnchor) {
+      stanceMult = 1.10; // Controlled catapult boost when anchored
+    } else if (rearOnGround || frontOnGround) {
+      stanceMult = 0.94; // Balanced push off the ground
     }
 
-    // If holding a prop/enemy with one paw while the other was anchored to ground:
-    // The spring uncoiling catapults the object!
-    if (this.frontAnchor.propRef && !this.rearAnchor.propRef) {
+    // If holding a prop/enemy/rival with one paw while the other was anchored to ground:
+    if (this.isHoldingMovable(this.frontAnchor) && !this.isHoldingMovable(this.rearAnchor)) {
       this.releaseAnchor(this.frontAnchor, true, particles);
-    } else if (this.rearAnchor.propRef && !this.frontAnchor.propRef) {
+    } else if (this.isHoldingMovable(this.rearAnchor) && !this.isHoldingMovable(this.frontAnchor)) {
       this.releaseAnchor(this.rearAnchor, false, particles);
     }
 
@@ -1056,27 +1283,30 @@ export class Caterpillar {
       return;
     }
 
-    const baseMaxSpeed = GAMEPLAY_CONFIG.maxJumpSpeed || 520;
+    const baseMaxSpeed = GAMEPLAY_CONFIG.maxJumpSpeed || 300;
     const jumpSpeed = (power * baseMaxSpeed) * jumpBoostMult * strengthMult * speedMult * stanceMult;
 
     for (let i = 0; i < N; i++) {
-      const trunkBonus = Math.sin((i / (N - 1)) * Math.PI) * 0.16;
-      const frontBonus = 0.88 + 0.18 * (i / (N - 1)) + trunkBonus;
-      this.nodes[i].vx = aimX * jumpSpeed * frontBonus;
-      this.nodes[i].vy = aimY * jumpSpeed * frontBonus;
+      const trunkBonus = Math.sin((i / (N - 1)) * Math.PI) * 0.08;
+      // Leading tip of the jump: tail (i=0) when jumping from head grip, or head (i=N-1) when jumping from rear grip
+      const leadRatio = jumpingFromHead ? ((N - 1 - i) / (N - 1)) : (i / (N - 1));
+      const nodeBonus = 0.88 + 0.16 * leadRatio + trunkBonus;
+      this.nodes[i].vx = aimX * jumpSpeed * nodeBonus;
+      this.nodes[i].vy = aimY * jumpSpeed * nodeBonus;
       this.nodes[i].onGround = false;
     }
 
-    this.hopTimer = 0.45;
-    this.extensionTimer = 0.32 + 0.16 * power;
+    this.hopTimer = 0.42;
+    this.extensionTimer = 0.28 + 0.14 * power;
     this.extensionMomentum.consumed = true;
     this.extensionMomentum.timer = 0;
 
     if (particles) {
-      const mudCount = Math.round((4 + power * 8) * (hadRearAnchor ? 1.6 : 1.0));
-      particles.spawnMud(this.rear.x, this.rear.y, -aimX, -aimY, mudCount, power * (hadRearAnchor ? 1.1 : 0.75));
+      const mudOrigin = jumpingFromHead ? this.head : this.rear;
+      const mudCount = Math.round((4 + power * 7) * ((hadRearAnchor || hadFrontAnchor) ? 1.3 : 1.0));
+      particles.spawnMud(mudOrigin.x, mudOrigin.y, -aimX, -aimY, mudCount, power * 0.85);
     }
-    sound.playLaunch(0.20 + power * 0.70 + (hadRearAnchor ? 0.30 : 0));
+    sound.playLaunch(0.20 + power * 0.65);
   }
 
   // Locked segment alignment: when a paw grabs a surface (rear foot or front foot),
@@ -1249,6 +1479,7 @@ export class Caterpillar {
     const N = this.numNodes;
     const rear = this.rear;
     const head = this.head;
+    const mStats = this.getModifierStats();
 
     // 1. Update Suction Anchors
     this.updateAnchor(this.rearAnchor, rear, false, dt, world, particles, isFirstSubstep);
@@ -1294,7 +1525,7 @@ export class Caterpillar {
         for (let i = 0; i < N; i++) { cx += this.nodes[i].x; cy += this.nodes[i].y; }
         cx /= N; cy /= N;
 
-        const clsAgility = (this.bodyClass && this.bodyClass.agilityMult) || 1.0;
+        const clsAgility = ((this.bodyClass && this.bodyClass.agilityMult) || 1.0) * mStats.speedMult;
         for (let i = 0; i < N; i++) {
           const rx = this.nodes[i].x - cx;
           const ry = this.nodes[i].y - cy;
@@ -1304,8 +1535,8 @@ export class Caterpillar {
       } else {
         // On the ground / anchored:
         const inertiaBoost = (isExtending || isHopping) ? 1.5 : 1.0;
-        const resp = GAMEPLAY_CONFIG.orientationResponsiveness || 2.2;
-        const clsAgility = (this.bodyClass && this.bodyClass.agilityMult) || 1.0;
+        const resp = (GAMEPLAY_CONFIG.orientationResponsiveness || 2.2) * mStats.speedMult;
+        const clsAgility = ((this.bodyClass && this.bodyClass.agilityMult) || 1.0) * mStats.speedMult;
         const clsMass = (this.bodyClass && this.bodyClass.massMult) || 1.0;
         // Bending: orient continues smoothly at ~0.50x speed as requested; normal is full speed & snappy
         const bendMult = isBending ? (GAMEPLAY_CONFIG.bendOrientationPower !== undefined ? GAMEPLAY_CONFIG.bendOrientationPower : 0.50) : 1.0;
@@ -1748,7 +1979,7 @@ export class Caterpillar {
     }
 
     // 3. Integrate Heavier Gravity, Viscous Damping & Physical Larval Breathing
-    let currentGravity = world.gravity || GAMEPLAY_CONFIG.gravity || 740;
+    let currentGravity = (world.gravity || GAMEPLAY_CONFIG.gravity || 740) * mStats.gravityMult;
     if (this.activePowerUp && this.activePowerUp.type === 'feather') {
       currentGravity *= 0.35;
     }
@@ -2608,12 +2839,51 @@ export class Caterpillar {
         anchor.propRef.isHeld = false;
         anchor.propRef = null;
       }
+      anchor.playerRef = null;
+      anchor.playerNodeIndex = -1;
       anchor.segRef = null;
       anchor.localPt = null;
       return;
     }
 
+    const mStats = this.getModifierStats();
+
     if (anchor.anchored) {
+      if (anchor.playerRef) {
+        const otherCat = anchor.playerRef;
+        if (!otherCat.nodes || otherCat.nodes.length === 0) {
+          anchor.playerRef = null;
+          anchor.anchored = false;
+          return;
+        }
+        const pIdx = Math.max(0, Math.min(otherCat.nodes.length - 1, anchor.playerNodeIndex || 0));
+        const targetNode = otherCat.nodes[pIdx];
+        if (targetNode) {
+          const dx = targetNode.x - node.x;
+          const dy = targetNode.y - node.y;
+          const dist = Math.hypot(dx, dy) || 1;
+          const attachDist = (node.r + targetNode.r) * 0.78;
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const diff = dist - attachDist;
+          const otherAnchor = isFront ? this.rearAnchor : this.frontAnchor;
+          const selfGrounded = otherAnchor.anchored && !this.isHoldingMovable(otherAnchor);
+          const pullRivalWeight = selfGrounded ? Math.min(0.84, 0.56 * mStats.strengthMult) : 0.46;
+          const pullSelfWeight = 1.0 - pullRivalWeight;
+          node.x += nx * diff * pullSelfWeight;
+          node.y += ny * diff * pullSelfWeight;
+          targetNode.x -= nx * diff * pullRivalWeight;
+          targetNode.y -= ny * diff * pullRivalWeight;
+          targetNode.vx = targetNode.vx * 0.65 + node.vx * 0.35;
+          targetNode.vy = targetNode.vy * 0.65 + node.vy * 0.35;
+          anchor.x = node.x;
+          anchor.y = node.y;
+          anchor.nx = -nx;
+          anchor.ny = -ny;
+          return;
+        }
+      }
+
       if (anchor.hedgehogRef) {
         const hedgehog = anchor.hedgehogRef;
         hedgehog.isHeld = true;
@@ -2662,7 +2932,7 @@ export class Caterpillar {
 
       if (anchor.propRef) {
         const prop = anchor.propRef;
-        const hasSuperStrength = (this.activePowerUp && this.activePowerUp.type === 'strength');
+        const hasSuperStrength = (this.activePowerUp && this.activePowerUp.type === 'strength') || mStats.strengthMult > 1.35;
         const isLightProp = prop.type === 'acorn' || prop.mass < 15 || hasSuperStrength;
         const effR = prop.radius * 0.95 + node.r * 0.80;
         const worldAngle = prop.angle + anchor.propLocalAngle;
@@ -2701,8 +2971,7 @@ export class Caterpillar {
         }
 
         if (isLightProp) {
-          // Grabbable light props (Acorns) move with the caterpillar's mouth or tail!
-          // Can be lifted into the air, carried around, dragged or hoisted effortlessly.
+          // Grabbable light props (Acorns or Pinecones with Super Forte) move with the caterpillar's mouth or tail!
           prop.isHeld = true;
           const targetPropX = node.x - nx * effR;
           const targetPropY = node.y - ny * effR;
@@ -2797,10 +3066,9 @@ export class Caterpillar {
       return;
     }
 
-    const extraGrip = (this.bodyClass && this.bodyClass.gripExtraDistance) || 0;
-    const isReaching = (this.extensionTimer > 0) || (anchor.holdingKey && (this.rearAnchor.anchored || this.frontAnchor.anchored));
-    const reachBonus = isReaching ? 16 : 0;
-    const maxSurfaceGap = (GAMEPLAY_CONFIG.gripDistance || 26) + extraGrip + reachBonus;
+    const extraGrip = ((this.bodyClass && this.bodyClass.gripExtraDistance) || 0) + (mStats.extraGrip || 0);
+    const baseGripDist = (this.roomConfig && this.roomConfig.gripDistance) || GAMEPLAY_CONFIG.gripDistance || 22;
+    const maxSurfaceGap = Math.max(8, Math.min(36, baseGripDist + extraGrip));
     const suctionRange = node.r + maxSurfaceGap;
 
     // Check grabbable enemy hedgehogs (safe front snout, dangerous spikes on back/rear!)
@@ -2812,6 +3080,7 @@ export class Caterpillar {
           anchor.hedgehogRef = hHit.hedgehog;
           anchor.aphidRef = null;
           anchor.propRef = null;
+          anchor.playerRef = null;
           anchor.segRef = null;
           anchor.localPt = null;
           anchor.slipping = false;
@@ -2843,6 +3112,7 @@ export class Caterpillar {
       anchor.anchored = true;
       anchor.aphidRef = aphidHit.aphid;
       anchor.propRef = null;
+      anchor.playerRef = null;
       anchor.segRef = null;
       anchor.localPt = null;
       anchor.slipping = false;
@@ -2863,11 +3133,49 @@ export class Caterpillar {
       return;
     }
 
+    // Check grabbable rival caterpillars in shared world PvP!
+    if (world.findClosestOtherCaterpillar) {
+      const catHit = world.findClosestOtherCaterpillar(this, node.x, node.y, suctionRange);
+      if (catHit) {
+        anchor.anchored = true;
+        anchor.playerRef = catHit.caterpillar;
+        anchor.playerNodeIndex = catHit.nodeIndex;
+        anchor.hedgehogRef = null;
+        anchor.aphidRef = null;
+        anchor.propRef = null;
+        anchor.segRef = null;
+        anchor.localPt = null;
+        anchor.slipping = false;
+        anchor.material = 'stem';
+        anchor.nx = catHit.nx;
+        anchor.ny = catHit.ny;
+        anchor.tx = catHit.tx;
+        anchor.ty = catHit.ty;
+        anchor.x = catHit.cx;
+        anchor.y = catHit.cy;
+
+        node.x = anchor.x;
+        node.y = anchor.y;
+
+        sound.playGrip(isFront);
+        if (particles) {
+          particles.spawnSuctionRing(anchor.x, anchor.y, '#ff6b81');
+          particles.spawnPopup(anchor.x, anchor.y - 24, 'AGRIPPÉ ! 🤼', '#ff6b81');
+        }
+        return;
+      }
+    }
+
     const propHit = world.findClosestPropSurface(node.x, node.y, suctionRange);
-    if (propHit) {
+    const hit = world.findClosestSurface(node.x, node.y, suctionRange);
+
+    if (propHit && (!hit || propHit.dist <= hit.dist + 4)) {
       anchor.anchored = true;
       anchor.propRef = propHit.prop;
       anchor.aphidRef = null;
+      anchor.playerRef = null;
+      anchor.segRef = null;
+      anchor.localPt = null;
       anchor.propLocalAngle = propHit.localAngle;
       anchor.slipping = false;
       anchor.material = 'root';
@@ -2888,12 +3196,12 @@ export class Caterpillar {
       return;
     }
 
-    const hit = world.findClosestSurface(node.x, node.y, suctionRange);
     if (hit) {
       anchor.anchored = true;
       anchor.segRef = hit.seg;
       anchor.aphidRef = null;
       anchor.propRef = null;
+      anchor.playerRef = null;
       anchor.material = hit.material;
       anchor.nx = hit.nx;
       anchor.ny = hit.ny;
@@ -3416,22 +3724,83 @@ export class Caterpillar {
     const headAngle = Math.atan2(headSample.uy, headSample.ux);
     this.drawCuteLarvalHead(ctx, head.x, head.y, headAngle, pal, time);
 
-    // 7. SUPERIMPOSED VISUAL BADGES (Q & D)
-    if (GAMEPLAY_CONFIG.showBadgesOverlay) {
+    // 7. SUPERIMPOSED VISUAL BADGES (Q & D) - Only for local player
+    if (!this.isRemote && GAMEPLAY_CONFIG.showBadgesOverlay) {
       const rearBadgeX = rear.x - tailSeg.nx * 14;
       const rearBadgeY = rear.y - tailSeg.ny * 14 + 22;
       const frontBadgeX = head.x - frontSeg.nx * 14;
       const frontBadgeY = head.y - frontSeg.ny * 14 + 22;
 
-      this.drawAnchorBadge(ctx, rearBadgeX, rearBadgeY, 'Q', this.rearAnchor, this.rearCanGrip, this.rearTargetPt, '#b84eff', time);
-      this.drawAnchorBadge(ctx, frontBadgeX, frontBadgeY, 'D', this.frontAnchor, this.frontCanGrip, this.frontTargetPt, '#24bd4c', time);
+      const gripStyle = GRIP_STYLES[this.cosmetics.grip || 'classic'] || GRIP_STYLES.classic;
+      this.drawAnchorBadge(ctx, rearBadgeX, rearBadgeY, 'Q', this.rearAnchor, this.rearCanGrip, this.rearTargetPt, gripStyle.rearColor, time);
+      this.drawAnchorBadge(ctx, frontBadgeX, frontBadgeY, 'D', this.frontAnchor, this.frontCanGrip, this.frontTargetPt, gripStyle.frontColor, time);
+    }
+
+    // 8. FLOATING PLAYER PSEUDO + MODIFIER BADGES + HP BAR
+    if (!this.hideFloatingTag && (this.isRemote || this.pseudo || (this.modifiers && this.modifiers.length > 0))) {
+      this.drawFloatingPlayerTag(ctx, head.x, head.y, pal, time);
+    }
+
+    ctx.restore();
+  }
+
+  drawFloatingPlayerTag(ctx, hx, hy, pal, time) {
+    ctx.save();
+    const classScale = (this.bodyClass && this.bodyClass.visualScale) || 1.0;
+    const sizeMult = (this.sizeScale || 1.0) * classScale;
+    const tagY = hy - 38 * sizeMult - (this.cosmetics.hat && this.cosmetics.hat !== 'none' ? 14 : 0);
+
+    // Modifier icons string
+    let modIcons = '';
+    if (this.modifiers && this.modifiers.length > 0) {
+      modIcons = ' ' + this.modifiers.map(m => (RACE_MODIFIERS[m] ? RACE_MODIFIERS[m].icon : '')).join('');
+    }
+    const label = (this.pseudo || 'Chenille') + modIcons;
+
+    ctx.font = '800 13px "Fredoka", sans-serif';
+    const textW = ctx.measureText(label).width;
+    const pillW = Math.max(64, textW + 18);
+    const pillH = 22;
+
+    // Cartoon dark pill background with colored border
+    ctx.fillStyle = this.isRemote ? 'rgba(18, 24, 38, 0.85)' : 'rgba(20, 48, 28, 0.88)';
+    ctx.strokeStyle = this.isRemote ? pal.bodyTop : '#ffd93b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(hx - pillW * 0.5, tagY - pillH * 0.5, pillW, pillH, 10);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, hx, tagY + 0.5);
+
+    // Mini HP bar below name tag if damaged or remote player
+    if (this.hp < this.maxHp || this.isRemote) {
+      const hpRatio = Math.max(0, Math.min(1, this.hp / Math.max(1, this.maxHp)));
+      const barW = Math.min(68, pillW - 8);
+      const barH = 5;
+      const barX = hx - barW * 0.5;
+      const barY = tagY + pillH * 0.5 + 3;
+
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.beginPath();
+      ctx.roundRect(barX - 1, barY - 1, barW + 2, barH + 2, 3);
+      ctx.fill();
+
+      ctx.fillStyle = hpRatio > 0.5 ? '#2ed573' : (hpRatio > 0.25 ? '#ffa502' : '#ff4757');
+      ctx.beginPath();
+      ctx.roundRect(barX, barY, barW * hpRatio, barH, 2.5);
+      ctx.fill();
     }
 
     ctx.restore();
   }
 
   drawSuctionFoot(ctx, x, y, ux, uy, nx, ny, anchor, isFront, canGrip, pal, time) {
-    const activeColor = isFront ? '#24bd4c' : '#b84eff';
+    const gripStyle = GRIP_STYLES[this.cosmetics.grip || 'classic'] || GRIP_STYLES.classic;
+    const activeColor = isFront ? gripStyle.frontColor : gripStyle.rearColor;
     const footX = x - nx * 14;
     const footY = y - ny * 14;
     const angle = Math.atan2(uy, ux);
@@ -3447,10 +3816,12 @@ export class Caterpillar {
     // Soft suction contact glow when anchored or in range
     if (anchor.anchored) {
       const pulse = 1 + Math.sin(time * 10) * 0.08;
-      ctx.fillStyle = isFront ? 'rgba(56, 216, 78, 0.40)' : 'rgba(184, 78, 255, 0.40)';
+      ctx.fillStyle = activeColor;
+      ctx.globalAlpha = 0.38;
       ctx.beginPath();
       ctx.ellipse(0, 3, 16 * pulse, 7 * pulse, 0, 0, Math.PI * 2);
       ctx.fill();
+      ctx.globalAlpha = 1.0;
     } else if (canGrip) {
       const pulse = 1 + Math.sin(time * 12) * 0.12;
       ctx.strokeStyle = activeColor;
@@ -3481,8 +3852,6 @@ export class Caterpillar {
     ctx.stroke();
 
     // Claw grasp progression:
-    // 0 = wide open on the sides (reaching / in air)
-    // 1 = clamped inward to center, hugging the ground surface
     let gripT = 0.18;
     if (anchor.anchored) {
       gripT = 1.0;
@@ -3492,8 +3861,6 @@ export class Caterpillar {
       gripT = 0.50 + Math.sin(time * 12) * 0.18;
     }
 
-    // Helper to draw a cute, plump, curved grasping claw
-    // dir: -1 (left / rear), +1 (right / front)
     const drawSideClaw = (dir, baseX, baseY, length, baseWidth, openRot, closedRot) => {
       ctx.save();
       ctx.translate(baseX, baseY);
@@ -3501,27 +3868,21 @@ export class Caterpillar {
       const curRot = dir * (openRot * (1 - gripT) + closedRot * gripT);
       ctx.rotate(curRot);
 
-      // Inward curvature towards center
       const curveX = -dir * (length * 0.28);
-      // When anchored, claw hugs horizontally along the surface without plunging into the ground
       const tipY = length * (anchor.anchored ? 0.72 : 1.0);
       const tipX = curveX;
 
       ctx.beginPath();
       ctx.moveTo(-baseWidth * 0.5, 0);
-      // Outer smooth curved contour
       ctx.quadraticCurveTo(-baseWidth * 0.35 + curveX * 0.25, tipY * 0.55, tipX, tipY);
-      // Sweet rounded tip
       ctx.arc(tipX, tipY, 1.3, 0, Math.PI * 0.5);
-      // Inner curved contour (talon arch)
       ctx.quadraticCurveTo(baseWidth * 0.45 + curveX * 0.75, tipY * 0.5, baseWidth * 0.5, 0);
       ctx.closePath();
 
-      // Shiny warm ivory gradient
       const grad = ctx.createLinearGradient(0, 0, tipX, tipY);
       grad.addColorStop(0, '#ffffff');
-      grad.addColorStop(0.65, '#fffce8');
-      grad.addColorStop(1, anchor.anchored ? '#ffd93b' : '#ffeed4');
+      grad.addColorStop(0.65, gripStyle.clawTint || '#fffce8');
+      grad.addColorStop(1, anchor.anchored ? activeColor : (gripStyle.clawTint || '#ffeed4'));
 
       ctx.fillStyle = grad;
       ctx.strokeStyle = pal.outline;
@@ -3529,14 +3890,12 @@ export class Caterpillar {
       ctx.fill();
       ctx.stroke();
 
-      // Cute round joint at claw base
       ctx.fillStyle = pal.belly;
       ctx.beginPath();
       ctx.arc(0, 0.5, baseWidth * 0.46, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
 
-      // Glossy highlight dot
       ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
       ctx.beginPath();
       ctx.arc(tipX * 0.55, tipY * 0.5, 1.1, 0, Math.PI * 2);
@@ -3545,16 +3904,13 @@ export class Caterpillar {
       ctx.restore();
     };
 
-    // Draw opposing claws on each side (-1: left/rear, +1: right/front)
     const classScale = (this.bodyClass && this.bodyClass.visualScale) || 1.0;
     const scaleFactor = ((GAMEPLAY_CONFIG.clawScale !== undefined ? GAMEPLAY_CONFIG.clawScale : 1.35) / 1.35) * classScale;
     for (const dir of [-1, 1]) {
-      // Main gripping claw (lower, contacts ground horizontally)
       const mainBaseX = dir * (6.5 - gripT * 2.2);
       const mainBaseY = 1.0;
       drawSideClaw(dir, mainBaseX, mainBaseY, 12.0 * scaleFactor, 4.2 * scaleFactor, 1.05, -0.55);
 
-      // Secondary upper claw (cute layered proleg hook)
       const secBaseX = dir * (5.2 - gripT * 1.8);
       const secBaseY = -2.2;
       drawSideClaw(dir, secBaseX, secBaseY, 8.8 * scaleFactor, 3.2 * scaleFactor, 1.25, -0.38);
@@ -3774,6 +4130,62 @@ export class Caterpillar {
       ctx.beginPath();
       ctx.arc(0, -3.5, 2.3, 0, Math.PI * 2);
       ctx.fill();
+    } else if (hat === 'cap') {
+      // Casquette Sport Rouge/Blanche
+      ctx.fillStyle = '#e84118';
+      ctx.strokeStyle = '#1e272e';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(-1, 2, 13, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // White front panel
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(3, 1, 7.5, Math.PI * 1.15, Math.PI * 1.9);
+      ctx.fill();
+      // Visor
+      ctx.fillStyle = '#c23616';
+      ctx.beginPath();
+      ctx.ellipse(10, 1.5, 10, 3.2, 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    } else if (hat === 'pirate') {
+      // Tricorne Pirate
+      ctx.fillStyle = '#1e272e';
+      ctx.strokeStyle = '#ffd93b';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.moveTo(-17, 2);
+      ctx.quadraticCurveTo(-12, -14, 0, -15);
+      ctx.quadraticCurveTo(12, -14, 17, 2);
+      ctx.quadraticCurveTo(0, -3, -17, 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Skull dot
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(0, -6.5, 3.2, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (hat === 'hardhat') {
+      // Casque de Chantier Jaune
+      ctx.fillStyle = '#ffd32a';
+      ctx.strokeStyle = '#2a1b0e';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.arc(0, 2, 13.5, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      // Ridge & Visor
+      ctx.fillStyle = '#ffa801';
+      ctx.fillRect(-3, -13, 6, 12);
+      ctx.beginPath();
+      ctx.ellipse(2, 2, 16, 3.0, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
     } else if (hat === 'tophat') {
       ctx.fillStyle = '#1e222d';
       ctx.strokeStyle = '#0d0f14';
@@ -3892,7 +4304,6 @@ export class Caterpillar {
   drawAnchorBadge(ctx, x, y, letter, anchor, canGrip, targetPt, activeColor, time) {
     ctx.save();
 
-    // 1. Target contact marker and dotted link line on nearest surface if canGrip
     if (canGrip && !anchor.anchored && targetPt) {
       const pulse = Math.sin(time * 9) * 2.5;
       ctx.save();
@@ -3905,7 +4316,6 @@ export class Caterpillar {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // Surface docking target circle
       ctx.beginPath();
       ctx.arc(targetPt.x, targetPt.y, 8 + pulse, 0, Math.PI * 2);
       ctx.strokeStyle = activeColor;
@@ -3919,7 +4329,6 @@ export class Caterpillar {
       ctx.restore();
     }
 
-    // 2. Badge Keycap Rendering - strictly 'Q' and 'D' only
     ctx.font = '900 13px "Fredoka", sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -3931,7 +4340,7 @@ export class Caterpillar {
     if (anchor.stuckCrumb) {
       bg = '#ff4757';
       border = '#ffffff';
-    } else if (anchor.propRef) {
+    } else if (anchor.propRef || anchor.playerRef) {
       bg = '#f39c12';
       border = '#fff200';
       badgeScale = 1.08;
@@ -3969,5 +4378,75 @@ export class Caterpillar {
     ctx.fillStyle = '#ffffff';
     ctx.fillText(letter, 0, 1);
     ctx.restore();
+  }
+
+  // ==================== MULTIPLAYER STATE SYNC & PREVIEW ====================
+  serializeState(progress = 0) {
+    return {
+      nodes: this.nodes.map(n => ({
+        x: Math.round(n.x * 10) / 10,
+        y: Math.round(n.y * 10) / 10,
+        vx: Math.round(n.vx),
+        vy: Math.round(n.vy),
+        r: Math.round(n.r * 10) / 10
+      })),
+      rearAnchored: !!this.rearAnchor.anchored,
+      frontAnchored: !!this.frontAnchor.anchored,
+      contraction: Math.round(this.contraction * 100) / 100,
+      hp: Math.round(this.hp),
+      maxHp: Math.round(this.maxHp),
+      sizeScale: this.sizeScale,
+      dorsalSign: this.dorsalSign,
+      expression: this.expression,
+      progress: Math.round(progress * 1000) / 1000
+    };
+  }
+
+  applyRemoteState(state) {
+    if (!state || !Array.isArray(state.nodes)) return;
+    if (this.nodes.length !== state.nodes.length) {
+      this.numNodes = state.nodes.length;
+      this.nodes = state.nodes.map((sn, idx) => ({
+        x: sn.x,
+        y: sn.y,
+        vx: sn.vx || 0,
+        vy: sn.vy || 0,
+        r: sn.r || 15,
+        mass: idx === state.nodes.length - 1 ? 1.05 : 1.0,
+        onGround: false
+      }));
+    }
+    this.remoteTargetNodes = state.nodes;
+    this.rearAnchor.anchored = !!state.rearAnchored;
+    this.frontAnchor.anchored = !!state.frontAnchored;
+    if (typeof state.contraction === 'number') this.contraction = state.contraction;
+    if (typeof state.hp === 'number') this.hp = state.hp;
+    if (typeof state.maxHp === 'number') this.maxHp = state.maxHp;
+    if (typeof state.sizeScale === 'number') this.sizeScale = state.sizeScale;
+    if (typeof state.dorsalSign === 'number') this.dorsalSign = state.dorsalSign;
+    if (state.expression) this.expression = state.expression;
+    if (typeof state.progress === 'number') this.remoteProgress = state.progress;
+  }
+
+  updateRemote(dt) {
+    this.propellerAngle += dt * 15;
+    if (this.invulnerableTimer > 0) {
+      this.invulnerableTimer = Math.max(0, this.invulnerableTimer - dt);
+    }
+    this.blinkTimer -= dt;
+    if (this.blinkTimer < -0.14) {
+      this.blinkTimer = 2.2 + Math.random() * 2.5;
+    }
+    if (this.remoteTargetNodes && this.remoteTargetNodes.length === this.nodes.length) {
+      const lerp = Math.min(1, dt * 18);
+      for (let i = 0; i < this.nodes.length; i++) {
+        const tn = this.remoteTargetNodes[i];
+        this.nodes[i].x += (tn.x - this.nodes[i].x) * lerp;
+        this.nodes[i].y += (tn.y - this.nodes[i].y) * lerp;
+        this.nodes[i].vx = tn.vx || 0;
+        this.nodes[i].vy = tn.vy || 0;
+        if (tn.r) this.nodes[i].r = tn.r;
+      }
+    }
   }
 }

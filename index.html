@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=17" />
+  <link rel="stylesheet" href="styles.css?v=72" />
 </head>
 <body>
   <div id="game-wrapper">
@@ -15,7 +15,7 @@
     <canvas id="game-canvas"></canvas>
 
     <!-- Top HUD: Level Info, Race Timer & Best Records -->
-    <header id="hud-top">
+    <header id="hud-top" class="hidden">
       <div class="hud-card brand-card">
         <div class="logo-badge">🐛 SlipGrip</div>
       </div>
@@ -55,6 +55,9 @@
       </div>
 
       <div class="hud-card actions-card">
+        <button id="btn-home-menu" class="action-btn icon-only" title="Retourner à l'Accueil / Salons Multijoueur">
+          🏠
+        </button>
         <button id="btn-help" class="action-btn icon-only" title="Règles & Contrôles (Touche H ou ?)">
           ❓
         </button>
@@ -77,7 +80,7 @@
     </header>
 
     <!-- Bottom HUD: Suction Cups (Q & D), Omega Arch Gauge & Subtle Rotation -->
-    <footer id="hud-bottom">
+    <footer id="hud-bottom" class="hidden">
       <!-- Rear Anchor Indicator (Q) -->
       <div id="anchor-rear-widget" class="anchor-widget">
         <div class="key-cap" id="key-q">Q</div>
@@ -116,7 +119,7 @@
     </footer>
 
     <!-- Contextual Tip Banner -->
-    <div id="coach-banner" class="coach-banner">
+    <div id="coach-banner" class="coach-banner hidden">
       <span id="coach-text">
         💡 <strong>Astuce Saut :</strong> Accrochez (<kbd>Q</kbd>), pliez (<kbd>ESPACE</kbd>), orientez vers le haut (<kbd>↑</kbd>), puis relâchez <kbd>ESPACE</kbd> et <kbd>Q</kbd> pour bondir en avant !
       </span>
@@ -239,12 +242,26 @@
           <h4>🎩 Petit Chapeau</h4>
           <div class="cosmetic-options" id="hat-options">
             <button class="cos-btn active" data-hat="crown">👑 Couronne</button>
+            <button class="cos-btn" data-hat="cap">🧢 Casquette Sport</button>
+            <button class="cos-btn" data-hat="pirate">🏴‍☠️ Tricorne Pirate</button>
+            <button class="cos-btn" data-hat="hardhat">👷 Casque Chantier</button>
             <button class="cos-btn" data-hat="tophat">🎩 Haut-de-forme</button>
             <button class="cos-btn" data-hat="mushroom">🍄 Champignon</button>
-            <button class="cos-btn" data-hat="propeller">🧢 Hélice</button>
+            <button class="cos-btn" data-hat="propeller">🚁 Hélice</button>
             <button class="cos-btn" data-hat="flower">🌼 Fleur</button>
             <button class="cos-btn" data-hat="alien">👽 Antennes</button>
             <button class="cos-btn" data-hat="none">🚫 Aucun</button>
+          </div>
+        </div>
+
+        <div class="cosmetic-section">
+          <h4>🧲 Style des Ventouses & Griffes</h4>
+          <div class="cosmetic-options" id="grip-options">
+            <button class="cos-btn active" data-grip="classic">🟣 Classiques</button>
+            <button class="cos-btn" data-grip="neon">⚡ Néon Cyber</button>
+            <button class="cos-btn" data-grip="gold">👑 Ventouses d'Or</button>
+            <button class="cos-btn" data-grip="crimson">🦀 Pinces Rubis</button>
+            <button class="cos-btn" data-grip="frost">❄️ Givre Polaire</button>
           </div>
         </div>
 
@@ -515,6 +532,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=65"></script> 
+  <script type="module" src="js/main.js?v=72"></script>
 </body>
 </html>

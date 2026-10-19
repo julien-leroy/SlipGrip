@@ -152,10 +152,10 @@ export const GAMEPLAY_PRESETS = {
     orientationHeadSpan: 2,
     orientationRearSpan: 2,
     jumpBoost: 1.00,
-    maxJumpSpeed: 520,
+    maxJumpSpeed: 300,
     jumpUpAngleBonus: 1.25,
     jumpChargeTime: 3.0,
-    gripDistance: 26,
+    gripDistance: 22,
     gripAngleTolerance: -0.15,
     omegaArchVisual: 0.75,
     wigglePhysicsAmount: 4,
@@ -211,7 +211,7 @@ export const GAMEPLAY_PRESETS = {
     jumpBoost: 1.75,
     jumpUpAngleBonus: 1.9,
     jumpChargeTime: 4.5,
-    gripDistance: 26,
+    gripDistance: 24,
     gripAngleTolerance: -0.15,
     omegaArchVisual: 1.6,
     wigglePhysicsAmount: 22,
@@ -238,7 +238,7 @@ export const GAMEPLAY_PRESETS = {
     jumpBoost: 1.2,
     jumpUpAngleBonus: 1.4,
     jumpChargeTime: 4.5,
-    gripDistance: 32,
+    gripDistance: 28,
     gripAngleTolerance: -0.10,
     omegaArchVisual: 0.9,
     wigglePhysicsAmount: 16,
@@ -279,7 +279,7 @@ export const GAMEPLAY_CONFIG = {
   jumpBoost: 1.00,
 
   // Vitesse maximale de base du saut à pleine charge
-  maxJumpSpeed: 520,
+  maxJumpSpeed: 300,
 
   // Bonus d'impulsion verticale quand on oriente vers le haut
   jumpUpAngleBonus: 1.25,
@@ -288,7 +288,7 @@ export const GAMEPLAY_CONFIG = {
   jumpChargeTime: 3.0,
 
   // Distance maximale d'accroche des ventouses/griffes aux surfaces (en px)
-  gripDistance: 26,
+  gripDistance: 22,
 
   // Seuil angulaire (produit scalaire) déclenchant le retournement automatique sur saisie inversée
   gripAngleTolerance: -0.15,
@@ -339,8 +339,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v49';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v49';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v71';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v71';
 
 export function loadSavedGameplayConfig() {
   try {
@@ -390,5 +390,309 @@ export function resetGameplayConfig() {
   applyPreset('arcade_dynamique');
 }
 
+// ==================== 6 MODIFICATEURS DE RATTRAPAGE (CUMULABLES ENTRE COURSES) ====================
+export const RACE_MODIFIERS = {
+  colosse: {
+    id: 'colosse',
+    name: 'Chenille Plus Grosse',
+    subtitle: 'Colosse Indestructible',
+    icon: '🦣',
+    color: '#ee5253',
+    desc: 'Taille +45%, Masse +60%, +50 PV Max ! Écrase et bouscule les rivaux sur son passage.',
+    scaleMult: 1.42,
+    massMult: 1.60,
+    hpBonus: 50,
+    speedMult: 0.92,
+    jumpMult: 0.95,
+    extraSegments: 0,
+    reachMult: 1.05,
+    gravityMult: 1.05,
+    strengthMult: 1.50
+  },
+  micro_turbo: {
+    id: 'micro_turbo',
+    name: 'Petite & Ultra-Rapide',
+    subtitle: 'Micro-Turbo Nerveuse',
+    icon: '⚡',
+    color: '#00d2d3',
+    desc: 'Taille réduite (x0.70) mais vitesse de contraction, détente et reptation +45% !',
+    scaleMult: 0.72,
+    massMult: 0.75,
+    hpBonus: 0,
+    speedMult: 1.45,
+    jumpMult: 1.15,
+    extraSegments: 0,
+    reachMult: 0.95,
+    gravityMult: 0.92,
+    strengthMult: 0.90
+  },
+  sauteuse: {
+    id: 'sauteuse',
+    name: 'Chenille Sauteuse',
+    subtitle: 'Ressort bondissant',
+    icon: '🦘',
+    color: '#ff9f43',
+    desc: 'Puissance de saut +45% et détente vers le haut explosive pour survoler la carte !',
+    scaleMult: 1.0,
+    massMult: 0.90,
+    hpBonus: 10,
+    speedMult: 1.12,
+    jumpMult: 1.45,
+    extraSegments: 0,
+    reachMult: 1.10,
+    gravityMult: 0.88,
+    strengthMult: 1.10
+  },
+  longue: {
+    id: 'longue',
+    name: 'Chenille Plus Longue',
+    subtitle: 'Méga-Arpenteuse',
+    icon: '📏',
+    color: '#10ac84',
+    desc: '+2 segments supplémentaires et allonge accrue (+30%) pour franchir tous les gouffres !',
+    scaleMult: 0.95,
+    massMult: 1.10,
+    hpBonus: 25,
+    speedMult: 1.05,
+    jumpMult: 1.05,
+    extraSegments: 2,
+    reachMult: 1.30,
+    gravityMult: 1.0,
+    strengthMult: 1.15
+  },
+  lune: {
+    id: 'lune',
+    name: 'Chenille sur la Lune',
+    subtitle: 'Gravité Lunaire',
+    icon: '🌙',
+    color: '#a29bfe',
+    desc: 'Gravité personnelle réduite de -45% ! Plane très loin dans les airs avec douceur.',
+    scaleMult: 1.0,
+    massMult: 0.80,
+    hpBonus: 10,
+    speedMult: 1.10,
+    jumpMult: 1.22,
+    extraSegments: 0,
+    reachMult: 1.05,
+    gravityMult: 0.55,
+    strengthMult: 1.0
+  },
+  super_forte: {
+    id: 'super_forte',
+    name: 'Chenille Super Forte',
+    subtitle: 'Hercule du Sous-Bois',
+    icon: '💪',
+    color: '#feca57',
+    desc: 'Force x2.4 ! Soulève les pommes de pin géantes et projette objets/rivaux avec +75% de dégâts !',
+    scaleMult: 1.12,
+    massMult: 1.35,
+    hpBonus: 30,
+    speedMult: 1.08,
+    jumpMult: 1.15,
+    extraSegments: 0,
+    reachMult: 1.08,
+    gravityMult: 1.0,
+    strengthMult: 2.40
+  }
+};
+
+// ==================== COUPES (COMPÉTITIONS DE 3 COURSES) ====================
+export const CUPS_DEFINITIONS = {
+  potager_geant: {
+    id: 'potager_geant',
+    name: 'Coupe Potager Géant',
+    icon: '🍅',
+    desc: 'La grande traversée classique : du Sous-Bois glissant jusqu’au Pique-Nique ravagé !',
+    levels: [0, 1, 2],
+    cards: [
+      { levelId: 0, title: 'LE SOUS-BOIS', icon: '🌲', bg: 'linear-gradient(135deg, #2d5a27, #8cf5ab)' },
+      { levelId: 1, title: 'LE POTAGER GÉANT', icon: '🍅', bg: 'linear-gradient(135deg, #236937, #ff6b6b)' },
+      { levelId: 2, title: 'LE PIQUE-NIQUE', icon: '🧺', bg: 'linear-gradient(135deg, #c0392b, #ffeaa7)' }
+    ]
+  },
+  vallee_folle: {
+    id: 'vallee_folle',
+    name: 'Coupe Vallée Folle',
+    icon: '🍄',
+    desc: 'Départ musclé au Potager avant d’affronter les pièges collants du Pique-Nique !',
+    levels: [1, 2, 0],
+    cards: [
+      { levelId: 1, title: 'LE POTAGER GÉANT', icon: '🍅', bg: 'linear-gradient(135deg, #236937, #ff6b6b)' },
+      { levelId: 2, title: 'LE PIQUE-NIQUE', icon: '🧺', bg: 'linear-gradient(135deg, #c0392b, #ffeaa7)' },
+      { levelId: 0, title: 'LE SOUS-BOIS', icon: '🌲', bg: 'linear-gradient(135deg, #2d5a27, #8cf5ab)' }
+    ]
+  },
+  pique_nique_royal: {
+    id: 'pique_nique_royal',
+    name: 'Coupe Pique-Nique Royal',
+    icon: '🧺',
+    desc: 'Chaos immédiat sur la nappe de pique-nique puis sprint final dans les jardins !',
+    levels: [2, 0, 1],
+    cards: [
+      { levelId: 2, title: 'LE PIQUE-NIQUE', icon: '🧺', bg: 'linear-gradient(135deg, #c0392b, #ffeaa7)' },
+      { levelId: 0, title: 'LE SOUS-BOIS', icon: '🌲', bg: 'linear-gradient(135deg, #2d5a27, #8cf5ab)' },
+      { levelId: 1, title: 'LE POTAGER GÉANT', icon: '🍅', bg: 'linear-gradient(135deg, #236937, #ff6b6b)' }
+    ]
+  }
+};
+
+// ==================== STYLES DE GRIPS / VENTOUSES ====================
+export const GRIP_STYLES = {
+  classic: {
+    id: 'classic',
+    name: 'Ventouses Classiques',
+    icon: '🟢',
+    rearColor: '#b84eff',
+    frontColor: '#24bd4c',
+    clawTint: '#fffce8'
+  },
+  neon_blue: {
+    id: 'neon_blue',
+    name: 'Ventouses Saphir',
+    icon: '🔵',
+    rearColor: '#00d2d3',
+    frontColor: '#54a0ff',
+    clawTint: '#dff9fb'
+  },
+  paw_gold: {
+    id: 'paw_gold',
+    name: 'Griffes Dorées',
+    icon: '🐾',
+    rearColor: '#ff9f43',
+    frontColor: '#ffd32a',
+    clawTint: '#fff200'
+  },
+  crimson_claw: {
+    id: 'crimson_claw',
+    name: 'Pattes Rubis',
+    icon: '🦀',
+    rearColor: '#ff4757',
+    frontColor: '#ff6b81',
+    clawTint: '#ffeaa7'
+  },
+  starlight: {
+    id: 'starlight',
+    name: 'Ventouses Cosmiques',
+    icon: '✨',
+    rearColor: '#a29bfe',
+    frontColor: '#fd79a8',
+    clawTint: '#f8efba'
+  }
+};
+
+// ==================== CATALOGUE DES COSMÉTIQUES & SYSTÈME DE DÉBLOCAGE ====================
+export const COSMETICS_CATALOG = [
+  // Starter Skins (Unlocked by default)
+  { category: 'palette', id: 'emerald', name: 'Vert Pomme', icon: '🍏', starter: true },
+  { category: 'palette', id: 'pastel_blue', name: 'Bleu Lagon', icon: '💧', starter: true },
+  { category: 'palette', id: 'axolotl', name: 'Rose Bonbon', icon: '🌸', starter: true },
+  { category: 'palette', id: 'amber', name: 'Mandarine', icon: '🍊', starter: true },
+  // Unlockable Skins (Won by winning Cups!)
+  { category: 'palette', id: 'monarch', name: 'Monarque Zébré', icon: '🦋', starter: false, rarity: 'Rare' },
+  { category: 'palette', id: 'cosmic', name: 'Nébuleuse Étoilée', icon: '🟣', starter: false, rarity: 'Épique' },
+  { category: 'palette', id: 'solar', name: 'Soleil Doré', icon: '☀️', starter: false, rarity: 'Légendaire' },
+  { category: 'palette', id: 'shadow', name: 'Ombre Nocturne', icon: '🌑', starter: false, rarity: 'Épique' },
+  { category: 'palette', id: 'ruby', name: 'Rubis Flamme', icon: '🔥', starter: false, rarity: 'Rare' },
+
+  // Starter Hats
+  { category: 'hat', id: 'none', name: 'Aucun', icon: '🚫', starter: true },
+  { category: 'hat', id: 'cap', name: 'Casquette Cool', icon: '🧢', starter: true },
+  { category: 'hat', id: 'flower', name: 'Fleur des Champs', icon: '🌼', starter: true },
+  { category: 'hat', id: 'hardhat', name: 'Casque Chantier', icon: '👷', starter: true },
+  // Unlockable Hats
+  { category: 'hat', id: 'pirate', name: 'Tricorne Pirate', icon: '🏴‍☠️', starter: false, rarity: 'Rare' },
+  { category: 'hat', id: 'crown', name: 'Couronne Royale', icon: '👑', starter: false, rarity: 'Légendaire' },
+  { category: 'hat', id: 'tophat', name: 'Haut-de-forme', icon: '🎩', starter: false, rarity: 'Rare' },
+  { category: 'hat', id: 'mushroom', name: 'Champignon Magique', icon: '🍄', starter: false, rarity: 'Épique' },
+  { category: 'hat', id: 'propeller', name: 'Casquette Hélice', icon: '🚁', starter: false, rarity: 'Rare' },
+  { category: 'hat', id: 'alien', name: 'Antennes Alien', icon: '👽', starter: false, rarity: 'Épique' },
+
+  // Starter Grips
+  { category: 'grip', id: 'classic', name: 'Ventouses Vertes', icon: '🟢', starter: true },
+  { category: 'grip', id: 'neon_blue', name: 'Ventouses Saphir', icon: '🔵', starter: true },
+  // Unlockable Grips
+  { category: 'grip', id: 'paw_gold', name: 'Griffes Dorées', icon: '🐾', starter: false, rarity: 'Légendaire' },
+  { category: 'grip', id: 'crimson_claw', name: 'Pattes Rubis', icon: '🦀', starter: false, rarity: 'Rare' },
+  { category: 'grip', id: 'starlight', name: 'Ventouses Cosmiques', icon: '✨', starter: false, rarity: 'Épique' },
+
+  // Faces (All unlocked or some unlockable)
+  { category: 'face', id: 'cute', name: 'Mignon', icon: '😊', starter: true },
+  { category: 'face', id: 'cool', name: 'Lunettes Cool', icon: '😎', starter: true },
+  { category: 'face', id: 'determined', name: 'Déterminé', icon: '😠', starter: true },
+  { category: 'face', id: 'derpy', name: 'Rigolo', icon: '🤪', starter: true },
+  { category: 'face', id: 'starry', name: 'Yeux Étoilés', icon: '🤩', starter: false, rarity: 'Épique' }
+];
+
+const UNLOCKS_STORAGE_KEY = 'slipgrip_unlocked_cosmetics_v1';
+
+export function getUnlockedCosmeticsSet() {
+  const unlocked = new Set();
+  for (const item of COSMETICS_CATALOG) {
+    if (item.starter) {
+      unlocked.add(`${item.category}:${item.id}`);
+    }
+  }
+  try {
+    const raw = localStorage.getItem(UNLOCKS_STORAGE_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        arr.forEach(k => unlocked.add(k));
+      }
+    }
+  } catch (err) {
+    // Ignore storage error
+  }
+  return unlocked;
+}
+
+export function isCosmeticUnlocked(category, id) {
+  const set = getUnlockedCosmeticsSet();
+  if (id === undefined && typeof category === 'string' && category.includes(':')) {
+    return set.has(category);
+  }
+  return set.has(`${category}:${id}`);
+}
+
+export function getUnlockedCosmeticsCount() {
+  const set = getUnlockedCosmeticsSet();
+  let unlockedCount = 0;
+  for (const item of COSMETICS_CATALOG) {
+    if (set.has(`${item.category}:${item.id}`)) {
+      unlockedCount++;
+    }
+  }
+  return {
+    unlocked: unlockedCount,
+    total: COSMETICS_CATALOG.length
+  };
+}
+
+export function unlockRandomCosmeticGift() {
+  const unlocked = getUnlockedCosmeticsSet();
+  const lockedItems = COSMETICS_CATALOG.filter(item => !unlocked.has(`${item.category}:${item.id}`));
+  let chosen = null;
+  let isNew = false;
+
+  if (lockedItems.length > 0) {
+    chosen = lockedItems[Math.floor(Math.random() * lockedItems.length)];
+    isNew = true;
+    unlocked.add(`${chosen.category}:${chosen.id}`);
+    try {
+      localStorage.setItem(UNLOCKS_STORAGE_KEY, JSON.stringify(Array.from(unlocked)));
+    } catch (err) {
+      // Ignore
+    }
+  } else {
+    // All cosmetics already unlocked: pick a legendary/epic reward to celebrate!
+    const nonStarters = COSMETICS_CATALOG.filter(i => !i.starter);
+    chosen = nonStarters[Math.floor(Math.random() * nonStarters.length)] || COSMETICS_CATALOG[0];
+    isNew = false;
+  }
+
+  return { item: chosen, isNew };
+}
+
 // Initialise avec les réglages sauvegardés s'ils existent
 loadSavedGameplayConfig();
+

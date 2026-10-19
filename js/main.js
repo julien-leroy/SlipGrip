@@ -1,11 +1,21 @@
-// js/main.js — Main Game Loop, Hold-to-Grip Input Controller, Checkpoints, Camera & HUD Manager
+// js/main.js — Main Game Loop, Hold-to-Grip Input Controller, Multiplayer Sync, Checkpoints, Camera & HUD Manager
 
-import { PhysicsWorld } from './physics.js?v=48';
-import { Caterpillar } from './caterpillar.js?v=48';
-import { ParticleSystem } from './particles.js?v=48';
-import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=48';
-import { sound } from './audio.js?v=48';
-import { GAMEPLAY_CONFIG, GAMEPLAY_PRESETS, applyPreset, saveGameplayConfig, resetGameplayConfig, saveAsDefaultGameplayConfig } from './gameplayConfig.js?v=48';
+import { PhysicsWorld } from './physics.js?v=72';
+import { Caterpillar } from './caterpillar.js?v=72';
+import { ParticleSystem } from './particles.js?v=72';
+import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=72';
+import { sound } from './audio.js?v=72';
+import {
+  GAMEPLAY_CONFIG,
+  GAMEPLAY_PRESETS,
+  applyPreset,
+  saveGameplayConfig,
+  resetGameplayConfig,
+  saveAsDefaultGameplayConfig,
+  GRIP_STYLES
+} from './gameplayConfig.js?v=72';
+import { NetworkManager } from './network.js?v=72';
+import { UIManager } from './uiManager.js?v=72';
 
 class SlipGripGame {
   constructor() {
@@ -19,6 +29,12 @@ class SlipGripGame {
     this.currentLevelIndex = 0;
     this.level = LEVEL_DEFINITIONS[0];
     this.caterpillar = new Caterpillar(this.level.startX, this.level.startY);
+
+    // Multiplayer state
+    this.isMultiplayer = false;
+    this.remoteCaterpillars = new Map(); // playerId -> Caterpillar
+    this.remoteFinishState = new Map(); // playerId -> { finished, finishTime }
+    this.netSyncTimer = 0;
 
     this.lastCheckpoint = {
       x: this.level.startX,
@@ -50,14 +66,244 @@ class SlipGripGame {
     this.globalTime = 0;
     this.lastFrameTime = performance.now();
 
+    // Initialize Network & UI Managers
+    this.network = new NetworkManager();
+    this.caterpillar.pseudo = this.network.pseudo;
+
     this.cacheDomElements();
     this.bindEvents();
+    this.bindMultiplayerWorldCallbacks();
+
+    this.ui = new UIManager(this, this.network);
+    this.network.connect(this.caterpillar.cosmetics);
+
     this.syncCosmeticsUI();
     this.syncTuningUI();
     this.resize();
     this.loadLevel(0);
 
+    // Show Home screen on launch
+    this.ui.showScreen('home');
+
     requestAnimationFrame((t) => this.loop(t));
+  }
+
+  bindMultiplayerWorldCallbacks() {
+    // 1. When local caterpillar throws a prop / aphid / hedgehog, broadcast to room
+    this.caterpillar.onThrowEntityCallback = (evt) => {
+      if (!this.isMultiplayer || !this.network.currentRoom) return;
+      this.network.sendEntityThrow({
+        entityType: evt.entityType,
+        x: evt.x,
+        y: evt.y,
+        vx: evt.vx,
+        vy: evt.vy,
+        angVel: evt.angVel || 0
+      });
+    };
+
+    // 2. When local caterpillar grabs and flings a rival caterpillar, send PvP action
+    this.caterpillar.onPvpActionCallback = (evt) => {
+      if (!this.isMultiplayer || !this.network.currentRoom) return;
+      this.network.sendPvpAction({
+        targetId: evt.targetId,
+        damage: evt.damage,
+        vx: evt.vx,
+        vy: evt.vy,
+        actionType: 'grab_throw'
+      });
+    };
+
+    // 3. When a thrown projectile (acorn, pinecone, aphid, hedgehog) hits a caterpillar in PhysicsWorld
+    this.world.onPvpProjectileHit = (targetCat, dmg, kx, ky, proj) => {
+      if (targetCat === this.caterpillar) {
+        this.caterpillar.takeDamage(dmg, kx, ky, this.particles, sound);
+      } else if (this.isMultiplayer && targetCat.isRemote && targetCat.playerId && proj.thrownBy === (this.network.playerId || 'local')) {
+        this.network.sendPvpAction({
+          targetId: targetCat.playerId,
+          damage: dmg,
+          vx: kx,
+          vy: ky,
+          actionType: 'projectile'
+        });
+      }
+    };
+
+    // 4. Listen for incoming network gameplay events
+    this.network.on('welcome', (msg) => {
+      this.caterpillar.playerId = (msg && msg.playerId) ? msg.playerId : msg;
+    });
+
+    this.network.on('remote_player_state', (msg) => {
+      if (!this.isMultiplayer) return;
+      const remoteCat = this.remoteCaterpillars.get(msg.playerId);
+      if (remoteCat && msg.state) {
+        remoteCat.applyRemoteState(msg.state);
+      }
+    });
+
+    this.network.on('remote_entity_throw', (msg) => {
+      if (!this.isMultiplayer) return;
+      this.applyRemoteEntityThrow(msg);
+    });
+
+    this.network.on('remote_pvp_action', (msg) => {
+      if (!this.isMultiplayer) return;
+      if (msg.targetId === this.network.playerId) {
+        // Local player was hit or thrown by a rival caterpillar!
+        const dmg = msg.damage || 18;
+        const kx = msg.vx || 0;
+        const ky = msg.vy || -220;
+        this.caterpillar.takeDamage(dmg, kx, ky, this.particles, sound);
+        const label = msg.actionType === 'grab_throw' ? 'PROJETÉ PAR UN RIVAL ! 🤼' : 'TOUCHÉ ! 💥';
+        this.particles.spawnPopup(this.caterpillar.head.x, this.caterpillar.head.y - 38, label, '#ff4757');
+      }
+    });
+
+    this.network.on('player_crossed_finish', (msg) => {
+      if (!this.isMultiplayer) return;
+      this.remoteFinishState.set(msg.playerId, {
+        finished: true,
+        finishTime: msg.raceTime || msg.finishTime,
+        rank: msg.rank
+      });
+      if (msg.playerId !== this.network.playerId) {
+        sound.playCheckpoint();
+        this.particles.spawnPopup(
+          this.caterpillar.head.x,
+          this.caterpillar.head.y - 45,
+          `🏁 ${msg.pseudo} termine ${msg.rank === 1 ? '1er' : msg.rank + 'e'} !`,
+          '#ffd93b'
+        );
+      }
+    });
+  }
+
+  applyRemoteEntityThrow(msg) {
+    const { entityType, x, y, vx, vy, angVel } = msg;
+    let list = [];
+    if (entityType === 'prop') list = this.world.props;
+    else if (entityType === 'aphid') list = this.world.aphids;
+    else if (entityType === 'hedgehog') list = this.world.hedgehogs;
+
+    let closest = null;
+    let bestD = 320;
+    for (const ent of list) {
+      const d = Math.hypot(ent.x - x, ent.y - y);
+      if (d < bestD) {
+        bestD = d;
+        closest = ent;
+      }
+    }
+    if (closest) {
+      closest.x = x;
+      closest.y = y;
+      closest.vx = vx;
+      closest.vy = vy;
+      if (typeof angVel === 'number') closest.angVel = angVel;
+      closest.isHeld = false;
+      closest.isFlying = true;
+      closest.thrownBy = msg.playerId;
+      closest.throwGraceTimer = 0.20;
+    }
+  }
+
+  startSoloMode() {
+    this.isMultiplayer = false;
+    this.remoteCaterpillars.clear();
+    this.remoteFinishState.clear();
+    this.caterpillar.roomStartScale = 1.0;
+    this.caterpillar.roomStartSegments = 5;
+    this.caterpillar.setModifiers([]);
+    this.world.caterpillars = [this.caterpillar];
+    document.getElementById('mp-race-hud')?.classList.add('hidden');
+    if (this.ui && this.ui.elMultiMarkers) {
+      this.ui.elMultiMarkers.innerHTML = '';
+    }
+    this.loadLevel(this.currentLevelIndex);
+  }
+
+  startMultiplayerRace(msg) {
+    this.isMultiplayer = true;
+    this.remoteCaterpillars.clear();
+    this.remoteFinishState.clear();
+
+    // Apply Room Admin settings
+    const s = msg.config || msg.settings || (msg.room && msg.room.config) || {};
+    if (typeof s.jumpBoost === 'number') GAMEPLAY_CONFIG.jumpBoost = s.jumpBoost;
+    if (typeof s.gravity === 'number') {
+      GAMEPLAY_CONFIG.gravity = s.gravity;
+      this.world.gravity = s.gravity;
+    }
+    if (typeof s.gripDistance === 'number') GAMEPLAY_CONFIG.gripDistance = s.gripDistance;
+    this.world.pvpDamageMult = typeof s.pvpDamageMult === 'number' ? s.pvpDamageMult : 1.0;
+
+    const startScale = typeof s.startScale === 'number' ? s.startScale : 1.0;
+    const startSegments = typeof s.startSegments === 'number' ? s.startSegments : 5;
+
+    this.caterpillar.playerId = this.network.playerId;
+    this.caterpillar.pseudo = this.network.pseudo;
+    this.caterpillar.roomStartScale = startScale;
+    this.caterpillar.roomStartSegments = startSegments;
+
+    // Find local player in room players to apply cumulative catch-up modifiers
+    const players = (msg.room && msg.room.players) || msg.players || [];
+    const me = players.find(p => p.id === this.network.playerId);
+    this.caterpillar.setModifiers((me && me.modifiers) || []);
+
+    // Load level matching msg.levelId
+    let lvlIdx = 0;
+    if (msg.levelId !== undefined) {
+      const foundIdx = LEVEL_DEFINITIONS.findIndex(l => l.id === msg.levelId);
+      lvlIdx = foundIdx >= 0 ? foundIdx : (Number(msg.levelId) % LEVEL_DEFINITIONS.length);
+    } else if (msg.levelIndex !== undefined) {
+      lvlIdx = Number(msg.levelIndex) % LEVEL_DEFINITIONS.length;
+    }
+    this.loadLevel(lvlIdx);
+
+    // Spawn local & remote caterpillars side-by-side at start line
+    players.forEach((p, idx) => {
+      const spawnX = this.level.startX + idx * 22;
+      const spawnY = this.level.startY - (idx % 2) * 14;
+      if (p.id === this.network.playerId) {
+        this.caterpillar.reset(spawnX, spawnY);
+      } else {
+        const rCat = new Caterpillar(spawnX, spawnY, {
+          isRemote: true,
+          playerId: p.id,
+          pseudo: p.pseudo,
+          cosmetics: p.cosmetics,
+          modifiers: p.modifiers || [],
+          roomStartScale: startScale,
+          roomStartSegments: startSegments
+        });
+        rCat.reset(spawnX, spawnY);
+        this.remoteCaterpillars.set(p.id, rCat);
+      }
+    });
+
+    this.world.caterpillars = [this.caterpillar, ...this.remoteCaterpillars.values()];
+    this.raceStarted = true;
+    this.raceFinished = false;
+    this.raceTime = 0;
+
+    // Update Multiplayer Race HUD Banner
+    const cupPill = document.getElementById('mp-cup-race-pill');
+    if (cupPill) {
+      cupPill.textContent = `🏆 Course ${(msg.raceIndex || 0) + 1} / ${msg.totalRaces || 3} — ${this.level.name}`;
+    }
+    document.getElementById('mp-finish-countdown-banner')?.classList.add('hidden');
+    document.getElementById('mp-race-hud')?.classList.remove('hidden');
+
+    sound.playCheckpoint();
+    if (this.caterpillar.modifiers.length > 0) {
+      this.particles.spawnPopup(
+        this.caterpillar.head.x,
+        this.caterpillar.head.y - 45,
+        `BONUS ACTIFS : ${this.caterpillar.modifiers.length} ⚡`,
+        '#ffd93b'
+      );
+    }
   }
 
   cacheDomElements() {
@@ -118,6 +364,9 @@ class SlipGripGame {
     });
     document.querySelectorAll('#hat-options .cos-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.hat === cos.hat);
+    });
+    document.querySelectorAll('#grip-options .cos-btn').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.grip === (cos.grip || 'classic'));
     });
     document.querySelectorAll('#face-options .cos-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.face === cos.face);
@@ -208,6 +457,13 @@ class SlipGripGame {
     window.addEventListener('resize', () => this.resize());
 
     window.addEventListener('keydown', (e) => {
+      // Ignore game keys when typing in a text input
+      if (document.activeElement && ['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        return;
+      }
+      if (this.ui && this.ui.activeScreen !== 'game') {
+        return;
+      }
       if (e.repeat) return;
       const code = e.code;
       const key = e.key.toLowerCase();
@@ -248,10 +504,14 @@ class SlipGripGame {
         this.respawnAtCheckpoint();
       }
 
-      // R -> Full level restart
+      // R -> Full level restart (only in solo mode; in multiplayer respawns at checkpoint)
       if (key === 'r') {
         e.preventDefault();
-        this.loadLevel(this.currentLevelIndex);
+        if (this.isMultiplayer) {
+          this.respawnAtCheckpoint();
+        } else {
+          this.loadLevel(this.currentLevelIndex);
+        }
       }
 
       // T or Tab -> Toggle Gameplay & Physics Tuning Lab
@@ -265,17 +525,14 @@ class SlipGripGame {
       const code = e.code;
       const key = e.key.toLowerCase();
 
-      // Release Q -> Release Rear Foot immediately
       if (key === 'q' || key === 'a' || code === 'KeyQ') {
         this.caterpillar.setRearHold(false, this.particles);
       }
 
-      // Release D -> Release Front Foot immediately
       if (key === 'd' || code === 'KeyD') {
         this.caterpillar.setFrontHold(false, this.particles);
       }
 
-      // Release SPACE -> Extend body
       if (code === 'Space') this.inputs.space = false;
 
       if (code === 'ArrowLeft') this.inputs.left = false;
@@ -307,6 +564,16 @@ class SlipGripGame {
       this.caterpillar.setFrontHold(false, this.particles);
     });
 
+    // Home Menu button in top HUD
+    document.getElementById('btn-home-menu')?.addEventListener('click', (e) => {
+      e.currentTarget.blur();
+      if (this.isMultiplayer && this.network.currentRoom) {
+        this.ui.showScreen('room');
+      } else {
+        this.ui.showScreen('home');
+      }
+    });
+
     // Level selector buttons
     this.lvlButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -324,7 +591,11 @@ class SlipGripGame {
 
     // Full Restart button
     document.getElementById('btn-restart').addEventListener('click', (e) => {
-      this.loadLevel(this.currentLevelIndex);
+      if (this.isMultiplayer) {
+        this.respawnAtCheckpoint();
+      } else {
+        this.loadLevel(this.currentLevelIndex);
+      }
       e.currentTarget.blur();
     });
 
@@ -349,6 +620,7 @@ class SlipGripGame {
     if (btnCloseCosmetics && this.elCosmeticsModal) {
       btnCloseCosmetics.addEventListener('click', () => {
         this.elCosmeticsModal.classList.add('hidden');
+        if (this.ui) this.ui.onLocalCosmeticChanged();
       });
     }
 
@@ -357,7 +629,7 @@ class SlipGripGame {
         const clsId = btn.dataset.class;
         this.caterpillar.setBodyType(clsId);
         this.syncCosmeticsUI();
-        sound.playGrip(true);
+        if (this.ui) this.ui.onLocalCosmeticChanged();
         const titleEl = btn.querySelector('.class-title');
         const name = titleEl ? titleEl.textContent.trim() : clsId;
         this.particles.spawnPopup(this.caterpillar.head.x, this.caterpillar.head.y - 30, `MORPHOLOGIE : ${name}`, '#ffd93b');
@@ -368,7 +640,7 @@ class SlipGripGame {
       btn.addEventListener('click', () => {
         this.caterpillar.setBodyShape(btn.dataset.shape);
         this.syncCosmeticsUI();
-        sound.playGrip(true);
+        if (this.ui) this.ui.onLocalCosmeticChanged();
       });
     });
 
@@ -377,7 +649,7 @@ class SlipGripGame {
         this.caterpillar.cosmetics.palette = btn.dataset.palette;
         this.caterpillar.saveCosmetics();
         this.syncCosmeticsUI();
-        sound.playGrip();
+        if (this.ui) this.ui.onLocalCosmeticChanged();
       });
     });
 
@@ -386,7 +658,16 @@ class SlipGripGame {
         this.caterpillar.cosmetics.hat = btn.dataset.hat;
         this.caterpillar.saveCosmetics();
         this.syncCosmeticsUI();
-        sound.playGrip();
+        if (this.ui) this.ui.onLocalCosmeticChanged();
+      });
+    });
+
+    document.querySelectorAll('#grip-options .cos-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        this.caterpillar.cosmetics.grip = btn.dataset.grip;
+        this.caterpillar.saveCosmetics();
+        this.syncCosmeticsUI();
+        if (this.ui) this.ui.onLocalCosmeticChanged();
       });
     });
 
@@ -395,7 +676,7 @@ class SlipGripGame {
         this.caterpillar.cosmetics.face = btn.dataset.face;
         this.caterpillar.saveCosmetics();
         this.syncCosmeticsUI();
-        sound.playGrip();
+        if (this.ui) this.ui.onLocalCosmeticChanged();
       });
     });
 
@@ -560,6 +841,7 @@ class SlipGripGame {
     };
 
     this.caterpillar.reset(this.level.startX, this.level.startY);
+    this.world.caterpillars = [this.caterpillar, ...this.remoteCaterpillars.values()];
     this.lastHp = this.caterpillar.hp;
     this.healthVisibleTimer = 0;
 
@@ -629,13 +911,24 @@ class SlipGripGame {
     }
 
     this.elBest.textContent = this.formatTime(this.bestTimes[this.level.id]);
+
+    if (this.isMultiplayer && this.network.currentRoom) {
+      // Notify multiplayer server that local player crossed the finish line!
+      this.network.sendPlayerFinished(this.raceTime);
+      this.remoteFinishState.set(this.network.playerId, {
+        finished: true,
+        finishTime: this.raceTime
+      });
+      return;
+    }
+
     this.elVictoryTitle.textContent = `${this.level.name} Terminé !`;
     this.elVictoryTime.textContent = this.formatTime(this.raceTime);
     this.elVictoryBest.textContent = this.formatTime(this.bestTimes[this.level.id]);
     this.elNewRecordBadge.classList.toggle('hidden', !isNewRecord);
 
     setTimeout(() => {
-      if (this.raceFinished) {
+      if (this.raceFinished && !this.isMultiplayer) {
         this.elVictoryModal.classList.remove('hidden');
       }
     }, 1350);
@@ -647,6 +940,39 @@ class SlipGripGame {
     const pct = (progress * 100).toFixed(1) + '%';
     this.elProgressFill.style.width = pct;
     this.elProgressBug.style.left = pct;
+
+    // Update Multiplayer Live Standings & Track Dots
+    if (this.isMultiplayer && this.ui) {
+      const playersInfo = [
+        {
+          playerId: this.network.playerId,
+          pseudo: this.network.pseudo,
+          palette: this.caterpillar.cosmetics.palette,
+          modifiers: this.caterpillar.modifiers,
+          progress,
+          finished: this.raceFinished,
+          finishTime: this.raceTime,
+          isLocal: true
+        }
+      ];
+      for (const [pid, rCat] of this.remoteCaterpillars.entries()) {
+        const rProg = rCat.remoteProgress !== undefined
+          ? rCat.remoteProgress
+          : Math.max(0, Math.min(1, (rCat.head.x - this.level.startX) / (this.level.finishX - this.level.startX)));
+        const fState = this.remoteFinishState.get(pid);
+        playersInfo.push({
+          playerId: pid,
+          pseudo: rCat.pseudo,
+          palette: rCat.cosmetics.palette,
+          modifiers: rCat.modifiers,
+          progress: rProg,
+          finished: !!(fState && fState.finished),
+          finishTime: (fState && fState.finishTime) || 9999,
+          isLocal: false
+        });
+      }
+      this.ui.updateLiveRaceHUD(playersInfo);
+    }
 
     // Health bar update (appears only on damage/healing or if <= 10% HP)
     const hp = Math.max(0, Math.round(this.caterpillar.hp));
@@ -679,7 +1005,7 @@ class SlipGripGame {
       this.elHealthCard.classList.toggle('danger', hp <= 25);
     }
 
-    // Power-up HUD update (compact ergonomic timer badge)
+    // Power-up HUD update
     if (this.elPowerUpCard) {
       const pow = this.caterpillar.activePowerUp;
       if (pow && pow.type && pow.timer > 0) {
@@ -731,6 +1057,10 @@ class SlipGripGame {
       widgetEl.classList.add('stuck');
       stateEl.textContent = 'ENGLUÉE !';
       iconEl.textContent = '🍯';
+    } else if (anchor.playerRef) {
+      widgetEl.classList.add('anchored');
+      stateEl.textContent = `AGRIPPÉE (${anchor.playerRef.pseudo || 'RIVAL'} !)`;
+      iconEl.textContent = '🤼';
     } else if (anchor.hedgehogRef) {
       widgetEl.classList.add('anchored');
       stateEl.textContent = 'AGRIPPÉE (HÉRISSON !)';
@@ -764,13 +1094,37 @@ class SlipGripGame {
   update(dt) {
     this.globalTime += dt;
 
+    // Animate preview caterpillars on Home and Room Lobby screens
+    if (this.ui) {
+      this.ui.drawPreviewCanvases(this.globalTime);
+    }
+
     if (this.raceStarted && !this.raceFinished) {
       this.raceTime += dt;
     }
 
+    // Keep world caterpillars list up to date for shared PvP physics
+    this.world.caterpillars = [this.caterpillar, ...this.remoteCaterpillars.values()];
+
     this.world.update(dt, this.particles);
     this.caterpillar.update(dt, this.world, this.inputs, this.particles);
+
+    // Update remote caterpillars interpolation
+    for (const rCat of this.remoteCaterpillars.values()) {
+      rCat.updateRemote(dt);
+    }
+
     this.particles.update(dt);
+
+    // Broadcast local caterpillar state at 25Hz in multiplayer
+    if (this.isMultiplayer && this.network.currentRoom) {
+      this.netSyncTimer += dt;
+      if (this.netSyncTimer >= 0.04) {
+        this.netSyncTimer = 0;
+        const progress = Math.max(0, Math.min(1, (this.caterpillar.head.x - this.level.startX) / (this.level.finishX - this.level.startX)));
+        this.network.sendPlayerState(this.caterpillar.serializeState(progress));
+      }
+    }
 
     this.checkCheckpoints();
 
@@ -801,7 +1155,7 @@ class SlipGripGame {
       }
     }
 
-    // Ultra-calm Deadzone Camera (Zero shake, zero reaction to Ω folding!)
+    // Ultra-calm Deadzone Camera
     const deadzoneRight = 160;
     const deadzoneLeft = 140;
     const deadzoneY = 140;
@@ -845,6 +1199,13 @@ class SlipGripGame {
     ctx.translate(-this.camera.x, -this.camera.y);
 
     this.renderer.drawWorld(ctx, this.world, this.level, this.globalTime, this.raceFinished);
+
+    // Draw all remote caterpillars in the same shared world
+    for (const rCat of this.remoteCaterpillars.values()) {
+      rCat.draw(ctx, this.globalTime);
+    }
+
+    // Draw local caterpillar on top
     this.caterpillar.draw(ctx, this.globalTime);
     this.particles.draw(ctx);
 

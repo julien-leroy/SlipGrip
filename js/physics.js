@@ -1,5 +1,5 @@
-import { GAMEPLAY_CONFIG } from './gameplayConfig.js?v=41';
-import { sound } from './audio.js?v=48';
+import { GAMEPLAY_CONFIG } from './gameplayConfig.js?v=72';
+import { sound } from './audio.js?v=72';
 
 export const MATERIALS = {
   dirt:    { friction: 0.90, gripSlide: 0.0,  restitution: 0.05, name: 'Terre meuble' },
@@ -28,6 +28,9 @@ export class PhysicsWorld {
     this.apples = [];
     this.checkpoints = [];
     this.decorations = [];
+    this.caterpillars = [];
+    this.pvpDamageMult = 1.0;
+    this.onPvpProjectileHit = null;
     this.nextSegId = 1;
   }
 
@@ -878,6 +881,69 @@ export class PhysicsWorld {
     for (const c of this.stickyCrumbs) {
       c.wobble += dt * 2.5;
     }
+
+    // 6. Thrown Objects & Enemies PvP Impact on Caterpillars!
+    if (this.caterpillars && this.caterpillars.length > 0) {
+      const projectiles = [
+        ...this.props.map((p, idx) => ({ ent: p, kind: 'prop', idx, baseDmg: p.type === 'pinecone' ? 38 : 24 })),
+        ...this.aphids.map((a, idx) => ({ ent: a, kind: 'aphid', idx, baseDmg: 22 })),
+        ...this.hedgehogs.map((h, idx) => ({ ent: h, kind: 'hedgehog', idx, baseDmg: 34 }))
+      ];
+
+      for (const proj of projectiles) {
+        const e = proj.ent;
+        if (e.throwGraceTimer !== undefined && e.throwGraceTimer > 0) {
+          e.throwGraceTimer = Math.max(0, e.throwGraceTimer - dt);
+        }
+        if (e.isHeld) continue;
+        const speed = Math.hypot(e.vx || 0, e.vy || 0);
+        if (speed < 95 && !e.thrownBy) continue;
+        if (speed < 45) {
+          e.thrownBy = null;
+          continue;
+        }
+
+        for (const cat of this.caterpillars) {
+          if (!cat || !cat.nodes || cat.hp <= 0) continue;
+          // Don't hit the thrower immediately upon release
+          if (e.thrownBy && cat.playerId === e.thrownBy && (e.throwGraceTimer || 0) > 0) continue;
+          if (cat.invulnerableTimer > 0) continue;
+
+          for (let ni = 0; ni < cat.nodes.length; ni++) {
+            const n = cat.nodes[ni];
+            const dx = n.x - e.x;
+            const dy = n.y - e.y;
+            const dist = Math.hypot(dx, dy) || 0.0001;
+            const minDist = (n.r || 15) + (e.radius || 22) * 0.92;
+            if (dist < minDist && speed > 85) {
+              const nx = dx / dist;
+              const ny = dy / dist;
+              const dmgMult = (this.pvpDamageMult || 1.0) * (e.throwDamageMult || 1.0);
+              const speedFactor = Math.min(1.8, Math.max(0.7, speed / 260));
+              const dmg = Math.round(proj.baseDmg * dmgMult * speedFactor);
+              const knockX = (e.vx * 0.65) + nx * 260;
+              const knockY = Math.min(-160, (e.vy * 0.45) - 180);
+
+              if (!cat.isRemote) {
+                const didHit = cat.takeDamage(dmg, knockX, knockY, particles, sound, true);
+                if (didHit && particles) {
+                  const attackerTag = e.thrownByPseudo ? ` par ${e.thrownByPseudo}` : '';
+                  particles.spawnPopup(cat.head.x, cat.head.y - 48, `💥 TOUCHÉ${attackerTag} ! -${dmg} ❤️`, '#ff4757');
+                }
+              } else if (this.onPvpProjectileHit && e.thrownBy) {
+                this.onPvpProjectileHit(cat, dmg, knockX, knockY, proj.kind);
+              }
+
+              // Rebound projectile
+              e.vx *= -0.35;
+              e.vy = -120;
+              e.thrownBy = null;
+              break;
+            }
+          }
+        }
+      }
+    }
   }
 
   resolvePropSegmentCollisions(p) {
@@ -957,14 +1023,15 @@ export class PhysicsWorld {
 
   // Find closest surface point on a Pinecone or Acorn (smooth wall-like surface contact)
   findClosestPropSurface(px, py, maxSurfaceDist) {
+    const safeMax = (Number.isFinite(maxSurfaceDist) && maxSurfaceDist > 0) ? maxSurfaceDist : 36;
     let best = null;
-    let bestDist = maxSurfaceDist;
+    let bestDist = safeMax;
     for (const p of this.props) {
       const dx = px - p.x;
       const dy = py - p.y;
       const centerDist = Math.hypot(dx, dy) || 0.0001;
       const effRadius = p.radius * 0.95;
-      const surfDist = centerDist - effRadius;
+      const surfDist = Math.max(0, centerDist - effRadius);
       if (surfDist < bestDist) {
         const nx = dx / centerDist;
         const ny = dy / centerDist;
@@ -994,13 +1061,14 @@ export class PhysicsWorld {
 
   // Find closest enemy Aphid for grabbing/carrying/projecting
   findClosestAphid(px, py, maxSurfaceDist) {
+    const safeMax = (Number.isFinite(maxSurfaceDist) && maxSurfaceDist > 0) ? maxSurfaceDist : 36;
     let best = null;
-    let bestDist = maxSurfaceDist;
+    let bestDist = safeMax;
     for (const a of this.aphids) {
       const dx = px - a.x;
       const dy = py - a.y;
       const centerDist = Math.hypot(dx, dy) || 0.0001;
-      const surfDist = centerDist - a.radius;
+      const surfDist = Math.max(0, centerDist - a.radius);
       if (surfDist < bestDist) {
         const nx = dx / centerDist;
         const ny = dy / centerDist;
@@ -1028,14 +1096,15 @@ export class PhysicsWorld {
 
   // Find closest enemy Hedgehog (differentiating safe snout vs prickly back/rear spikes)
   findClosestHedgehog(px, py, maxSurfaceDist) {
+    const safeMax = (Number.isFinite(maxSurfaceDist) && maxSurfaceDist > 0) ? maxSurfaceDist : 36;
     let best = null;
-    let bestDist = maxSurfaceDist;
+    let bestDist = safeMax;
     for (const h of this.hedgehogs) {
       if (h.isHeld) continue;
       const dx = px - h.x;
       const dy = py - h.y;
       const centerDist = Math.hypot(dx, dy) || 0.0001;
-      const surfDist = centerDist - h.radius;
+      const surfDist = Math.max(0, centerDist - h.radius);
       if (surfDist < bestDist) {
         const nx = dx / centerDist;
         const ny = dy / centerDist;
@@ -1069,7 +1138,8 @@ export class PhysicsWorld {
 
   getAllSegmentsNear(x, y, maxDist) {
     const results = [];
-    const r = maxDist + 45;
+    const safeMax = (Number.isFinite(maxDist) && maxDist > 0) ? maxDist : 36;
+    const r = safeMax + 45;
 
     for (const s of this.staticSegments) {
       const minX = Math.min(s.x1, s.x2) - r;
@@ -1185,9 +1255,10 @@ export class PhysicsWorld {
   }
 
   findClosestSurface(px, py, maxDist) {
-    const candidates = this.getAllSegmentsNear(px, py, maxDist);
+    const safeMax = (Number.isFinite(maxDist) && maxDist > 0) ? maxDist : 36;
+    const candidates = this.getAllSegmentsNear(px, py, safeMax);
     let best = null;
-    let bestEffectiveDist = maxDist;
+    let bestEffectiveDist = safeMax;
 
     for (const s of candidates) {
       const dx = s.x2 - s.x1;
@@ -1223,14 +1294,19 @@ export class PhysicsWorld {
       const nearNy = distDy / dist;
 
       const halfThick = (s.thickness || 20) * 0.5;
-      const effectiveDist = dist - halfThick;
-      if (effectiveDist >= bestEffectiveDist) {
+      const effectiveDist = Math.max(0, dist - halfThick);
+      if (!(effectiveDist < bestEffectiveDist)) {
         continue;
       }
 
       // Point on the NEAR surface facing the paw:
       const surfaceX = cx + nearNx * halfThick;
       const surfaceY = cy + nearNy * halfThick;
+
+      // Strict close-range check: never grab a surface farther than safeMax from the paw!
+      if (!(Math.hypot(surfaceX - px, surfaceY - py) <= safeMax)) {
+        continue;
+      }
 
       // Line of sight check: ensure no other wall or platform lies between the paw and the surface point
       if (!this.hasLineOfSight(px, py, surfaceX, surfaceY, s)) {
@@ -1256,4 +1332,46 @@ export class PhysicsWorld {
     }
     return best;
   }
+
+  // Find closest segment of another caterpillar in the world so players can grab, hold or throw rivals!
+  findClosestOtherCaterpillar(selfCat, px, py, maxSurfaceDist) {
+    if (!this.caterpillars || this.caterpillars.length <= 1) return null;
+    const safeMax = (Number.isFinite(maxSurfaceDist) && maxSurfaceDist > 0) ? maxSurfaceDist : 36;
+    let best = null;
+    let bestDist = safeMax;
+
+    for (const cat of this.caterpillars) {
+      if (!cat || cat === selfCat || !cat.nodes || cat.hp <= 0) continue;
+      for (let i = 0; i < cat.nodes.length; i++) {
+        const n = cat.nodes[i];
+        const dx = px - n.x;
+        const dy = py - n.y;
+        const centerDist = Math.hypot(dx, dy) || 0.0001;
+        const nr = (n.r || 15) * (cat.sizeScale || 1.0);
+        const surfDist = Math.max(0, centerDist - nr);
+        if (surfDist < bestDist) {
+          const nx = dx / centerDist;
+          const ny = dy / centerDist;
+          const cx = n.x + nx * nr;
+          const cy = n.y + ny * nr;
+          if (!this.hasLineOfSight(px, py, cx, cy)) continue;
+          bestDist = surfDist;
+          best = {
+            caterpillar: cat,
+            nodeIndex: i,
+            node: n,
+            dist: surfDist,
+            nx,
+            ny,
+            tx: -ny,
+            ty: nx,
+            cx,
+            cy
+          };
+        }
+      }
+    }
+    return best;
+  }
 }
+

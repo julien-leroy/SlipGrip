@@ -1,8 +1,11 @@
+// server.js — Serveur HTTP Statique + Serveur WebSocket Temps Réel (RFC 6455) & Gestionnaire de Rooms SlipGrip
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
+const os = require('os');
 
-const PORT = 8080;
+let PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 8090;
 const ROOT = __dirname;
 
 const MIME_TYPES = {
@@ -16,9 +19,145 @@ const MIME_TYPES = {
   '.ico': 'image/x-icon'
 };
 
+// Detect primary LAN IPv4 address for QR code & local network joining
+function getLocalIpAddress() {
+  const interfaces = os.networkInterfaces();
+  let fallback = 'localhost';
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        if (iface.address.startsWith('192.168.') || iface.address.startsWith('10.') || iface.address.startsWith('172.')) {
+          return iface.address;
+        }
+        fallback = iface.address;
+      }
+    }
+  }
+  return fallback;
+}
+
+// ==================== CUPS & DEFAULT ROOM SETTINGS ====================
+const CUPS_CATALOG = {
+  potager_geant: {
+    id: 'potager_geant',
+    name: 'Coupe Potager Géant',
+    icon: '🍅',
+    levels: [0, 1, 2],
+    levelNames: ['Le Sous-Bois', 'Le Potager Géant', 'Le Pique-Nique']
+  },
+  vallee_folle: {
+    id: 'vallee_folle',
+    name: 'Coupe Vallée Folle',
+    icon: '🍄',
+    levels: [1, 2, 0],
+    levelNames: ['Le Potager Géant', 'Le Pique-Nique', 'Le Sous-Bois']
+  },
+  pique_nique_royal: {
+    id: 'pique_nique_royal',
+    name: 'Coupe Pique-Nique Royal',
+    icon: '🧺',
+    levels: [2, 0, 1],
+    levelNames: ['Le Pique-Nique', 'Le Sous-Bois', 'Le Potager Géant']
+  }
+};
+
+function createDefaultRoomConfig() {
+  return {
+    cupId: 'potager_geant',
+    maxPlayers: 4,
+    jumpBoost: 1.0,
+    startScale: 1.0,
+    startSegments: 5,
+    gravity: 740,
+    gripDistance: 26,
+    pvpDamageMult: 1.0
+  };
+}
+
+// ==================== ROOMS & CLIENTS STATE ====================
+const clients = new Map(); // socketId -> { id, socket, pseudo, cosmetics, roomCode }
+const rooms = new Map();   // code (4 digits) -> Room object
+
+function generateRoomCode() {
+  for (let attempt = 0; attempt < 100; attempt++) {
+    const code = String(Math.floor(1000 + Math.random() * 9000));
+    if (!rooms.has(code)) return code;
+  }
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+function getPublicRoomList() {
+  const list = [];
+  for (const room of rooms.values()) {
+    const host = room.players.get(room.hostId);
+    const cup = CUPS_CATALOG[room.config.cupId] || CUPS_CATALOG.potager_geant;
+    list.push({
+      code: room.code,
+      hostName: host ? host.pseudo : 'Hôte',
+      cupId: cup.id,
+      cupName: cup.name,
+      cupIcon: cup.icon,
+      playerCount: room.players.size,
+      maxPlayers: room.config.maxPlayers || 4,
+      state: room.state,
+      raceIndex: room.raceIndex
+    });
+  }
+  return list;
+}
+
+function serializeRoom(room) {
+  const cup = CUPS_CATALOG[room.config.cupId] || CUPS_CATALOG.potager_geant;
+  const playersArr = [];
+  for (const p of room.players.values()) {
+    playersArr.push({
+      id: p.id,
+      pseudo: p.pseudo,
+      isHost: p.id === room.hostId,
+      ready: p.ready,
+      cosmetics: p.cosmetics,
+      score: p.score || 0,
+      totalTime: p.totalTime || 0,
+      modifiers: p.modifiers || [],
+      draftChoice: p.draftChoice || null,
+      draftOptions: p.draftOptions || [],
+      lastRank: p.lastRank || null,
+      finishTime: p.finishTime || null,
+      progress: p.progress || 0
+    });
+  }
+  return {
+    code: room.code,
+    hostId: room.hostId,
+    state: room.state,
+    config: room.config,
+    cup,
+    raceIndex: room.raceIndex,
+    players: playersArr
+  };
+}
+
+// ==================== HTTP SERVER ====================
 const server = http.createServer((req, res) => {
   const urlPath = req.url.split('?')[0];
-  const relPath = urlPath === '/' ? '/index.html' : urlPath;
+
+  if (urlPath === '/api/server-info') {
+    const ip = getLocalIpAddress();
+    const payload = JSON.stringify({
+      ip,
+      port: PORT,
+      url: `http://${ip}:${PORT}`,
+      rooms: getPublicRoomList()
+    });
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Cache-Control': 'no-store'
+    });
+    res.end(payload);
+    return;
+  }
+
+  const relPath = urlPath === '/' ? '/index.html' : decodeURIComponent(urlPath);
   const filePath = path.join(ROOT, path.normalize(relPath));
 
   if (!filePath.startsWith(ROOT)) {
@@ -45,6 +184,723 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`SlipGrip no-cache server running at http://localhost:${PORT}`);
+// ==================== NATIVE RFC 6455 WEBSOCKET IMPLEMENTATION ====================
+function encodeWsFrame(str) {
+  const payload = Buffer.from(str, 'utf8');
+  const len = payload.length;
+  let header;
+  if (len < 126) {
+    header = Buffer.alloc(2);
+    header[0] = 0x81; // FIN + text frame
+    header[1] = len;
+  } else if (len < 65536) {
+    header = Buffer.alloc(4);
+    header[0] = 0x81;
+    header[1] = 126;
+    header.writeUInt16BE(len, 2);
+  } else {
+    header = Buffer.alloc(10);
+    header[0] = 0x81;
+    header[1] = 127;
+    header.writeBigUInt64BE(BigInt(len), 2);
+  }
+  return Buffer.concat([header, payload]);
+}
+
+function sendWs(client, type, data = {}) {
+  if (!client || !client.socket || client.socket.destroyed || !client.socket.writable) return;
+  try {
+    const frame = encodeWsFrame(JSON.stringify({ type, ...data }));
+    client.socket.write(frame);
+  } catch (err) {
+    // Ignore write error on closing socket
+  }
+}
+
+function broadcastRoom(room, type, data = {}, excludeId = null) {
+  if (!room) return;
+  const frame = encodeWsFrame(JSON.stringify({ type, ...data }));
+  for (const p of room.players.values()) {
+    if (excludeId && p.id === excludeId) continue;
+    const c = clients.get(p.id);
+    if (c && c.socket && !c.socket.destroyed && c.socket.writable) {
+      try {
+        c.socket.write(frame);
+      } catch (err) {
+        // Ignore
+      }
+    }
+  }
+}
+
+function broadcastLobbyList() {
+  const list = getPublicRoomList();
+  const frame = encodeWsFrame(JSON.stringify({ type: 'rooms_list', rooms: list }));
+  for (const c of clients.values()) {
+    if (!c.roomCode && c.socket && !c.socket.destroyed && c.socket.writable) {
+      try {
+        c.socket.write(frame);
+      } catch (err) {
+        // Ignore
+      }
+    }
+  }
+}
+
+const ALL_MODIFIER_IDS = [
+  'colosse',
+  'micro_turbo',
+  'sauteuse',
+  'longue',
+  'lune',
+  'super_forte'
+];
+
+function pickDraftOptions(count = 3) {
+  const pool = [...ALL_MODIFIER_IDS];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, count);
+}
+
+// Conclude current race and transition to Draft (after race 1 or 2) or Podium (after race 3)
+function concludeRoomRace(room) {
+  if (!room || room.state !== 'racing') return;
+  if (room.raceTimerHandle) {
+    clearTimeout(room.raceTimerHandle);
+    room.raceTimerHandle = null;
+  }
+
+  // Sort players: finished players ordered by finishOrder, then unfinished ordered by progress desc
+  const playersArr = Array.from(room.players.values());
+  playersArr.sort((a, b) => {
+    if (a.finished && b.finished) return a.finishOrder - b.finishOrder;
+    if (a.finished && !b.finished) return -1;
+    if (!a.finished && b.finished) return 1;
+    return (b.progress || 0) - (a.progress || 0);
+  });
+
+  const pointsTable = [10, 6, 4, 2, 1, 1, 1, 1];
+  const raceStandings = [];
+
+  playersArr.forEach((p, idx) => {
+    const rank = idx + 1;
+    const pts = pointsTable[idx] !== undefined ? pointsTable[idx] : 1;
+    p.lastRank = rank;
+    p.lastPoints = pts;
+    p.score = (p.score || 0) + pts;
+    p.totalTime = (p.totalTime || 0) + (p.finishTime || 120);
+
+    // Players who did NOT finish 1st get 3 random modifier cards (or solo player in 1-player test room)
+    const eligibleForModifier = (rank > 1) || (playersArr.length === 1);
+    if (eligibleForModifier && room.raceIndex < 2) {
+      p.draftOptions = pickDraftOptions(3);
+      p.draftChoice = null;
+    } else {
+      p.draftOptions = [];
+      p.draftChoice = null;
+    }
+
+    raceStandings.push({
+      id: p.id,
+      pseudo: p.pseudo,
+      cosmetics: p.cosmetics,
+      rank,
+      pointsEarned: pts,
+      totalScore: p.score,
+      finishTime: p.finishTime,
+      finished: !!p.finished,
+      progress: p.progress || 0,
+      modifiers: p.modifiers || [],
+      draftOptions: p.draftOptions
+    });
+  });
+
+  if (room.raceIndex < 2) {
+    // Races 1 & 2 -> Inter-race Standings & Modifier Draft!
+    room.state = 'draft';
+    broadcastRoom(room, 'cup_draft_start', {
+      raceIndex: room.raceIndex,
+      standings: raceStandings,
+      room: serializeRoom(room)
+    });
+    broadcastLobbyList();
+  } else {
+    // Race 3 finished -> Final Cup Podium & Cosmetic Gift for the Champion!
+    room.state = 'podium';
+    const overallStandings = [...playersArr].sort((a, b) => {
+      if ((b.score || 0) !== (a.score || 0)) return (b.score || 0) - (a.score || 0);
+      return (a.totalTime || 0) - (b.totalTime || 0);
+    });
+    const champion = overallStandings[0];
+
+    broadcastRoom(room, 'cup_podium_start', {
+      raceIndex: room.raceIndex,
+      raceStandings,
+      overallStandings: overallStandings.map((p, i) => ({
+        id: p.id,
+        pseudo: p.pseudo,
+        cosmetics: p.cosmetics,
+        overallRank: i + 1,
+        totalScore: p.score || 0,
+        totalTime: p.totalTime || 0,
+        modifiers: p.modifiers || []
+      })),
+      championId: champion ? champion.id : null,
+      championPseudo: champion ? champion.pseudo : 'Champion',
+      room: serializeRoom(room)
+    });
+    broadcastLobbyList();
+  }
+}
+
+function launchRoomRace(room, raceIndex) {
+  if (!room) return;
+  if (room.raceTimerHandle) {
+    clearTimeout(room.raceTimerHandle);
+    room.raceTimerHandle = null;
+  }
+
+  const cup = CUPS_CATALOG[room.config.cupId] || CUPS_CATALOG.potager_geant;
+  room.raceIndex = raceIndex;
+  room.state = 'racing';
+  room.finishCounter = 0;
+  room.firstFinishHandled = false;
+
+  for (const p of room.players.values()) {
+    p.finished = false;
+    p.finishTime = null;
+    p.finishOrder = null;
+    p.progress = 0;
+    p.draftChoice = null;
+    p.draftOptions = [];
+  }
+
+  const levelId = cup.levels[raceIndex % cup.levels.length];
+  broadcastRoom(room, 'cup_race_start', {
+    raceIndex,
+    totalRaces: 3,
+    levelId,
+    cup,
+    config: room.config,
+    room: serializeRoom(room)
+  });
+  broadcastLobbyList();
+}
+
+function removeClientFromRoom(client) {
+  if (!client || !client.roomCode) return;
+  const code = client.roomCode;
+  client.roomCode = null;
+  const room = rooms.get(code);
+  if (!room) return;
+
+  room.players.delete(client.id);
+  if (room.players.size === 0) {
+    if (room.raceTimerHandle) clearTimeout(room.raceTimerHandle);
+    rooms.delete(code);
+  } else {
+    if (room.hostId === client.id) {
+      const nextHost = room.players.keys().next().value;
+      room.hostId = nextHost;
+    }
+    broadcastRoom(room, 'room_state', { room: serializeRoom(room) });
+  }
+  broadcastLobbyList();
+}
+
+function handleWsMessage(client, msg) {
+  if (!msg || typeof msg.type !== 'string') return;
+
+  switch (msg.type) {
+    case 'hello': {
+      if (msg.pseudo) client.pseudo = String(msg.pseudo).slice(0, 18);
+      if (msg.cosmetics) client.cosmetics = msg.cosmetics;
+      sendWs(client, 'welcome', {
+        playerId: client.id,
+        serverIp: getLocalIpAddress(),
+        serverPort: PORT,
+        rooms: getPublicRoomList()
+      });
+      break;
+    }
+
+    case 'list_rooms': {
+      sendWs(client, 'rooms_list', { rooms: getPublicRoomList() });
+      break;
+    }
+
+    case 'create_room': {
+      removeClientFromRoom(client);
+      if (msg.pseudo) client.pseudo = String(msg.pseudo).slice(0, 18);
+      if (msg.cosmetics) client.cosmetics = msg.cosmetics;
+
+      const code = generateRoomCode();
+      const room = {
+        code,
+        hostId: client.id,
+        state: 'lobby',
+        raceIndex: 0,
+        finishCounter: 0,
+        firstFinishHandled: false,
+        raceTimerHandle: null,
+        config: createDefaultRoomConfig(),
+        players: new Map()
+      };
+
+      room.players.set(client.id, {
+        id: client.id,
+        pseudo: client.pseudo,
+        cosmetics: client.cosmetics,
+        ready: true,
+        score: 0,
+        totalTime: 0,
+        modifiers: [],
+        progress: 0
+      });
+
+      rooms.set(code, room);
+      client.roomCode = code;
+
+      sendWs(client, 'room_joined', { room: serializeRoom(room), playerId: client.id });
+      broadcastLobbyList();
+      break;
+    }
+
+    case 'join_room': {
+      const code = String(msg.code || '').trim();
+      const room = rooms.get(code);
+      if (!room) {
+        sendWs(client, 'room_error', { message: `Aucune room trouvée avec le code #${code}.` });
+        return;
+      }
+      if (room.players.size >= (room.config.maxPlayers || 4) && !room.players.has(client.id)) {
+        sendWs(client, 'room_error', { message: `La room #${code} est complète (${room.players.size}/${room.config.maxPlayers}).` });
+        return;
+      }
+
+      if (client.roomCode && client.roomCode !== code) {
+        removeClientFromRoom(client);
+      }
+
+      if (msg.pseudo) client.pseudo = String(msg.pseudo).slice(0, 18);
+      if (msg.cosmetics) client.cosmetics = msg.cosmetics;
+
+      room.players.set(client.id, {
+        id: client.id,
+        pseudo: client.pseudo,
+        cosmetics: client.cosmetics,
+        ready: true,
+        score: 0,
+        totalTime: 0,
+        modifiers: [],
+        progress: 0
+      });
+      client.roomCode = code;
+
+      sendWs(client, 'room_joined', { room: serializeRoom(room), playerId: client.id });
+      broadcastRoom(room, 'room_state', { room: serializeRoom(room) }, client.id);
+      broadcastLobbyList();
+      break;
+    }
+
+    case 'leave_room': {
+      removeClientFromRoom(client);
+      sendWs(client, 'left_room', { rooms: getPublicRoomList() });
+      break;
+    }
+
+    case 'update_profile': {
+      if (msg.pseudo) client.pseudo = String(msg.pseudo).trim().slice(0, 18) || 'Chenille';
+      if (msg.cosmetics) client.cosmetics = { ...client.cosmetics, ...msg.cosmetics };
+
+      if (client.roomCode) {
+        const room = rooms.get(client.roomCode);
+        if (room && room.players.has(client.id)) {
+          const p = room.players.get(client.id);
+          p.pseudo = client.pseudo;
+          p.cosmetics = client.cosmetics;
+          if (msg.ready !== undefined) p.ready = !!msg.ready;
+          broadcastRoom(room, 'room_state', { room: serializeRoom(room) });
+          broadcastLobbyList();
+        }
+      }
+      break;
+    }
+
+    case 'update_room_config': {
+      if (!client.roomCode) return;
+      const room = rooms.get(client.roomCode);
+      if (!room || room.hostId !== client.id) return;
+
+      if (msg.config && typeof msg.config === 'object') {
+        if (msg.config.cupId && CUPS_CATALOG[msg.config.cupId]) {
+          room.config.cupId = msg.config.cupId;
+        }
+        if (msg.config.maxPlayers !== undefined) {
+          room.config.maxPlayers = Math.max(2, Math.min(8, parseInt(msg.config.maxPlayers, 10) || 4));
+        }
+        if (msg.config.jumpBoost !== undefined) {
+          room.config.jumpBoost = Math.max(0.5, Math.min(2.5, parseFloat(msg.config.jumpBoost) || 1.0));
+        }
+        if (msg.config.startScale !== undefined) {
+          room.config.startScale = Math.max(0.6, Math.min(1.8, parseFloat(msg.config.startScale) || 1.0));
+        }
+        if (msg.config.startSegments !== undefined) {
+          room.config.startSegments = Math.max(4, Math.min(9, parseInt(msg.config.startSegments, 10) || 5));
+        }
+        if (msg.config.gravity !== undefined) {
+          room.config.gravity = Math.max(250, Math.min(1100, parseInt(msg.config.gravity, 10) || 740));
+        }
+        if (msg.config.gripDistance !== undefined) {
+          room.config.gripDistance = Math.max(12, Math.min(48, parseInt(msg.config.gripDistance, 10) || 26));
+        }
+        if (msg.config.pvpDamageMult !== undefined) {
+          room.config.pvpDamageMult = Math.max(0.25, Math.min(3.0, parseFloat(msg.config.pvpDamageMult) || 1.0));
+        }
+      }
+
+      broadcastRoom(room, 'room_state', { room: serializeRoom(room) });
+      broadcastLobbyList();
+      break;
+    }
+
+    case 'start_cup': {
+      if (!client.roomCode) return;
+      const room = rooms.get(client.roomCode);
+      if (!room || room.hostId !== client.id) return;
+
+      // Reset cup scores & modifiers for all players in the room
+      for (const p of room.players.values()) {
+        p.score = 0;
+        p.totalTime = 0;
+        p.modifiers = [];
+        p.lastRank = null;
+      }
+
+      launchRoomRace(room, 0);
+      break;
+    }
+
+    case 'player_state': {
+      if (!client.roomCode) return;
+      const room = rooms.get(client.roomCode);
+      if (!room) return;
+      const p = room.players.get(client.id);
+      if (p && msg.state) {
+        if (typeof msg.state.progress === 'number') {
+          p.progress = msg.state.progress;
+        }
+      }
+      broadcastRoom(room, 'remote_player_state', {
+        playerId: client.id,
+        pseudo: client.pseudo,
+        cosmetics: client.cosmetics,
+        modifiers: p ? p.modifiers : [],
+        state: msg.state
+      }, client.id);
+      break;
+    }
+
+    case 'world_sync': {
+      if (!client.roomCode) return;
+      const room = rooms.get(client.roomCode);
+      if (!room) return;
+      broadcastRoom(room, 'remote_world_sync', {
+        senderId: client.id,
+        worldState: msg.worldState
+      }, client.id);
+      break;
+    }
+
+    case 'entity_throw': {
+      if (!client.roomCode) return;
+      const room = rooms.get(client.roomCode);
+      if (!room) return;
+      broadcastRoom(room, 'remote_entity_throw', {
+        playerId: client.id,
+        pseudo: client.pseudo,
+        entityType: msg.entityType,
+        entityIndex: msg.entityIndex,
+        x: msg.x,
+        y: msg.y,
+        vx: msg.vx,
+        vy: msg.vy,
+        angVel: msg.angVel || 0,
+        damageMult: msg.damageMult || 1.0
+      }, client.id);
+      break;
+    }
+
+    case 'pvp_action': {
+      if (!client.roomCode) return;
+      const room = rooms.get(client.roomCode);
+      if (!room) return;
+      broadcastRoom(room, 'remote_pvp_action', {
+        attackerId: client.id,
+        attackerPseudo: client.pseudo,
+        targetId: msg.targetId,
+        actionType: msg.actionType, // 'hit' | 'grab' | 'throw_player' | 'pull'
+        damage: msg.damage || 0,
+        vx: msg.vx || 0,
+        vy: msg.vy || 0,
+        nodeIndex: msg.nodeIndex || 0,
+        reason: msg.reason || ''
+      }, client.id);
+      break;
+    }
+
+    case 'player_finished': {
+      if (!client.roomCode) return;
+      const room = rooms.get(client.roomCode);
+      if (!room || room.state !== 'racing') return;
+      const p = room.players.get(client.id);
+      if (!p || p.finished) return;
+
+      room.finishCounter = (room.finishCounter || 0) + 1;
+      p.finished = true;
+      p.finishOrder = room.finishCounter;
+      p.finishTime = typeof msg.raceTime === 'number' ? msg.raceTime : 0;
+      p.progress = 1.0;
+
+      broadcastRoom(room, 'player_crossed_finish', {
+        playerId: client.id,
+        pseudo: p.pseudo,
+        finishOrder: p.finishOrder,
+        finishTime: p.finishTime
+      });
+
+      // When 1st player crosses the finish line, start 20-second countdown if there are other players!
+      if (!room.firstFinishHandled) {
+        room.firstFinishHandled = true;
+        if (room.players.size > 1) {
+          const countdownSec = 20;
+          broadcastRoom(room, 'race_countdown_started', {
+            duration: countdownSec,
+            firstFinisherId: p.id,
+            firstFinisherPseudo: p.pseudo,
+            finishTime: p.finishTime
+          });
+          room.raceTimerHandle = setTimeout(() => {
+            concludeRoomRace(room);
+          }, countdownSec * 1000);
+        }
+      }
+
+      // Check if all players in the room have finished
+      let allFinished = true;
+      for (const pl of room.players.values()) {
+        if (!pl.finished) {
+          allFinished = false;
+          break;
+        }
+      }
+      if (allFinished) {
+        setTimeout(() => concludeRoomRace(room), 1200);
+      }
+      break;
+    }
+
+    case 'select_modifier': {
+      if (!client.roomCode) return;
+      const room = rooms.get(client.roomCode);
+      if (!room || room.state !== 'draft') return;
+      const p = room.players.get(client.id);
+      if (!p || (p.lastRank === 1 && room.players.size > 1)) return; // 1st place doesn't take a modifier in multiplayer
+
+      const modId = msg.modifierId;
+      if (!ALL_MODIFIER_IDS.includes(modId)) return;
+      if (p.draftChoice) return; // Already selected for this round
+
+      p.draftChoice = modId;
+      p.modifiers = p.modifiers || [];
+      p.modifiers.push(modId);
+
+      broadcastRoom(room, 'modifier_selected', {
+        playerId: p.id,
+        pseudo: p.pseudo,
+        modifierId: modId,
+        modifiers: p.modifiers,
+        room: serializeRoom(room)
+      });
+
+      // Check if all non-1st players have made their choice
+      let allChosen = true;
+      for (const pl of room.players.values()) {
+        if (pl.lastRank > 1 && !pl.draftChoice) {
+          allChosen = false;
+          break;
+        }
+      }
+      if (allChosen) {
+        broadcastRoom(room, 'draft_all_ready', { room: serializeRoom(room) });
+      }
+      break;
+    }
+
+    case 'next_cup_race': {
+      if (!client.roomCode) return;
+      const room = rooms.get(client.roomCode);
+      if (!room || room.hostId !== client.id) return;
+
+      // Auto-assign random modifier to any non-1st player who hasn't picked yet
+      for (const pl of room.players.values()) {
+        if (pl.lastRank > 1 && !pl.draftChoice && pl.draftOptions && pl.draftOptions.length > 0) {
+          const autoMod = pl.draftOptions[0];
+          pl.draftChoice = autoMod;
+          pl.modifiers = pl.modifiers || [];
+          pl.modifiers.push(autoMod);
+        }
+      }
+
+      const nextIdx = (room.raceIndex || 0) + 1;
+      if (nextIdx < 3) {
+        launchRoomRace(room, nextIdx);
+      } else {
+        concludeRoomRace(room);
+      }
+      break;
+    }
+
+    case 'return_to_lobby': {
+      if (!client.roomCode) return;
+      const room = rooms.get(client.roomCode);
+      if (!room) return;
+      if (room.raceTimerHandle) {
+        clearTimeout(room.raceTimerHandle);
+        room.raceTimerHandle = null;
+      }
+      room.state = 'lobby';
+      room.raceIndex = 0;
+      for (const p of room.players.values()) {
+        p.finished = false;
+        p.finishTime = null;
+        p.progress = 0;
+        p.modifiers = [];
+        p.draftChoice = null;
+      }
+      broadcastRoom(room, 'returned_to_lobby', { room: serializeRoom(room) });
+      broadcastLobbyList();
+      break;
+    }
+  }
+}
+
+server.on('upgrade', (req, socket, head) => {
+  const key = req.headers['sec-websocket-key'];
+  if (!key) {
+    socket.destroy();
+    return;
+  }
+
+  const acceptKey = crypto
+    .createHash('sha1')
+    .update(key + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
+    .digest('base64');
+
+  const responseHeaders = [
+    'HTTP/1.1 101 Switching Protocols',
+    'Upgrade: websocket',
+    'Connection: Upgrade',
+    `Sec-WebSocket-Accept: ${acceptKey}`,
+    '\r\n'
+  ];
+  socket.write(responseHeaders.join('\r\n'));
+
+  const clientId = 'p_' + crypto.randomBytes(5).toString('hex');
+  const client = {
+    id: clientId,
+    socket,
+    pseudo: 'Chenille',
+    cosmetics: {
+      palette: 'emerald',
+      hat: 'crown',
+      face: 'cute',
+      grip: 'classic',
+      bodyType: 'classique',
+      bodyShape: 'larve'
+    },
+    roomCode: null
+  };
+  clients.set(clientId, client);
+
+  let buffer = Buffer.alloc(0);
+
+  socket.on('data', (chunk) => {
+    buffer = Buffer.concat([buffer, chunk]);
+
+    while (buffer.length >= 2) {
+      const firstByte = buffer[0];
+      const opcode = firstByte & 0x0f;
+      const secondByte = buffer[1];
+      const isMasked = (secondByte & 0x80) !== 0;
+      let payloadLen = secondByte & 0x7f;
+      let offset = 2;
+
+      if (payloadLen === 126) {
+        if (buffer.length < 4) return;
+        payloadLen = buffer.readUInt16BE(2);
+        offset = 4;
+      } else if (payloadLen === 127) {
+        if (buffer.length < 10) return;
+        payloadLen = Number(buffer.readBigUInt64BE(2));
+        offset = 10;
+      }
+
+      const maskLen = isMasked ? 4 : 0;
+      const totalFrameLen = offset + maskLen + payloadLen;
+      if (buffer.length < totalFrameLen) return;
+
+      let payload = buffer.slice(offset + maskLen, totalFrameLen);
+      if (isMasked) {
+        const mask = buffer.slice(offset, offset + 4);
+        payload = Buffer.from(payload);
+        for (let i = 0; i < payload.length; i++) {
+          payload[i] ^= mask[i & 3];
+        }
+      }
+
+      buffer = buffer.slice(totalFrameLen);
+
+      if (opcode === 0x8) {
+        // Close frame
+        socket.end();
+        return;
+      } else if (opcode === 0x9) {
+        // Ping -> Pong
+        const pong = Buffer.alloc(2);
+        pong[0] = 0x8a;
+        pong[1] = 0;
+        socket.write(pong);
+      } else if (opcode === 0x1) {
+        // Text frame
+        try {
+          const str = payload.toString('utf8');
+          const parsed = JSON.parse(str);
+          handleWsMessage(client, parsed);
+        } catch (err) {
+          // Ignore malformed JSON
+        }
+      }
+    }
+  });
+
+  socket.on('close', () => {
+    removeClientFromRoom(client);
+    clients.delete(clientId);
+  });
+
+  socket.on('error', () => {
+    removeClientFromRoom(client);
+    clients.delete(clientId);
+  });
+});
+
+server.listen(PORT, '0.0.0.0', () => {
+  const ip = getLocalIpAddress();
+  console.log(`SlipGrip Multiplayer Server running at:`);
+  console.log(`  - Local:   http://localhost:${PORT}`);
+  console.log(`  - Network: http://${ip}:${PORT}`);
 });
