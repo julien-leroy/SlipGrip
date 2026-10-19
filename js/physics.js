@@ -1,16 +1,21 @@
-import { GAMEPLAY_CONFIG } from './gameplayConfig.js?v=72';
-import { sound } from './audio.js?v=72';
+import { GAMEPLAY_CONFIG } from './gameplayConfig.js?v=73';
+import { sound } from './audio.js?v=73';
 
 export const MATERIALS = {
-  dirt:    { friction: 0.90, gripSlide: 0.0,  restitution: 0.05, name: 'Terre meuble' },
-  root:    { friction: 0.85, gripSlide: 0.0,  restitution: 0.08, name: 'Racine & Branche' },
-  moss:    { friction: 0.08, gripSlide: 0.85, restitution: 0.05, name: 'Mousse glissante' },
-  stem:    { friction: 0.96, gripSlide: 0.0,  restitution: 0.06, name: 'Tige de tomate' },
-  leaf:    { friction: 0.82, gripSlide: 0.0,  restitution: 0.12, name: 'Feuille de chou' },
-  hose:    { friction: 0.45, gripSlide: 0.35, restitution: 0.15, name: 'Tuyau instable' },
-  can:     { friction: 0.30, gripSlide: 0.40, restitution: 0.18, name: 'Canette métallique' },
-  plastic: { friction: 0.65, gripSlide: 0.10, restitution: 0.22, name: 'Plastique froissé' },
-  fork:    { friction: 0.55, gripSlide: 0.15, restitution: 0.12, name: 'Fourchette' }
+  dirt:         { friction: 0.90, gripSlide: 0.0,  restitution: 0.05, name: 'Terre meuble' },
+  root:         { friction: 0.85, gripSlide: 0.0,  restitution: 0.08, name: 'Racine & Branche' },
+  moss:         { friction: 0.08, gripSlide: 0.85, restitution: 0.05, name: 'Mousse glissante' },
+  stem:         { friction: 0.96, gripSlide: 0.0,  restitution: 0.06, name: 'Tige de tomate' },
+  leaf:         { friction: 0.82, gripSlide: 0.0,  restitution: 0.12, name: 'Feuille de chou' },
+  hose:         { friction: 0.45, gripSlide: 0.35, restitution: 0.15, name: 'Tuyau instable' },
+  can:          { friction: 0.30, gripSlide: 0.40, restitution: 0.18, name: 'Canette métallique' },
+  plastic:      { friction: 0.65, gripSlide: 0.10, restitution: 0.22, name: 'Plastique froissé' },
+  fork:         { friction: 0.55, gripSlide: 0.15, restitution: 0.12, name: 'Fourchette' },
+  silk:         { friction: 0.98, gripSlide: 0.0,  restitution: 0.14, name: 'Fil de soie' },
+  mushroom_cap: { friction: 0.88, gripSlide: 0.0,  restitution: 0.16, name: 'Chapeau de champignon' },
+  reed:         { friction: 0.92, gripSlide: 0.0,  restitution: 0.08, name: 'Tige de roseau' },
+  honeycomb:    { friction: 0.94, gripSlide: 0.0,  restitution: 0.06, name: 'Rayon de cire' },
+  straw:        { friction: 0.78, gripSlide: 0.05, restitution: 0.12, name: 'Paille géante' }
 };
 
 export class PhysicsWorld {
@@ -52,6 +57,7 @@ export class PhysicsWorld {
     this.hedgehogs = [];
     this.powerUps = [];
     this.stickyCrumbs = [];
+    this.thorns = [];
     this.props = [];
     this.apples = [];
     this.checkpoints = [];
@@ -59,19 +65,30 @@ export class PhysicsWorld {
     this.nextSegId = 1;
   }
 
-  addBonusApple(x, y) {
+  addBonusApple(x, y, kind = 'heal') {
     const apple = {
       id: this.nextSegId++,
       x,
       y,
       vx: (Math.random() - 0.5) * 80,
       vy: -150 - Math.random() * 90,
-      radius: 14,
+      radius: kind === 'segment' ? 16 : 14,
+      kind, // 'heal' (+20 HP from acorns) | 'segment' (+1 segment from defeated enemies)
       collected: false,
       time: Math.random() * 10
     };
     this.apples.push(apple);
     return apple;
+  }
+
+  addThorn(x, y, radius = 28) {
+    if (!this.thorns) this.thorns = [];
+    this.thorns.push({
+      id: this.nextSegId++,
+      x,
+      y,
+      radius
+    });
   }
 
   addPowerUp(x, y, type = 'speed') {
@@ -353,12 +370,17 @@ export class PhysicsWorld {
     if (enemy.hp <= 0) {
       enemy.isDefeated = true;
       if (enemy.deathTimer === undefined || enemy.deathTimer <= 0) {
-        enemy.deathTimer = 3.0;
+        enemy.deathTimer = 1.2;
       }
       enemy.isFlying = false;
       enemy.vx *= 0.2;
+      if (!enemy._appleSpawned) {
+        enemy._appleSpawned = true;
+        this.addBonusApple(enemy.x, enemy.y - 10, 'segment');
+      }
       if (particles) {
-        particles.spawnPopup(impactX, impactY - 32, 'K.O. ! 💫', '#ffd93b');
+        particles.spawnPopup(impactX, impactY - 32, 'K.O. ! 🍏 +1 SEGMENT', '#38d84e');
+        particles.spawnConfetti(impactX, impactY, 16);
       }
     }
   }
@@ -378,18 +400,19 @@ export class PhysicsWorld {
     if (prop.hp <= 0) {
       prop.isBroken = true;
       if (particles) {
-        particles.spawnPopup(impactX, impactY - 24, 'GLAND CASSÉ ! 💥', '#ffd93b');
+        particles.spawnPopup(impactX, impactY - 24, 'GLAND CASSÉ ! 🍎 +20 PV', '#ff6b81');
         particles.spawnConfetti(impactX, impactY, 14);
       }
-      this.addBonusApple(prop.x, prop.y);
+      this.addBonusApple(prop.x, prop.y, 'heal');
     }
   }
 
-  addStickyCrumb(x, y, radius = 26) {
+  addStickyCrumb(x, y, radius = 26, kind = 'jam') {
     this.stickyCrumbs.push({
       x,
       y,
       radius,
+      kind,
       wobble: Math.random() * Math.PI * 2
     });
   }
@@ -504,14 +527,14 @@ export class PhysicsWorld {
           }
         }
       } else if (a.isDefeated) {
-        // Defeated aphid: 3-second death animation countdown
+        // Defeated aphid death animation countdown
         if (a.deathTimer !== undefined) {
           a.deathTimer -= dt;
           if (a.deathTimer <= 0) {
             a._remove = true;
-            this.addBonusApple(a.x, a.y);
-            if (particles) {
-              particles.spawnConfetti(a.x, a.y, 16);
+            if (!a._appleSpawned) {
+              a._appleSpawned = true;
+              this.addBonusApple(a.x, a.y, 'segment');
             }
           }
         }
@@ -605,14 +628,14 @@ export class PhysicsWorld {
           }
         }
       } else if (h.isDefeated) {
-        // Defeated hedgehog: 3-second death animation countdown
+        // Defeated hedgehog death animation countdown
         if (h.deathTimer !== undefined) {
           h.deathTimer -= dt;
           if (h.deathTimer <= 0) {
             h._remove = true;
-            this.addBonusApple(h.x, h.y);
-            if (particles) {
-              particles.spawnConfetti(h.x, h.y, 18);
+            if (!h._appleSpawned) {
+              h._appleSpawned = true;
+              this.addBonusApple(h.x, h.y, 'segment');
             }
           }
         }

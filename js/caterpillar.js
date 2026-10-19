@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=72';
-import { sound } from './audio.js?v=72';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES, BODY_SHAPES, RACE_MODIFIERS, GRIP_STYLES } from './gameplayConfig.js?v=72';
+import { MATERIALS } from './physics.js?v=73';
+import { sound } from './audio.js?v=73';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES, BODY_SHAPES, RACE_MODIFIERS, GRIP_STYLES } from './gameplayConfig.js?v=73';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -425,6 +425,29 @@ export class Caterpillar {
     }
   }
 
+  healFromApple(amount = 20, particles = null) {
+    const prevHp = this.hp;
+    this.hp = Math.min(this.maxHp, this.hp + amount);
+    const healed = Math.round(this.hp - prevHp);
+    this.expression = 'happy';
+    if (sound) sound.playCheckpoint();
+    if (particles) {
+      const label = healed > 0 ? `+${healed} ❤️ SOIN ! 🍎` : `PV MAX (+20 ❤️) ! 🍎`;
+      particles.spawnPopup(this.head.x, this.head.y - 30, label, '#ff6b81');
+      particles.spawnConfetti(this.head.x, this.head.y - 10, 14);
+    }
+  }
+
+  resetProgression() {
+    this.extraAppleSegments = 0;
+    this.modifiers = [];
+    this.activePowerUp = {
+      type: null,
+      timer: 0,
+      duration: 15.0
+    };
+  }
+
   addPermanentSegment(particles) {
     this.extraAppleSegments = (this.extraAppleSegments || 0) + 1;
 
@@ -452,7 +475,7 @@ export class Caterpillar {
     this.fullLength = this.extendedSegLen * (this.numNodes - 1);
     const mStats = this.getModifierStats();
     this.maxHp = 100 + (this.extraAppleSegments || 0) * 10 + mStats.hpBonus;
-    this.hp = Math.min(this.maxHp, this.hp + 50);
+    this.hp = Math.min(this.maxHp, this.hp + 20);
     this.expression = 'happy';
     if (sound) sound.playCheckpoint();
     if (particles) {
@@ -490,7 +513,8 @@ export class Caterpillar {
   reset(startX, startY) {
     const cls = this.bodyClass || CATERPILLAR_CLASSES[this.cosmetics.bodyType] || CATERPILLAR_CLASSES.classique;
     const mStats = this.getModifierStats();
-    this.numNodes = Math.max(4, Math.min(12, cls.numNodes + (this.extraAppleSegments || 0) + mStats.extraSegments));
+    const roomDelta = typeof this.roomStartSegments === 'number' ? (this.roomStartSegments - 5) : 0;
+    this.numNodes = Math.max(4, Math.min(12, cls.numNodes + roomDelta + (this.extraAppleSegments || 0) + mStats.extraSegments));
     const reachMult = (GAMEPLAY_CONFIG.unbendReachBonus || 1.0) * mStats.reachMult;
     this.extendedSegLen = cls.extendedSegLen * reachMult;
     this.contractedSegLen = cls.contractedSegLen;
@@ -2696,7 +2720,9 @@ export class Caterpillar {
         }
       }
 
-      // Collectible Healing Apples (+1 Permanent Segment for whole game!)
+      // Collectible Apples:
+      // - 'heal' (from broken Acorns): restores +20 HP
+      // - 'segment' (from defeated Enemies): adds +1 Permanent Segment
       if (world.apples && world.apples.length > 0) {
         for (const apple of world.apples) {
           if (apple.collected) continue;
@@ -2705,7 +2731,26 @@ export class Caterpillar {
           const adist = Math.hypot(adx, ady);
           if (adist < n.r + apple.radius + 6) {
             apple.collected = true;
-            this.addPermanentSegment(particles);
+            if (apple.kind === 'segment') {
+              this.addPermanentSegment(particles);
+            } else {
+              this.healFromApple(20, particles);
+            }
+            break;
+          }
+        }
+      }
+
+      // Prickly Thorn Bushes (Ronces épineuses)
+      if (world.thorns && world.thorns.length > 0) {
+        for (const thorn of world.thorns) {
+          const tdx = n.x - thorn.x;
+          const tdy = n.y - thorn.y;
+          const tdist = Math.hypot(tdx, tdy) || 0.0001;
+          if (tdist < n.r + thorn.radius * 0.78) {
+            const tnx = tdx / tdist;
+            const tny = tdy / tdist;
+            this.takeDamage(15, tnx * 280, Math.min(-180, tny * 260), particles, sound);
             break;
           }
         }

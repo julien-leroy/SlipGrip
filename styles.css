@@ -2504,3 +2504,22 @@ kbd {
   font-size: 0.86rem;
   color: #e2f1e6;
 }
+
+.solo-level-select {
+  margin-left: 8px;
+  padding: 5px 10px;
+  border-radius: 10px;
+  border: 2.5px solid #2b1708;
+  background: linear-gradient(180deg, #fff8e7, #f5e2b8);
+  color: #2b1708;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  outline: none;
+}
+
+.solo-level-select.hidden {
+  display: none !important;
+}
+

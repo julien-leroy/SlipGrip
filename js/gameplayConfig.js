@@ -500,38 +500,38 @@ export const RACE_MODIFIERS = {
 export const CUPS_DEFINITIONS = {
   potager_geant: {
     id: 'potager_geant',
-    name: 'Coupe Potager Géant',
-    icon: '🍅',
-    desc: 'La grande traversée classique : du Sous-Bois glissant jusqu’au Pique-Nique ravagé !',
+    name: 'Coupe Sous-Bois & Potager',
+    icon: '🌳',
+    desc: 'Univers Sylvestre : 1. L’Orée des Chênes (Facile) • 2. Le Potager Suspendu (Moyen) • 3. La Canopée Géante (Difficile) !',
     levels: [0, 1, 2],
     cards: [
-      { levelId: 0, title: 'LE SOUS-BOIS', icon: '🌲', bg: 'linear-gradient(135deg, #2d5a27, #8cf5ab)' },
-      { levelId: 1, title: 'LE POTAGER GÉANT', icon: '🍅', bg: 'linear-gradient(135deg, #236937, #ff6b6b)' },
-      { levelId: 2, title: 'LE PIQUE-NIQUE', icon: '🧺', bg: 'linear-gradient(135deg, #c0392b, #ffeaa7)' }
+      { levelId: 0, title: 'L’ORÉE DES CHÊNES (FACILE)', icon: '🌱', bg: 'linear-gradient(135deg, #2d5a27, #8cf5ab)' },
+      { levelId: 1, title: 'LE POTAGER SUSPENDU (MOYEN)', icon: '🍅', bg: 'linear-gradient(135deg, #236937, #ff6b6b)' },
+      { levelId: 2, title: 'LA CANOPÉE GÉANTE (DIFFICILE)', icon: '🌲', bg: 'linear-gradient(135deg, #1e4620, #ffeaa7)' }
     ]
   },
   vallee_folle: {
     id: 'vallee_folle',
-    name: 'Coupe Vallée Folle',
+    name: 'Coupe Vallée Féerique',
     icon: '🍄',
-    desc: 'Départ musclé au Potager avant d’affronter les pièges collants du Pique-Nique !',
-    levels: [1, 2, 0],
+    desc: 'Univers Magique & Aquatique : 1. Clairière Champignons (Facile) • 2. Marais des Nénuphars (Moyen) • 3. La Ruche Dorée (Difficile) !',
+    levels: [3, 4, 5],
     cards: [
-      { levelId: 1, title: 'LE POTAGER GÉANT', icon: '🍅', bg: 'linear-gradient(135deg, #236937, #ff6b6b)' },
-      { levelId: 2, title: 'LE PIQUE-NIQUE', icon: '🧺', bg: 'linear-gradient(135deg, #c0392b, #ffeaa7)' },
-      { levelId: 0, title: 'LE SOUS-BOIS', icon: '🌲', bg: 'linear-gradient(135deg, #2d5a27, #8cf5ab)' }
+      { levelId: 3, title: 'CLAIRIÈRE CHAMPIGNONS (FACILE)', icon: '🍄', bg: 'linear-gradient(135deg, #6c5ce7, #fd79a8)' },
+      { levelId: 4, title: 'MARAIS DES NÉNUPHARS (MOYEN)', icon: '🪷', bg: 'linear-gradient(135deg, #136f63, #63cdda)' },
+      { levelId: 5, title: 'LA RUCHE DORÉE (DIFFICILE)', icon: '🍯', bg: 'linear-gradient(135deg, #b86b11, #fff3b0)' }
     ]
   },
   pique_nique_royal: {
     id: 'pique_nique_royal',
     name: 'Coupe Pique-Nique Royal',
     icon: '🧺',
-    desc: 'Chaos immédiat sur la nappe de pique-nique puis sprint final dans les jardins !',
-    levels: [2, 0, 1],
+    desc: 'Univers Géants & Friandises : 1. La Nappe à Carreaux (Facile) • 2. La Table des Géants (Moyen) • 3. Le Festin Ravagé (Difficile) !',
+    levels: [6, 7, 8],
     cards: [
-      { levelId: 2, title: 'LE PIQUE-NIQUE', icon: '🧺', bg: 'linear-gradient(135deg, #c0392b, #ffeaa7)' },
-      { levelId: 0, title: 'LE SOUS-BOIS', icon: '🌲', bg: 'linear-gradient(135deg, #2d5a27, #8cf5ab)' },
-      { levelId: 1, title: 'LE POTAGER GÉANT', icon: '🍅', bg: 'linear-gradient(135deg, #236937, #ff6b6b)' }
+      { levelId: 6, title: 'LA NAPPE À CARREAUX (FACILE)', icon: '🥤', bg: 'linear-gradient(135deg, #e66767, #ffecd2)' },
+      { levelId: 7, title: 'LA TABLE DES GÉANTS (MOYEN)', icon: '🍴', bg: 'linear-gradient(135deg, #8c2d19, #ffd6ba)' },
+      { levelId: 8, title: 'LE FESTIN RAVAGÉ (DIFFICILE)', icon: '🧺', bg: 'linear-gradient(135deg, #6e1423, #ff9a8b)' }
     ]
   }
 };

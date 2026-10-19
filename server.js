@@ -40,24 +40,24 @@ function getLocalIpAddress() {
 const CUPS_CATALOG = {
   potager_geant: {
     id: 'potager_geant',
-    name: 'Coupe Potager Géant',
-    icon: '🍅',
+    name: 'Coupe Sous-Bois & Potager',
+    icon: '🌳',
     levels: [0, 1, 2],
-    levelNames: ['Le Sous-Bois', 'Le Potager Géant', 'Le Pique-Nique']
+    levelNames: ['L’Orée des Chênes (Facile)', 'Le Potager Suspendu (Moyen)', 'La Canopée Géante (Difficile)']
   },
   vallee_folle: {
     id: 'vallee_folle',
-    name: 'Coupe Vallée Folle',
+    name: 'Coupe Vallée Féerique',
     icon: '🍄',
-    levels: [1, 2, 0],
-    levelNames: ['Le Potager Géant', 'Le Pique-Nique', 'Le Sous-Bois']
+    levels: [3, 4, 5],
+    levelNames: ['Clairière aux Champignons (Facile)', 'Marais des Nénuphars (Moyen)', 'La Ruche Dorée (Difficile)']
   },
   pique_nique_royal: {
     id: 'pique_nique_royal',
     name: 'Coupe Pique-Nique Royal',
     icon: '🧺',
-    levels: [2, 0, 1],
-    levelNames: ['Le Pique-Nique', 'Le Sous-Bois', 'Le Potager Géant']
+    levels: [6, 7, 8],
+    levelNames: ['La Nappe à Carreaux (Facile)', 'La Table des Géants (Moyen)', 'Le Festin Ravagé (Difficile)']
   }
 };
 

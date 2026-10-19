@@ -1,10 +1,10 @@
 // js/main.js — Main Game Loop, Hold-to-Grip Input Controller, Multiplayer Sync, Checkpoints, Camera & HUD Manager
 
-import { PhysicsWorld } from './physics.js?v=72';
-import { Caterpillar } from './caterpillar.js?v=72';
-import { ParticleSystem } from './particles.js?v=72';
-import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=72';
-import { sound } from './audio.js?v=72';
+import { PhysicsWorld } from './physics.js?v=73';
+import { Caterpillar } from './caterpillar.js?v=73';
+import { ParticleSystem } from './particles.js?v=73';
+import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=73';
+import { sound } from './audio.js?v=73';
 import {
   GAMEPLAY_CONFIG,
   GAMEPLAY_PRESETS,
@@ -13,9 +13,9 @@ import {
   resetGameplayConfig,
   saveAsDefaultGameplayConfig,
   GRIP_STYLES
-} from './gameplayConfig.js?v=72';
-import { NetworkManager } from './network.js?v=72';
-import { UIManager } from './uiManager.js?v=72';
+} from './gameplayConfig.js?v=73';
+import { NetworkManager } from './network.js?v=73';
+import { UIManager } from './uiManager.js?v=73';
 
 class SlipGripGame {
   constructor() {
@@ -210,11 +210,12 @@ class SlipGripGame {
 
   startSoloMode() {
     this.isMultiplayer = false;
+    this.isInActiveCup = false;
     this.remoteCaterpillars.clear();
     this.remoteFinishState.clear();
     this.caterpillar.roomStartScale = 1.0;
     this.caterpillar.roomStartSegments = 5;
-    this.caterpillar.setModifiers([]);
+    this.caterpillar.resetProgression();
     this.world.caterpillars = [this.caterpillar];
     document.getElementById('mp-race-hud')?.classList.add('hidden');
     if (this.ui && this.ui.elMultiMarkers) {
@@ -227,6 +228,12 @@ class SlipGripGame {
     this.isMultiplayer = true;
     this.remoteCaterpillars.clear();
     this.remoteFinishState.clear();
+
+    // Reset all progression (extra segments from training or previous cups) at the start of a Cup!
+    if ((msg.raceIndex || 0) === 0 || !this.isInActiveCup) {
+      this.caterpillar.resetProgression();
+      this.isInActiveCup = true;
+    }
 
     // Apply Room Admin settings
     const s = msg.config || msg.settings || (msg.room && msg.room.config) || {};
@@ -574,7 +581,7 @@ class SlipGripGame {
       }
     });
 
-    // Level selector buttons
+    // Level selector buttons & Solo dropdown
     this.lvlButtons.forEach((btn) => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.level, 10);
@@ -582,6 +589,17 @@ class SlipGripGame {
         btn.blur();
       });
     });
+
+    const soloSelect = document.getElementById('solo-level-select');
+    if (soloSelect) {
+      soloSelect.addEventListener('change', () => {
+        const idx = parseInt(soloSelect.value, 10);
+        if (!Number.isNaN(idx)) {
+          this.loadLevel(idx);
+        }
+        soloSelect.blur();
+      });
+    }
 
     // Checkpoint respawn button
     document.getElementById('btn-checkpoint').addEventListener('click', (e) => {
@@ -825,11 +843,19 @@ class SlipGripGame {
 
   loadLevel(index) {
     this.currentLevelIndex = index;
-    this.level = LEVEL_DEFINITIONS[index];
+    this.level = LEVEL_DEFINITIONS[index] || LEVEL_DEFINITIONS[0];
+
+    if (!this.isMultiplayer) {
+      this.caterpillar.extraAppleSegments = 0;
+    }
 
     this.lvlButtons.forEach((btn, i) => {
       btn.classList.toggle('active', i === index);
     });
+    const soloSelect = document.getElementById('solo-level-select');
+    if (soloSelect) {
+      soloSelect.value = String(index);
+    }
 
     this.world.clear();
     this.particles.clear();

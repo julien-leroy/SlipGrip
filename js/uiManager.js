@@ -10,10 +10,10 @@ import {
   isCosmeticUnlocked,
   unlockRandomCosmeticGift,
   getUnlockedCosmeticsCount
-} from './gameplayConfig.js?v=72';
-import { COSMETIC_PALETTES, Caterpillar } from './caterpillar.js?v=72';
-import { LEVEL_DEFINITIONS } from './levels.js?v=72';
-import { sound } from './audio.js?v=72';
+} from './gameplayConfig.js?v=73';
+import { COSMETIC_PALETTES, Caterpillar } from './caterpillar.js?v=73';
+import { LEVEL_DEFINITIONS } from './levels.js?v=73';
+import { sound } from './audio.js?v=73';
 
 export class UIManager {
   constructor(game, network) {
@@ -774,8 +774,13 @@ export class UIManager {
     botHud?.classList.toggle('hidden', !inGame);
     coach?.classList.toggle('hidden', !inGame);
     mpHud?.classList.toggle('hidden', !(inGame && this.game.isMultiplayer));
+    document.getElementById('solo-level-select')?.classList.toggle('hidden', !(inGame && !this.game.isMultiplayer));
 
     if (screenName === 'home' || screenName === 'room') {
+      if (this.game && this.game.caterpillar) {
+        this.game.isInActiveCup = false;
+        this.game.caterpillar.resetProgression();
+      }
       this.syncPreviewCaterpillar();
       this.updateUnlockedCounters();
       this.renderWorkshopGrid();
