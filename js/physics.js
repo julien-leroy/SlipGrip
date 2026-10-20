@@ -369,11 +369,11 @@ export class PhysicsWorld {
 
     if (enemy.hp <= 0) {
       enemy.isDefeated = true;
-      if (enemy.deathTimer === undefined || enemy.deathTimer <= 0) {
-        enemy.deathTimer = 1.2;
-      }
+      enemy.deathTimer = 0.8;
       enemy.isFlying = false;
-      enemy.vx *= 0.2;
+      enemy.isHeld = false;
+      enemy.vx = 0;
+      enemy.vy = 0;
       if (!enemy._appleSpawned) {
         enemy._appleSpawned = true;
         this.addBonusApple(enemy.x, enemy.y - 10, 'segment');
@@ -475,6 +475,27 @@ export class PhysicsWorld {
 
     // 3. Soft Squishy & Throwable Aphids
     for (const a of this.aphids) {
+      if (a.isDefeated || a.hp <= 0) {
+        a.isDefeated = true;
+        a.isFlying = false;
+        a.isHeld = false;
+        a.vx = 0;
+        a.vy = 0;
+        if (a.deathTimer !== undefined) {
+          a.deathTimer -= dt;
+          if (a.deathTimer <= 0) {
+            a._remove = true;
+            if (!a._appleSpawned) {
+              a._appleSpawned = true;
+              this.addBonusApple(a.x, a.y, 'segment');
+            }
+          }
+        } else {
+          a.deathTimer = 0.8;
+        }
+        continue;
+      }
+
       a.damageCooldown = Math.max(0, (a.damageCooldown || 0) - dt);
       a.hpBarTimer = Math.max(0, (a.hpBarTimer || 0) - dt);
 
@@ -526,30 +547,6 @@ export class PhysicsWorld {
             a.patrolMaxX = a.x + 90;
           }
         }
-      } else if (a.isDefeated) {
-        // Defeated aphid death animation countdown
-        if (a.deathTimer !== undefined) {
-          a.deathTimer -= dt;
-          if (a.deathTimer <= 0) {
-            a._remove = true;
-            if (!a._appleSpawned) {
-              a._appleSpawned = true;
-              this.addBonusApple(a.x, a.y, 'segment');
-            }
-          }
-        }
-        a.vx *= Math.pow(0.85, dt * 60);
-        a.vy += this.gravity * dt;
-        a.x += a.vx * dt;
-        a.y += a.vy * dt;
-        const hit = this.findClosestSurface(a.x, a.y, a.radius + 6);
-        if (hit && hit.dist < a.radius) {
-          const overlap = a.radius - hit.dist;
-          a.x += hit.nx * overlap;
-          a.y += hit.ny * overlap;
-          a.vx *= 0.8;
-          a.vy = 0;
-        }
       } else {
         // Standard gentle ground patrol
         if (a.x < a.patrolMinX) a.vx = Math.abs(a.vx) + 12 * dt;
@@ -578,6 +575,27 @@ export class PhysicsWorld {
 
     // 3b. Hedgehogs (Hérissons) with Spikes on Back and Soft Front Snout
     for (const h of this.hedgehogs) {
+      if (h.isDefeated || h.hp <= 0) {
+        h.isDefeated = true;
+        h.isFlying = false;
+        h.isHeld = false;
+        h.vx = 0;
+        h.vy = 0;
+        if (h.deathTimer !== undefined) {
+          h.deathTimer -= dt;
+          if (h.deathTimer <= 0) {
+            h._remove = true;
+            if (!h._appleSpawned) {
+              h._appleSpawned = true;
+              this.addBonusApple(h.x, h.y, 'segment');
+            }
+          }
+        } else {
+          h.deathTimer = 0.8;
+        }
+        continue;
+      }
+
       h.damageCooldown = Math.max(0, (h.damageCooldown || 0) - dt);
       h.hpBarTimer = Math.max(0, (h.hpBarTimer || 0) - dt);
 
@@ -626,30 +644,6 @@ export class PhysicsWorld {
             h.patrolMinX = h.x - 110;
             h.patrolMaxX = h.x + 110;
           }
-        }
-      } else if (h.isDefeated) {
-        // Defeated hedgehog death animation countdown
-        if (h.deathTimer !== undefined) {
-          h.deathTimer -= dt;
-          if (h.deathTimer <= 0) {
-            h._remove = true;
-            if (!h._appleSpawned) {
-              h._appleSpawned = true;
-              this.addBonusApple(h.x, h.y, 'segment');
-            }
-          }
-        }
-        h.vx *= Math.pow(0.85, dt * 60);
-        h.vy += this.gravity * dt;
-        h.x += h.vx * dt;
-        h.y += h.vy * dt;
-        const hit = this.findClosestSurface(h.x, h.y, h.radius + 6);
-        if (hit && hit.dist < h.radius) {
-          const overlap = h.radius - hit.dist;
-          h.x += hit.nx * overlap;
-          h.y += hit.ny * overlap;
-          h.vx *= 0.8;
-          h.vy = 0;
         }
       } else {
         if (h.x < h.patrolMinX) h.vx = Math.abs(h.vx) + 14 * dt;
@@ -816,7 +810,7 @@ export class PhysicsWorld {
       if (propSpeed > 30) {
         const allEnemies = [...this.aphids, ...this.hedgehogs];
         for (const e of allEnemies) {
-          if (e.isHeld) continue;
+          if (e.isHeld || e.isDefeated) continue;
           const edx = e.x - p.x;
           const edy = e.y - p.y;
           const edist = Math.hypot(edx, edy) || 0.0001;
@@ -884,9 +878,9 @@ export class PhysicsWorld {
     // Flying enemy-to-enemy bowling collisions:
     for (let i = 0; i < this.aphids.length; i++) {
       const a = this.aphids[i];
-      if (!a.isFlying) continue;
+      if (a.isDefeated || !a.isFlying) continue;
       for (const h of this.hedgehogs) {
-        if (h.isHeld) continue;
+        if (h.isHeld || h.isDefeated) continue;
         const dx = h.x - a.x;
         const dy = h.y - a.y;
         const dist = Math.hypot(dx, dy) || 0.0001;
@@ -915,6 +909,7 @@ export class PhysicsWorld {
 
       for (const proj of projectiles) {
         const e = proj.ent;
+        if (e.isDefeated || (e.hp !== undefined && e.hp <= 0)) continue;
         if (e.throwGraceTimer !== undefined && e.throwGraceTimer > 0) {
           e.throwGraceTimer = Math.max(0, e.throwGraceTimer - dt);
         }
@@ -1088,6 +1083,7 @@ export class PhysicsWorld {
     let best = null;
     let bestDist = safeMax;
     for (const a of this.aphids) {
+      if (a.isHeld || a.isDefeated) continue;
       const dx = px - a.x;
       const dy = py - a.y;
       const centerDist = Math.hypot(dx, dy) || 0.0001;
@@ -1123,7 +1119,7 @@ export class PhysicsWorld {
     let best = null;
     let bestDist = safeMax;
     for (const h of this.hedgehogs) {
-      if (h.isHeld) continue;
+      if (h.isHeld || h.isDefeated) continue;
       const dx = px - h.x;
       const dy = py - h.y;
       const centerDist = Math.hypot(dx, dy) || 0.0001;

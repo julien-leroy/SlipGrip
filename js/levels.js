@@ -2244,7 +2244,7 @@ export class LevelRenderer {
 
     ctx.save();
     if (enemy.isDefeated && enemy.deathTimer !== undefined) {
-      ctx.globalAlpha = Math.max(0, Math.min(1, enemy.deathTimer / 1.2));
+      ctx.globalAlpha = Math.max(0, Math.min(1, enemy.deathTimer / 0.8));
     }
     const barW = Math.max(34, enemy.radius * 1.5);
     const barH = 5;
@@ -2285,8 +2285,8 @@ export class LevelRenderer {
     let alpha = 1.0;
     let floatY = 0;
     if (a.isDefeated && a.deathTimer !== undefined) {
-      alpha = Math.max(0, Math.min(1, a.deathTimer / 1.2));
-      floatY = -Math.sin((1.2 - a.deathTimer) * 2.0) * 12;
+      alpha = Math.max(0, Math.min(1, a.deathTimer / 0.8));
+      floatY = -Math.sin(((0.8 - a.deathTimer) / 0.8) * Math.PI) * 12;
     }
     ctx.globalAlpha = alpha;
     ctx.translate(a.x, a.y + floatY);
@@ -2417,8 +2417,8 @@ export class LevelRenderer {
     let alpha = 1.0;
     let floatY = 0;
     if (h.isDefeated && h.deathTimer !== undefined) {
-      alpha = Math.max(0, Math.min(1, h.deathTimer / 1.2));
-      floatY = -Math.sin((1.2 - h.deathTimer) * 2.0) * 12;
+      alpha = Math.max(0, Math.min(1, h.deathTimer / 0.8));
+      floatY = -Math.sin(((0.8 - h.deathTimer) / 0.8) * Math.PI) * 12;
     }
     ctx.globalAlpha = alpha;
     ctx.translate(h.x, h.y + floatY);

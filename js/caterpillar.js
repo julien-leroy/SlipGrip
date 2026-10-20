@@ -1343,7 +1343,6 @@ export class Caterpillar {
   // When released, the segment unpins and smoothly blends back into the soft-body dynamics.
   // Locked segment alignment: when a paw grabs a surface (rear foot or front foot),
   // that segment remains glued flat against the surface during resting and crawling.
-  // When both feet are anchored, or when bending, it forms an elegant Omega arch (Ω) without pinching!
   enforceGrippedSegmentLocks(curSegLen = this.extendedSegLen) {
     const N = this.numNodes;
     if (N < 3) return;
@@ -1351,68 +1350,14 @@ export class Caterpillar {
     const rearIsGround = this.rearAnchor.anchored && !this.isHoldingMovable(this.rearAnchor) && !this.rearAnchor.slipping;
     const frontIsGround = this.frontAnchor.anchored && !this.isHoldingMovable(this.frontAnchor) && !this.frontAnchor.slipping;
     const bothAnchored = rearIsGround && frontIsGround;
-    if (bothAnchored) {
-      // BOTH paws are anchored: the caterpillar forms a clean, beautiful Omega arch (Ω)!
-      // The body rises away from the ground along the surface normal.
-      // Interior nodes arch smoothly without folding, pinching, or crossing each other!
-      const headIdx = N - 1;
-      const rNode = this.nodes[0];
-      const hNode = this.nodes[headIdx];
+    const chordDist = (bothAnchored && this.nodes[0] && this.nodes[N - 1])
+      ? Math.hypot(this.nodes[N - 1].x - this.nodes[0].x, this.nodes[N - 1].y - this.nodes[0].y)
+      : this.fullLength;
 
-      // Surface normal (pointing out of ground)
-      let upX = 0;
-      let upY = -1;
-      if (this.rearAnchor.propRef && this.rearAnchor.propRef === this.frontAnchor.propRef) {
-        const prop = this.rearAnchor.propRef;
-        const midAx = (rNode.x + hNode.x) * 0.5 - prop.x;
-        const midAy = (rNode.y + hNode.y) * 0.5 - prop.y;
-        const mLen = Math.hypot(midAx, midAy) || 1;
-        upX = midAx / mLen;
-        upY = midAy / mLen;
-      } else {
-        const rNx = this.rearAnchor.nx || 0;
-        const rNy = this.rearAnchor.ny !== undefined ? this.rearAnchor.ny : -1;
-        const fNx = this.frontAnchor.nx || 0;
-        const fNy = this.frontAnchor.ny !== undefined ? this.frontAnchor.ny : -1;
-        upX = (rNx + fNx) * 0.5;
-        upY = (rNy + fNy) * 0.5;
-        const uLen = Math.hypot(upX, upY) || 1;
-        upX /= uLen;
-        upY /= uLen;
-      }
-
-      const chordX = hNode.x - rNode.x;
-      const chordY = hNode.y - rNode.y;
-      const chordDist = Math.hypot(chordX, chordY);
-
-      // Height of the Omega arch: rises gracefully with contraction!
-      const archVisual = GAMEPLAY_CONFIG.omegaArchVisual !== undefined ? GAMEPLAY_CONFIG.omegaArchVisual : 1.0;
-      const naturalArchH = Math.max(16, (this.fullLength - chordDist) * 0.48 + 18);
-      const archHeight = (naturalArchH + this.contraction * 34) * archVisual;
-
-      for (let i = 1; i < N - 1; i++) {
-        const t = i / (N - 1);
-        const baseX = rNode.x + chordX * t;
-        const baseY = rNode.y + chordY * t;
-        const archLift = Math.sin(t * Math.PI) * archHeight;
-
-        const targetX = baseX + upX * archLift;
-        const targetY = baseY + upY * archLift;
-
-        const blend = 0.50 + this.contraction * 0.35;
-        this.nodes[i].x += (targetX - this.nodes[i].x) * blend;
-        this.nodes[i].y += (targetY - this.nodes[i].y) * blend;
-        this.nodes[i].vx *= 0.55;
-        this.nodes[i].vy *= 0.55;
-      }
-      return;
-    }
-
-    // Only one paw anchored:
     // 1. Rear gripped segment lock (Segment 0 between Node 0 and Node 1)
     if (rearIsGround) {
       const isRearingHigh = (this.rearingProgress || 0) > 0.20;
-      const isCoiling = this.contraction > 0.15;
+      const isCoiling = this.contraction > 0.15 || (bothAnchored && chordDist < this.extendedSegLen * 2.0);
 
       if (!isRearingHigh && !isCoiling) {
         if (this.rearAnchor.propRef) {
@@ -1457,7 +1402,7 @@ export class Caterpillar {
 
     // 2. Front gripped segment lock (Segment N-2 between Node N-2 and Node N-1)
     if (frontIsGround) {
-      const isCoiling = this.contraction > 0.15 || (this.frontAnchor.anchored && (this.rear.y < this.head.y - 15 || (this.lastInputs && this.lastInputs.up)));
+      const isCoiling = this.contraction > 0.15 || (bothAnchored && chordDist < this.extendedSegLen * 2.0) || (this.frontAnchor.anchored && (this.rear.y < this.head.y - 15 || (this.lastInputs && this.lastInputs.up)));
       const headIdx = N - 1;
       const neckIdx = N - 2;
 
@@ -1584,7 +1529,56 @@ export class Caterpillar {
           prop.vy += 160 * dt;
         }
 
-        if (!bothAnchored) {
+        if (bothAnchored) {
+          // When both paws are anchored, the caterpillar body behaves completely naturally:
+          // Soft-body physics and gravity govern the spine, while the player can steer/sway with arrows
+          // or contract naturally into a flexible curved arch with Space!
+          if (hasSteer) {
+            // Horizontal steering (Left / Right): lean/sway the body naturally
+            if (steerX !== 0) {
+              const swayForce = 850 * resp * dt;
+              for (let i = 1; i < N - 1; i++) {
+                const ratio = Math.sin((i / (N - 1)) * Math.PI);
+                this.nodes[i].vx += steerX * swayForce * ratio;
+              }
+            }
+            // Vertical steering (Up / Down):
+            // - Up: arch the spine upward naturally
+            // - Down: hug the surface lower
+            if (effSteerY < 0) {
+              const liftForce = 950 * resp * dt;
+              for (let i = 1; i < N - 1; i++) {
+                const ratio = Math.sin((i / (N - 1)) * Math.PI);
+                this.nodes[i].vy -= liftForce * ratio;
+              }
+            } else if (effSteerY > 0) {
+              const downForce = 850 * resp * dt;
+              for (let i = 1; i < N - 1; i++) {
+                const ratio = Math.sin((i / (N - 1)) * Math.PI);
+                this.nodes[i].vy += downForce * ratio;
+              }
+            }
+          }
+
+          // Gentle natural dorsal spine guidance when contracting (holding Space):
+          // Subtle natural muscle tension keeps the caterpillar's back arched outward cleanly without a rigid stencil!
+          if (isBending || this.contraction > 0.08) {
+            const headIdx = N - 1;
+            const chordX = this.nodes[headIdx].x - this.nodes[0].x;
+            const chordDy = this.nodes[headIdx].y - this.nodes[0].y;
+            const cLen = Math.hypot(chordX, chordDy) || 1;
+            let normX = -chordDy / cLen;
+            let normY = chordX / cLen;
+            if (normY > 0) { normX = -normX; normY = -normY; }
+
+            const naturalArchThrust = (this.contraction * 360) * dt;
+            for (let i = 1; i < N - 1; i++) {
+              const ratio = Math.sin((i / (N - 1)) * Math.PI);
+              this.nodes[i].vx += normX * naturalArchThrust * ratio;
+              this.nodes[i].vy += normY * naturalArchThrust * ratio;
+            }
+          }
+        } else {
           if (!rearLocked && !frontLocked) {
             // Free caterpillar on the ground:
             // Progressive segment-by-segment lift:
@@ -2640,7 +2634,7 @@ export class Caterpillar {
 
       // Soft Squishy Aphids
       for (const a of world.aphids) {
-        if (a.isHeld) continue;
+        if (a.isHeld || a.isDefeated) continue;
         const dx = n.x - a.x;
         const dy = n.y - a.y;
         const dist = Math.hypot(dx, dy) || 0.0001;
@@ -2678,7 +2672,7 @@ export class Caterpillar {
       // Hedgehogs (Hérissons): Spikes hurt on back/rear, safe on front snout!
       if (world.hedgehogs) {
         for (const h of world.hedgehogs) {
-          if (h.isHeld) continue;
+          if (h.isHeld || h.isDefeated) continue;
           const dx = n.x - h.x;
           const dy = n.y - h.y;
           const dist = Math.hypot(dx, dy) || 0.0001;
@@ -3148,7 +3142,7 @@ export class Caterpillar {
           sound.playGrip(isFront);
           particles.spawnSuctionRing(anchor.x, anchor.y, '#ffd93b');
           return;
-        } else if (hHit.isSpiky) {
+        } else if (hHit.isSpiky && !hHit.hedgehog.isDefeated) {
           this.takeDamage(25, hHit.nx * 340, -220, particles, sound);
           return;
         }
