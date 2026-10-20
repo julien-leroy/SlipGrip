@@ -1235,7 +1235,7 @@ export class PhysicsWorld {
       }
     }
 
-    return { cx, cy, dist, nx, ny, t, segLen, tx: dx / segLen, ty: dy / segLen };
+    return { cx, cy, dist, nx, ny, t, segLen, tx: dx / segLen, ty: dy / segLen, surfNx, surfNy };
   }
 
   // Line of sight raycast: verifies if a straight line from (x1, y1) to (x2, y2)

@@ -1617,6 +1617,15 @@ export class Caterpillar {
               this.nodes[N - 3].vx += aimDirX * headReachForce * 0.20 * midLift * dt;
               this.nodes[N - 3].vy += aimDirY * headReachForce * 0.22 * midLift * dt;
 
+              // Active uncoiling / extension thrust when releasing Space while steering forward:
+              // Guarantees the head shoots forward and leads the uncoiling instead of letting segments buckle into an escargot!
+              if (isExtending && steerX !== 0) {
+                const extLeadThrust = 1450 * resp * dt;
+                this.head.vx += aimDirX * extLeadThrust;
+                this.head.vy += aimDirY * extLeadThrust * (isLiftingFree ? 0.75 : 0.35);
+                this.nodes[N - 2].vx += aimDirX * extLeadThrust * 0.55;
+              }
+
               // 4. Rear and pelvic nodes (0 and 1) stay weighted on the ground!
               // Keeps the tail planted firmly on the floor so the body arches naturally instead of levitating like a board:
               if (isLiftingFree) {
@@ -2197,50 +2206,89 @@ export class Caterpillar {
       } else if (!rearLocked && !frontLocked) {
         let aimX = 0;
         let aimY = 0;
-        if (this.launchSpineDir) {
+        if (hasSteer) {
+          // If player is steering with arrows (e.g. right arrow), unbend directly in that direction!
+          const sDist = Math.hypot(steerX, effSteerY) || 1;
+          aimX = steerX / sDist;
+          aimY = effSteerY / sDist;
+        } else if (this.launchSpineDir) {
           aimX = this.launchSpineDir.x;
           aimY = this.launchSpineDir.y;
         } else {
-          let sDx = 0, sDy = 0;
-          for (let i = 0; i < N - 1; i++) {
-            const segDx = this.nodes[i + 1].x - this.nodes[i].x;
-            const segDy = this.nodes[i + 1].y - this.nodes[i].y;
-            const sDist = Math.hypot(segDx, segDy) || 1;
-            sDx += segDx / sDist;
-            sDy += segDy / sDist;
+          let sDx = this.head.x - this.rear.x;
+          let sDy = this.head.y - this.rear.y;
+          const sDist = Math.hypot(sDx, sDy);
+          if (sDist > 12) {
+            aimX = sDx / sDist;
+            aimY = sDy / sDist;
+          } else {
+            const fv = this.getFrontVector();
+            aimX = fv.dx;
+            aimY = fv.dy;
           }
-          const sLen = Math.hypot(sDx, sDy) || 1;
-          aimX = sDx / sLen;
-          aimY = sDy / sLen;
         }
 
-        // Center of mass as reference point for symmetric lengthwise deployment:
-        // Spreads out straight along the body direction, eliminating round curling!
-        let cx = 0, cy = 0;
-        for (let i = 0; i < N; i++) {
-          cx += this.nodes[i].x;
-          cy += this.nodes[i].y;
+        // When steering / advancing on the ground (e.g. after releasing front grip and moving right):
+        // Extend forward from the rear base towards the head, NOT by pulling head backwards towards the middle!
+        const isAdvancingOnGround = anyOnGround && (hasSteer || steerX !== 0);
+        let anchorX, anchorY;
+        if (isAdvancingOnGround) {
+          anchorX = this.nodes[0].x;
+          anchorY = this.nodes[0].y;
+        } else {
+          let cx = 0, cy = 0;
+          for (let i = 0; i < N; i++) { cx += this.nodes[i].x; cy += this.nodes[i].y; }
+          anchorX = cx / N;
+          anchorY = cy / N;
         }
-        cx /= N;
-        cy /= N;
 
         const thrust = (35 * (this.launchSpinePower || 0)) * extRatio;
         const midIdx = (N - 1) * 0.5;
 
         for (let i = 0; i < N; i++) {
-          const offsetFromMid = i - midIdx;
-          // Spring uncoiling: straightens the entire spine lengthwise along the body direction!
-          const idealX = cx + aimX * (curExtendedSegLen * offsetFromMid);
-          const idealY = cy + aimY * (curExtendedSegLen * offsetFromMid);
-          const straightenPower = 28.0 * extRatio;
-          this.nodes[i].vx += (idealX - this.nodes[i].x) * straightenPower * dt;
-          this.nodes[i].vy += (idealY - this.nodes[i].y) * straightenPower * dt;
+          let idealX, idealY;
+          if (isAdvancingOnGround) {
+            // Forward inchworm deployment: segment i extends strictly in front of segment i-1!
+            idealX = anchorX + aimX * (curExtendedSegLen * i);
+            idealY = anchorY + aimY * (curExtendedSegLen * i);
+          } else {
+            const offsetFromMid = i - midIdx;
+            idealX = anchorX + aimX * (curExtendedSegLen * offsetFromMid);
+            idealY = anchorY + aimY * (curExtendedSegLen * offsetFromMid);
+          }
+
+          const ratio = isAdvancingOnGround ? (i / (N - 1)) : 1.0;
+          const straightenPower = (28.0 + (isAdvancingOnGround ? 18.0 : 0)) * extRatio;
+          this.nodes[i].vx += (idealX - this.nodes[i].x) * straightenPower * ratio * dt;
+          this.nodes[i].vy += (idealY - this.nodes[i].y) * straightenPower * ratio * dt;
+
+          if (isAdvancingOnGround) {
+            // Active forward thrust to ensure head always stays ahead of expanding segments!
+            const headLeadThrust = 1450 * ratio * extRatio * dt;
+            this.nodes[i].vx += aimX * headLeadThrust;
+            this.nodes[i].vy += aimY * headLeadThrust;
+          }
 
           if (thrust > 0) {
             const trunkWeight = Math.sin((i / (N - 1)) * Math.PI);
-            const ratio = 0.35 * (i / (N - 1)) + 0.65 * trunkWeight;
-            this.nodes[i].vx += aimX * thrust * ratio * dt;
-            this.nodes[i].vy += aimY * thrust * ratio * dt;
+            const rThrust = 0.35 * (i / (N - 1)) + 0.65 * trunkWeight;
+            this.nodes[i].vx += aimX * thrust * rThrust * dt;
+            this.nodes[i].vy += aimY * thrust * rThrust * dt;
+          }
+        }
+
+        // Anti-escargot unroll: if body chord distance is very short while unbending/moving forward,
+        // forcefully unroll the spine forward so it cannot fold into a snail shell!
+        const chordDist = Math.hypot(this.head.x - this.rear.x, this.head.y - this.rear.y);
+        if (chordDist < this.extendedSegLen * 2.8 && !inputs.space) {
+          const uncurlDirX = steerX !== 0 ? steerX : (this.head.x >= this.rear.x ? 1 : -1);
+          const uncurlDirY = effSteerY !== 0 ? effSteerY : 0;
+          const uDist = Math.hypot(uncurlDirX, uncurlDirY) || 1;
+          const uncurlThrust = 1600 * resp * dt;
+          for (let i = 1; i < N; i++) {
+            const ratio = i / (N - 1);
+            this.nodes[i].vx += (uncurlDirX / uDist) * uncurlThrust * ratio;
+            this.nodes[i].vy += (uncurlDirY / uDist) * uncurlThrust * ratio;
           }
         }
       }
@@ -2332,10 +2380,15 @@ export class Caterpillar {
           a.x += dx * diff * stiff;
           a.y += dy * diff * stiff;
         } else if (!aPinned && !bPinned) {
-          a.x += dx * diff * stiff * 0.5;
-          a.y += dy * diff * stiff * 0.5;
-          b.x -= dx * diff * stiff * 0.5;
-          b.y -= dy * diff * stiff * 0.5;
+          let wB = 0.5;
+          if (diff < 0 && (isExtending || (hasSteer && steerX !== 0))) {
+            wB = 0.72; // Forward extension towards head
+          }
+          const wA = 1.0 - wB;
+          a.x += dx * diff * stiff * wA;
+          a.y += dy * diff * stiff * wA;
+          b.x -= dx * diff * stiff * wB;
+          b.y -= dy * diff * stiff * wB;
         }
       }
 
@@ -2464,11 +2517,20 @@ export class Caterpillar {
           const isPinned = (i === 0 && this.rearAnchor.anchored) || (i === N - 1 && this.frontAnchor.anchored);
 
           if (!isPinned) {
-            if (seg.material !== 'moss' && slopeGrade <= 0.30 && cp.ny < -0.5) {
-              n.x += cp.nx * overlap;
-              n.y += cp.ny * overlap;
+            let colNx = cp.nx;
+            let colNy = cp.ny;
+            if (!seg.isGroundMass && cp.surfNy !== undefined && cp.surfNy < -0.3) {
+              if (n.y <= cp.cy + n.r * 0.7 || n.vy >= -30) {
+                colNx = cp.surfNx;
+                colNy = cp.surfNy;
+              }
+            }
 
-              const vn = n.vx * cp.nx + n.vy * cp.ny;
+            if (seg.material !== 'moss' && slopeGrade <= 0.30 && colNy < -0.5) {
+              n.x += colNx * overlap;
+              n.y += colNy * overlap;
+
+              const vn = n.vx * colNx + n.vy * colNy;
               const vt = n.vx * cp.tx + n.vy * cp.ty;
               const newVn = vn < 0 ? -vn * mat.restitution * 0.3 : vn;
 
@@ -2480,17 +2542,17 @@ export class Caterpillar {
                 newVt = 0;
               }
 
-              n.vx = cp.nx * newVn + cp.tx * newVt;
-              n.vy = cp.ny * newVn + cp.ty * newVt;
+              n.vx = colNx * newVn + cp.tx * newVt;
+              n.vy = colNy * newVn + cp.ty * newVt;
               if (!hasSteer && !isHopping && !isExtending && !isBending && Math.abs(newVt) === 0 && vn <= 0) {
                 n.vx = 0;
                 n.vy = 0;
               }
             } else {
-              n.x += cp.nx * overlap;
-              n.y += cp.ny * overlap;
+              n.x += colNx * overlap;
+              n.y += colNy * overlap;
 
-              const vn = n.vx * cp.nx + n.vy * cp.ny;
+              const vn = n.vx * colNx + n.vy * colNy;
               const vt = n.vx * cp.tx + n.vy * cp.ty;
               const newVn = vn < 0 ? -vn * mat.restitution : vn;
 
@@ -2504,8 +2566,8 @@ export class Caterpillar {
                 newVt = vt * Math.max(0, 1 - damping * dt);
               }
 
-              n.vx = cp.nx * newVn + cp.tx * newVt;
-              n.vy = cp.ny * newVn + cp.ty * newVt;
+              n.vx = colNx * newVn + cp.tx * newVt;
+              n.vy = colNy * newVn + cp.ty * newVt;
             }
           }
         }
@@ -2750,6 +2812,103 @@ export class Caterpillar {
             const tny = tdy / tdist;
             this.takeDamage(15, tnx * 280, Math.min(-180, tny * 260), particles, sound);
             break;
+          }
+        }
+      }
+    }
+
+    // 2. Segment Link Collision Resolution with Platforms (guarantees the spine between nodes cannot pierce or pass through platforms!)
+    for (let i = 0; i < N - 1; i++) {
+      const a = this.nodes[i];
+      const b = this.nodes[i + 1];
+      const segDx = b.x - a.x;
+      const segDy = b.y - a.y;
+      const segLen = Math.hypot(segDx, segDy);
+      if (segLen < 0.001) continue;
+
+      const midX = (a.x + b.x) * 0.5;
+      const midY = (a.y + b.y) * 0.5;
+      const sampleR = (a.r + b.r) * 0.5;
+
+      const aPinned = (i === 0 && this.rearAnchor.anchored);
+      const bPinned = (i + 1 === N - 1 && this.frontAnchor.anchored);
+
+      // A. Sample points along segment: midpoint (t=0.5) and extra points if segment is stretched
+      const numSamples = segLen > 20 ? 3 : 1;
+      const tValues = numSamples === 3 ? [0.25, 0.50, 0.75] : [0.50];
+
+      for (const t of tValues) {
+        const sx = a.x + segDx * t;
+        const sy = a.y + segDy * t;
+        const sr = (a.r * (1 - t) + b.r * t);
+
+        const candidates = world.getAllSegmentsNear(sx, sy, sr + 24);
+        for (const seg of candidates) {
+          const cp = world.closestPointOnSegment(sx, sy, seg);
+          const minDist = sr + (seg.thickness || 20) * 0.5;
+
+          if (cp.dist < minDist) {
+            const overlap = minDist - cp.dist;
+            let colNx = cp.nx;
+            let colNy = cp.ny;
+            if (!seg.isGroundMass && cp.surfNy !== undefined && cp.surfNy < -0.3) {
+              if (sy <= cp.cy + sr * 0.7 || ((a.vy + b.vy) * 0.5 >= -30)) {
+                colNx = cp.surfNx;
+                colNy = cp.surfNy;
+              }
+            }
+
+            const wA = aPinned ? 0 : (bPinned ? 1.0 : (1 - t));
+            const wB = bPinned ? 0 : (aPinned ? 1.0 : t);
+            const sumW = wA + wB || 1.0;
+
+            a.x += colNx * overlap * (wA / sumW);
+            a.y += colNy * overlap * (wA / sumW);
+            b.x += colNx * overlap * (wB / sumW);
+            b.y += colNy * overlap * (wB / sumW);
+
+            // Cancel inward velocity
+            const vnA = a.vx * colNx + a.vy * colNy;
+            if (vnA < 0) {
+              a.vx -= colNx * vnA;
+              a.vy -= colNy * vnA;
+            }
+            const vnB = b.vx * colNx + b.vy * colNy;
+            if (vnB < 0) {
+              b.vx -= colNx * vnB;
+              b.vy -= colNy * vnB;
+            }
+          }
+        }
+      }
+
+      // B. Line segment crossing test: detects if segment (a, b) physically intersects a platform segment
+      const candidates = world.getAllSegmentsNear(midX, midY, segLen + 20);
+      for (const seg of candidates) {
+        const d = (b.x - a.x) * (seg.y2 - seg.y1) - (b.y - a.y) * (seg.x2 - seg.x1);
+        if (Math.abs(d) > 0.0001) {
+          const tLine = ((seg.x1 - a.x) * (seg.y2 - seg.y1) - (seg.y1 - a.y) * (seg.x2 - seg.x1)) / d;
+          const uLine = -((b.x - a.x) * (seg.y1 - a.y) - (b.y - a.y) * (seg.x1 - a.x)) / d;
+          if (tLine >= 0 && tLine <= 1 && uLine >= 0 && uLine <= 1) {
+            // Piercing detected! Push nodes out along platform surface normal
+            const sDx = seg.x2 - seg.x1;
+            const sDy = seg.y2 - seg.y1;
+            const sL = Math.hypot(sDx, sDy) || 1;
+            const pNx = sDy / sL;
+            const pNy = -sDx / sL;
+            const clearPush = (sampleR + (seg.thickness || 20) * 0.5) * 1.1;
+            if (!aPinned) {
+              a.x += pNx * clearPush * 0.5;
+              a.y += pNy * clearPush * 0.5;
+              const vnA = a.vx * pNx + a.vy * pNy;
+              if (vnA < 0) { a.vx -= pNx * vnA; a.vy -= pNy * vnA; }
+            }
+            if (!bPinned) {
+              b.x += pNx * clearPush * 0.5;
+              b.y += pNy * clearPush * 0.5;
+              const vnB = b.vx * pNx + b.vy * pNy;
+              if (vnB < 0) { b.vx -= pNx * vnB; b.vy -= pNy * vnB; }
+            }
           }
         }
       }
