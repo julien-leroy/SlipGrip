@@ -1,10 +1,10 @@
 // js/main.js — Main Game Loop, Hold-to-Grip Input Controller, Multiplayer Sync, Checkpoints, Camera & HUD Manager
 
-import { PhysicsWorld } from './physics.js?v=73';
-import { Caterpillar } from './caterpillar.js?v=73';
-import { ParticleSystem } from './particles.js?v=73';
-import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=73';
-import { sound } from './audio.js?v=73';
+import { PhysicsWorld } from './physics.js?v=75';
+import { Caterpillar } from './caterpillar.js?v=75';
+import { ParticleSystem } from './particles.js?v=75';
+import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=75';
+import { sound } from './audio.js?v=75';
 import {
   GAMEPLAY_CONFIG,
   GAMEPLAY_PRESETS,
@@ -13,9 +13,9 @@ import {
   resetGameplayConfig,
   saveAsDefaultGameplayConfig,
   GRIP_STYLES
-} from './gameplayConfig.js?v=73';
-import { NetworkManager } from './network.js?v=73';
-import { UIManager } from './uiManager.js?v=73';
+} from './gameplayConfig.js?v=75';
+import { NetworkManager } from './network.js?v=75';
+import { UIManager } from './uiManager.js?v=75';
 
 class SlipGripGame {
   constructor() {
@@ -62,6 +62,10 @@ class SlipGripGame {
       focusY: this.level.startY - 40,
       scale: 0.62
     };
+
+    this.introCinematicTimer = 0;
+    this.introCinematicDuration = 3.2;
+    this.introCountdownStage = -1;
 
     this.globalTime = 0;
     this.lastFrameTime = performance.now();
@@ -222,6 +226,7 @@ class SlipGripGame {
       this.ui.elMultiMarkers.innerHTML = '';
     }
     this.loadLevel(this.currentLevelIndex);
+    this.startIntroCinematic(this.level.name);
   }
 
   startMultiplayerRace(msg) {
@@ -290,7 +295,7 @@ class SlipGripGame {
     });
 
     this.world.caterpillars = [this.caterpillar, ...this.remoteCaterpillars.values()];
-    this.raceStarted = true;
+    this.raceStarted = false;
     this.raceFinished = false;
     this.raceTime = 0;
 
@@ -311,6 +316,46 @@ class SlipGripGame {
         '#ffd93b'
       );
     }
+
+    this.startIntroCinematic(this.level.name);
+  }
+
+  startIntroCinematic(mapName) {
+    this.introCinematicTimer = 3.2;
+    this.introCinematicDuration = 3.2;
+    this.introCountdownStage = 4;
+    this.raceStarted = false;
+
+    // Firmly anchor the caterpillar feet on the start line
+    if (this.caterpillar.rearAnchor) this.caterpillar.rearAnchor.anchored = true;
+    if (this.caterpillar.frontAnchor) this.caterpillar.frontAnchor.anchored = true;
+    if (this.caterpillar.rear) {
+      this.caterpillar.rear.vx = 0;
+      this.caterpillar.rear.vy = 0;
+    }
+    if (this.caterpillar.head) {
+      this.caterpillar.head.vx = 0;
+      this.caterpillar.head.vy = 0;
+    }
+
+    // Camera starts zoomed out (scale 0.38) and positioned slightly ahead to preview the upcoming track
+    this.camera.scale = 0.38;
+    const com = this.caterpillar.centerOfMass;
+    this.camera.focusX = com.x + 360;
+    this.camera.focusY = com.y - 80;
+
+    const overlay = document.getElementById('race-countdown-overlay');
+    const mapEl = document.getElementById('race-countdown-map');
+    const subEl = document.getElementById('race-countdown-sub');
+    const textEl = document.getElementById('race-countdown-text');
+
+    if (mapEl) mapEl.textContent = mapName || this.level.name;
+    if (subEl) subEl.textContent = 'À VOS MARQUES...';
+    if (textEl) {
+      textEl.textContent = '3';
+      textEl.className = 'race-countdown-text';
+    }
+    if (overlay) overlay.classList.remove('hidden');
   }
 
   cacheDomElements() {
@@ -1129,11 +1174,105 @@ class SlipGripGame {
       this.raceTime += dt;
     }
 
+    // Race Start Intro Cinematic & Arcade Countdown
+    if (this.introCinematicTimer > -0.6) {
+      this.introCinematicTimer -= dt;
+      const duration = this.introCinematicDuration || 3.2;
+      const p = Math.max(0, Math.min(1, 1 - (this.introCinematicTimer / duration)));
+      // Cubic ease-in-out smoothstep
+      const smoothP = p * p * (3 - 2 * p);
+
+      // Smoothly zoom in from 0.38 to 0.62
+      this.camera.scale = 0.38 + (0.62 - 0.38) * smoothP;
+
+      const com = this.caterpillar.centerOfMass;
+      const startFocusX = com.x + 360;
+      const startFocusY = com.y - 80;
+      const targetFocusX = com.x + 120;
+      const targetFocusY = com.y - 30;
+
+      this.camera.focusX = startFocusX + (targetFocusX - startFocusX) * smoothP;
+      this.camera.focusY = startFocusY + (targetFocusY - startFocusY) * smoothP;
+
+      const overlay = document.getElementById('race-countdown-overlay');
+      const textEl = document.getElementById('race-countdown-text');
+      const subEl = document.getElementById('race-countdown-sub');
+
+      // Countdown stages (3 -> 2 -> 1 -> PARTEZ !)
+      if (this.introCinematicTimer > 2.2) {
+        if (this.introCountdownStage !== 3) {
+          this.introCountdownStage = 3;
+          if (textEl) {
+            textEl.textContent = '3';
+            textEl.className = 'race-countdown-text';
+          }
+          if (subEl) subEl.textContent = 'À VOS MARQUES...';
+          sound.playCountdownPip(false);
+        }
+      } else if (this.introCinematicTimer > 1.2) {
+        if (this.introCountdownStage !== 2) {
+          this.introCountdownStage = 2;
+          if (textEl) {
+            textEl.textContent = '2';
+            textEl.className = 'race-countdown-text';
+          }
+          if (subEl) subEl.textContent = 'PRÊTS...';
+          sound.playCountdownPip(false);
+        }
+      } else if (this.introCinematicTimer > 0.2) {
+        if (this.introCountdownStage !== 1) {
+          this.introCountdownStage = 1;
+          if (textEl) {
+            textEl.textContent = '1';
+            textEl.className = 'race-countdown-text';
+          }
+          if (subEl) subEl.textContent = 'ATTENTION...';
+          sound.playCountdownPip(false);
+        }
+      } else if (this.introCinematicTimer > -0.6) {
+        if (this.introCountdownStage !== 0) {
+          this.introCountdownStage = 0;
+          this.raceStarted = true;
+          if (textEl) {
+            textEl.textContent = 'PARTEZ ! 🏁';
+            textEl.className = 'race-countdown-text go';
+          }
+          if (subEl) subEl.textContent = "C'EST PARTI !";
+          sound.playCountdownPip(true);
+          this.particles.spawnConfetti(com.x, com.y - 40, 24);
+        }
+      }
+
+      if (this.introCinematicTimer <= -0.6) {
+        if (overlay) overlay.classList.add('hidden');
+        this.introCinematicTimer = -1;
+      }
+    }
+
     // Keep world caterpillars list up to date for shared PvP physics
     this.world.caterpillars = [this.caterpillar, ...this.remoteCaterpillars.values()];
 
     this.world.update(dt, this.particles);
-    this.caterpillar.update(dt, this.world, this.inputs, this.particles);
+
+    // Suppress movement inputs during countdown until GO
+    const effectiveInputs = (this.introCinematicTimer > 0.2)
+      ? { front: false, rear: false, space: false, left: false, right: false, up: false, down: false }
+      : this.inputs;
+
+    if (this.introCinematicTimer > 0.2) {
+      if (this.caterpillar.rearAnchor) this.caterpillar.rearAnchor.anchored = true;
+      if (this.caterpillar.frontAnchor) this.caterpillar.frontAnchor.anchored = true;
+      if (this.caterpillar.rear) {
+        this.caterpillar.rear.vx = 0;
+        this.caterpillar.rear.vy = 0;
+      }
+      if (this.caterpillar.head) {
+        this.caterpillar.head.vx = 0;
+        this.caterpillar.head.vy = 0;
+      }
+    }
+
+    this.caterpillar.update(dt, this.world, effectiveInputs, this.particles);
 
     // Update remote caterpillars interpolation
     for (const rCat of this.remoteCaterpillars.values()) {
@@ -1181,21 +1320,24 @@ class SlipGripGame {
       }
     }
 
-    // Ultra-calm Deadzone Camera
-    const deadzoneRight = 160;
-    const deadzoneLeft = 140;
-    const deadzoneY = 140;
+    // Ultra-calm Deadzone Camera (active after intro cinematic)
+    if (this.introCinematicTimer <= 0) {
+      this.camera.scale = 0.62;
+      const deadzoneRight = 160;
+      const deadzoneLeft = 140;
+      const deadzoneY = 140;
 
-    if (com.x > this.camera.focusX + deadzoneRight) {
-      this.camera.focusX = com.x - deadzoneRight;
-    } else if (com.x < this.camera.focusX - deadzoneLeft) {
-      this.camera.focusX = com.x + deadzoneLeft;
-    }
+      if (com.x > this.camera.focusX + deadzoneRight) {
+        this.camera.focusX = com.x - deadzoneRight;
+      } else if (com.x < this.camera.focusX - deadzoneLeft) {
+        this.camera.focusX = com.x + deadzoneLeft;
+      }
 
-    if (com.y > this.camera.focusY + deadzoneY) {
-      this.camera.focusY = com.y - deadzoneY;
-    } else if (com.y < this.camera.focusY - deadzoneY) {
-      this.camera.focusY = com.y + deadzoneY;
+      if (com.y > this.camera.focusY + deadzoneY) {
+        this.camera.focusY = com.y - deadzoneY;
+      } else if (com.y < this.camera.focusY - deadzoneY) {
+        this.camera.focusY = com.y + deadzoneY;
+      }
     }
 
     const viewW = this.canvas.width / this.camera.scale;
@@ -1204,8 +1346,8 @@ class SlipGripGame {
     const targetCamX = this.camera.focusX - viewW * 0.36;
     const targetCamY = this.camera.focusY - viewH * 0.58;
 
-    this.camera.x += (targetCamX - this.camera.x) * Math.min(1, dt * 1.8);
-    this.camera.y += (targetCamY - this.camera.y) * Math.min(1, dt * 1.5);
+    this.camera.x += (targetCamX - this.camera.x) * Math.min(1, dt * 2.2);
+    this.camera.y += (targetCamY - this.camera.y) * Math.min(1, dt * 2.0);
     this.camera.y = Math.max(-360, Math.min(200, this.camera.y));
 
     this.updateHUD(dt);

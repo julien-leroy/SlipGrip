@@ -265,6 +265,53 @@ function pickDraftOptions(count = 3) {
   return pool.slice(0, count);
 }
 
+function startRoomDraftTimer(room) {
+  if (!room) return;
+  if (room.draftTimerHandle) clearTimeout(room.draftTimerHandle);
+  if (room.autoLaunchTimerHandle) clearTimeout(room.autoLaunchTimerHandle);
+
+  room.draftStartedAt = Date.now();
+  room.draftDurationSec = 15;
+
+  room.draftTimerHandle = setTimeout(() => {
+    room.draftTimerHandle = null;
+    if (room.state !== 'draft') return;
+
+    // Auto-pick random modifier for any unchosen non-winner (or solo player)
+    for (const pl of room.players.values()) {
+      const eligible = (pl.lastRank > 1) || (room.players.size === 1);
+      if (eligible && !pl.draftChoice) {
+        const pool = (pl.draftOptions && pl.draftOptions.length > 0) ? pl.draftOptions : ALL_MODIFIER_IDS;
+        const autoMod = pool[Math.floor(Math.random() * pool.length)];
+        pl.draftChoice = autoMod;
+        pl.modifiers = pl.modifiers || [];
+        pl.modifiers.push(autoMod);
+
+        broadcastRoom(room, 'modifier_selected', {
+          playerId: pl.id,
+          pseudo: pl.pseudo,
+          modifierId: autoMod,
+          modifiers: pl.modifiers,
+          autoPicked: true,
+          room: serializeRoom(room)
+        });
+      }
+    }
+
+    broadcastRoom(room, 'draft_all_ready', { room: serializeRoom(room), autoPicked: true });
+
+    room.autoLaunchTimerHandle = setTimeout(() => {
+      room.autoLaunchTimerHandle = null;
+      if (room.state === 'draft') {
+        const nextIdx = (room.raceIndex || 0) + 1;
+        if (nextIdx < 3) {
+          launchRoomRace(room, nextIdx);
+        }
+      }
+    }, 1200);
+  }, 15000);
+}
+
 // Conclude current race and transition to Draft (after race 1 or 2) or Podium (after race 3)
 function concludeRoomRace(room) {
   if (!room || room.state !== 'racing') return;
@@ -273,16 +320,16 @@ function concludeRoomRace(room) {
     room.raceTimerHandle = null;
   }
 
-  // Sort players: finished players ordered by finishOrder, then unfinished ordered by progress desc
   const playersArr = Array.from(room.players.values());
+  // Sort players: finished players ordered by finishOrder, then unfinished ordered by progress desc
   playersArr.sort((a, b) => {
-    if (a.finished && b.finished) return a.finishOrder - b.finishOrder;
+    if (a.finished && b.finished) return (a.finishOrder || 99) - (b.finishOrder || 99);
     if (a.finished && !b.finished) return -1;
     if (!a.finished && b.finished) return 1;
     return (b.progress || 0) - (a.progress || 0);
   });
 
-  const pointsTable = [10, 6, 4, 2, 1, 1, 1, 1];
+  const pointsTable = [10, 6, 4, 3, 2, 1];
   const raceStandings = [];
 
   playersArr.forEach((p, idx) => {
@@ -324,8 +371,10 @@ function concludeRoomRace(room) {
     broadcastRoom(room, 'cup_draft_start', {
       raceIndex: room.raceIndex,
       standings: raceStandings,
+      draftDuration: 15,
       room: serializeRoom(room)
     });
+    startRoomDraftTimer(room);
     broadcastLobbyList();
   } else {
     // Race 3 finished -> Final Cup Podium & Cosmetic Gift for the Champion!
@@ -361,6 +410,14 @@ function launchRoomRace(room, raceIndex) {
   if (room.raceTimerHandle) {
     clearTimeout(room.raceTimerHandle);
     room.raceTimerHandle = null;
+  }
+  if (room.draftTimerHandle) {
+    clearTimeout(room.draftTimerHandle);
+    room.draftTimerHandle = null;
+  }
+  if (room.autoLaunchTimerHandle) {
+    clearTimeout(room.autoLaunchTimerHandle);
+    room.autoLaunchTimerHandle = null;
   }
 
   const cup = CUPS_CATALOG[room.config.cupId] || CUPS_CATALOG.potager_geant;
@@ -400,11 +457,38 @@ function removeClientFromRoom(client) {
   room.players.delete(client.id);
   if (room.players.size === 0) {
     if (room.raceTimerHandle) clearTimeout(room.raceTimerHandle);
+    if (room.draftTimerHandle) clearTimeout(room.draftTimerHandle);
+    if (room.autoLaunchTimerHandle) clearTimeout(room.autoLaunchTimerHandle);
     rooms.delete(code);
   } else {
     if (room.hostId === client.id) {
       const nextHost = room.players.keys().next().value;
       room.hostId = nextHost;
+    }
+    // If room is in draft, check if remaining players have all chosen
+    if (room.state === 'draft' && !room.autoLaunchTimerHandle) {
+      let allChosen = true;
+      for (const pl of room.players.values()) {
+        const eligible = (pl.lastRank > 1) || (room.players.size === 1);
+        if (eligible && !pl.draftChoice) {
+          allChosen = false;
+          break;
+        }
+      }
+      if (allChosen) {
+        if (room.draftTimerHandle) {
+          clearTimeout(room.draftTimerHandle);
+          room.draftTimerHandle = null;
+        }
+        broadcastRoom(room, 'draft_all_ready', { room: serializeRoom(room) });
+        room.autoLaunchTimerHandle = setTimeout(() => {
+          room.autoLaunchTimerHandle = null;
+          if (room.state === 'draft') {
+            const nextIdx = (room.raceIndex || 0) + 1;
+            if (nextIdx < 3) launchRoomRace(room, nextIdx);
+          }
+        }, 1200);
+      }
     }
     broadcastRoom(room, 'room_state', { room: serializeRoom(room) });
   }
@@ -723,19 +807,36 @@ function handleWsMessage(client, msg) {
         pseudo: p.pseudo,
         modifierId: modId,
         modifiers: p.modifiers,
+        autoPicked: false,
         room: serializeRoom(room)
       });
 
-      // Check if all non-1st players have made their choice
+      // Check if all eligible players have made their choice
       let allChosen = true;
       for (const pl of room.players.values()) {
-        if (pl.lastRank > 1 && !pl.draftChoice) {
+        const eligible = (pl.lastRank > 1) || (room.players.size === 1);
+        if (eligible && !pl.draftChoice) {
           allChosen = false;
           break;
         }
       }
       if (allChosen) {
-        broadcastRoom(room, 'draft_all_ready', { room: serializeRoom(room) });
+        if (room.draftTimerHandle) {
+          clearTimeout(room.draftTimerHandle);
+          room.draftTimerHandle = null;
+        }
+        broadcastRoom(room, 'draft_all_ready', { room: serializeRoom(room), autoPicked: false });
+
+        if (room.autoLaunchTimerHandle) clearTimeout(room.autoLaunchTimerHandle);
+        room.autoLaunchTimerHandle = setTimeout(() => {
+          room.autoLaunchTimerHandle = null;
+          if (room.state === 'draft') {
+            const nextIdx = (room.raceIndex || 0) + 1;
+            if (nextIdx < 3) {
+              launchRoomRace(room, nextIdx);
+            }
+          }
+        }, 1500);
       }
       break;
     }
@@ -745,10 +846,21 @@ function handleWsMessage(client, msg) {
       const room = rooms.get(client.roomCode);
       if (!room || room.hostId !== client.id) return;
 
-      // Auto-assign random modifier to any non-1st player who hasn't picked yet
+      if (room.draftTimerHandle) {
+        clearTimeout(room.draftTimerHandle);
+        room.draftTimerHandle = null;
+      }
+      if (room.autoLaunchTimerHandle) {
+        clearTimeout(room.autoLaunchTimerHandle);
+        room.autoLaunchTimerHandle = null;
+      }
+
+      // Auto-assign random modifier to any unchosen eligible player
       for (const pl of room.players.values()) {
-        if (pl.lastRank > 1 && !pl.draftChoice && pl.draftOptions && pl.draftOptions.length > 0) {
-          const autoMod = pl.draftOptions[0];
+        const eligible = (pl.lastRank > 1) || (room.players.size === 1);
+        if (eligible && !pl.draftChoice) {
+          const pool = (pl.draftOptions && pl.draftOptions.length > 0) ? pl.draftOptions : ALL_MODIFIER_IDS;
+          const autoMod = pool[0];
           pl.draftChoice = autoMod;
           pl.modifiers = pl.modifiers || [];
           pl.modifiers.push(autoMod);

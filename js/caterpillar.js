@@ -602,6 +602,10 @@ export class Caterpillar {
     return this.nodes && this.nodes.length > 0 ? this.nodes[0] : null;
   }
 
+  get tail() {
+    return this.rear;
+  }
+
   get head() {
     return this.nodes && this.nodes.length > 0 ? this.nodes[this.nodes.length - 1] : null;
   }

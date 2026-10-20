@@ -7,12 +7,21 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=73" />
+  <link rel="stylesheet" href="styles.css?v=75" />
 </head>
 <body>
   <div id="game-wrapper">
     <!-- Main 2D Game Canvas -->
     <canvas id="game-canvas"></canvas>
+
+    <!-- Race Start Intro Cinematic & Arcade Countdown Overlay -->
+    <div id="race-countdown-overlay" class="race-countdown-overlay hidden">
+      <div class="race-countdown-box">
+        <span id="race-countdown-map" class="race-countdown-map">🌳 1. L’Orée des Chênes</span>
+        <span id="race-countdown-sub" class="race-countdown-sub">À VOS MARQUES...</span>
+        <span id="race-countdown-text" class="race-countdown-text">3</span>
+      </div>
+    </div>
 
     <!-- Top HUD: Level Info, Race Timer & Best Records -->
     <header id="hud-top" class="hidden">
@@ -549,6 +558,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=73"></script>
+  <script type="module" src="js/main.js?v=75"></script>
 </body>
 </html>

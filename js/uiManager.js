@@ -358,6 +358,7 @@ export class UIManager {
         <div class="modal-card mp-results-card dark-glass-panel">
           <div class="panel-wood-header big-wood-header">
             <span id="results-modal-title">🏁 RÉSULTATS DE LA COURSE 1 / 3</span>
+            <span id="results-draft-timer" class="draft-timer-pill">⏱️ 15s</span>
             <span id="results-draft-status" class="pill-badge gold-pill">Choix des bonus en cours...</span>
           </div>
 
@@ -373,7 +374,7 @@ export class UIManager {
               <div id="draft-eligible-panel">
                 <h3>⚡ BONUS DE RATTRAPAGE (CHOISISSEZ 1 MODIFICATEUR)</h3>
                 <p class="draft-subtitle">
-                  Choisissez un modificateur cumulable pour votre chenille sur les courses suivantes !
+                  Choisissez un modificateur cumulable pour votre chenille sur les courses suivantes ! (Sélection automatique après 15s)
                 </p>
                 <div id="draft-cards-container" class="draft-cards-grid"></div>
               </div>
@@ -389,6 +390,9 @@ export class UIManager {
           </div>
 
           <div class="modal-buttons">
+            <div id="results-auto-launch-msg" class="results-auto-launch-msg">
+              ⏳ La course suivante démarre dès que tous les choix sont faits (ou à la fin des 15s).
+            </div>
             <button id="btn-host-next-race" class="cartoon-btn green-btn hidden">
               ▶ Lancer la Course Suivante (Admin)
             </button>
@@ -679,6 +683,10 @@ export class UIManager {
         clearInterval(this.countdownInterval);
         this.countdownInterval = null;
       }
+      if (this.draftTimerInterval) {
+        clearInterval(this.draftTimerInterval);
+        this.draftTimerInterval = null;
+      }
       document.getElementById('modal-race-results')?.classList.add('hidden');
       document.getElementById('modal-cup-podium')?.classList.add('hidden');
       this.showScreen('game');
@@ -721,9 +729,17 @@ export class UIManager {
     });
 
     this.network.on('draft_all_ready', () => {
+      if (this.draftTimerInterval) {
+        clearInterval(this.draftTimerInterval);
+        this.draftTimerInterval = null;
+      }
+      const timerEl = document.getElementById('results-draft-timer');
+      if (timerEl) {
+        timerEl.textContent = '⏱️ 0s';
+      }
       const statusEl = document.getElementById('results-draft-status');
       if (statusEl) {
-        statusEl.textContent = '✅ Tous les joueurs ont choisi leur modificateur !';
+        statusEl.textContent = '🚀 Choix terminés ! Lancement de la course suivante...';
       }
     });
 
@@ -731,6 +747,10 @@ export class UIManager {
       if (this.countdownInterval) {
         clearInterval(this.countdownInterval);
         this.countdownInterval = null;
+      }
+      if (this.draftTimerInterval) {
+        clearInterval(this.draftTimerInterval);
+        this.draftTimerInterval = null;
       }
       document.getElementById('mp-finish-countdown-banner')?.classList.add('hidden');
       document.getElementById('modal-race-results')?.classList.add('hidden');
@@ -1223,6 +1243,34 @@ export class UIManager {
     const winnerPanel = document.getElementById('draft-winner-panel');
     const cardsContainer = document.getElementById('draft-cards-container');
 
+    // Start 15s visual countdown on results modal
+    if (this.draftTimerInterval) {
+      clearInterval(this.draftTimerInterval);
+      this.draftTimerInterval = null;
+    }
+
+    let secondsRemaining = msg.draftDuration || 15;
+    const timerEl = document.getElementById('results-draft-timer');
+    if (timerEl) {
+      timerEl.textContent = `⏱️ ${secondsRemaining}s`;
+      timerEl.classList.remove('hidden');
+    }
+
+    this.draftTimerInterval = setInterval(() => {
+      secondsRemaining--;
+      if (timerEl) {
+        timerEl.textContent = `⏱️ ${Math.max(0, secondsRemaining)}s`;
+      }
+      if (secondsRemaining <= 0) {
+        clearInterval(this.draftTimerInterval);
+        this.draftTimerInterval = null;
+        if (!this.selectedModifierId && myChoices.length > 0) {
+          const autoMod = myChoices[Math.floor(Math.random() * myChoices.length)];
+          this.selectModifierChoice(autoMod, cardsContainer);
+        }
+      }
+    }, 1000);
+
     if (isFirstPlaceNoDraft || myChoices.length === 0) {
       eligiblePanel?.classList.add('hidden');
       winnerPanel?.classList.remove('hidden');
@@ -1245,21 +1293,13 @@ export class UIManager {
           `;
         }).join('');
 
-        cardsContainer.querySelectorAll('.draft-mod-card').forEach(card => {
-          card.addEventListener('click', () => {
-            if (this.selectedModifierId) return;
-            const modId = card.dataset.mod;
-            this.selectedModifierId = modId;
-            cardsContainer.querySelectorAll('.draft-mod-card').forEach(c => {
-              c.classList.toggle('selected', c === card);
-              c.classList.toggle('dimmed', c !== card);
-            });
-            const pill = card.querySelector('.dmc-select-pill');
-            if (pill) pill.textContent = '✅ BONUS SÉLECTIONNÉ !';
-            sound.playPowerUp();
-            this.network.selectModifier(modId);
-          });
-        });
+        // Event delegation for clicks on draft cards
+        cardsContainer.onclick = (e) => {
+          const card = e.target.closest('.draft-mod-card');
+          if (!card || this.selectedModifierId) return;
+          const modId = card.dataset.mod;
+          this.selectModifierChoice(modId, cardsContainer);
+        };
       }
     }
 
@@ -1267,6 +1307,24 @@ export class UIManager {
     if (btnNext) {
       btnNext.classList.toggle('hidden', !this.network.isHost());
     }
+  }
+
+  selectModifierChoice(modId, cardsContainer) {
+    if (this.selectedModifierId) return;
+    this.selectedModifierId = modId;
+    if (cardsContainer) {
+      cardsContainer.querySelectorAll('.draft-mod-card').forEach(c => {
+        const isMatch = c.dataset.mod === modId;
+        c.classList.toggle('selected', isMatch);
+        c.classList.toggle('dimmed', !isMatch);
+        if (isMatch) {
+          const pill = c.querySelector('.dmc-select-pill');
+          if (pill) pill.textContent = '✅ BONUS SÉLECTIONNÉ !';
+        }
+      });
+    }
+    sound.playPowerUp();
+    this.network.selectModifier(modId);
   }
 
   // ==================== FINAL CUP PODIUM & COSMETIC GIFT MODAL ====================

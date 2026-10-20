@@ -272,6 +272,41 @@ class SoundManager {
       osc.stop(now + times[i] + durs[i] + 0.02);
     });
   }
+
+  // Arcade race countdown beep (Mario Kart style 3-2-1-PARTEZ)
+  playCountdownPip(isFinal = false) {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    if (!isFinal) {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(466.16, now); // Bb4
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.18);
+    } else {
+      const freqs = [932.33, 1174.66, 1396.91]; // Bb5 major chord fanfare
+      freqs.forEach((f) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(f, now);
+        gain.gain.setValueAtTime(0.28, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.48);
+      });
+    }
+  }
 }
 
 export const sound = new SoundManager();
