@@ -1,10 +1,10 @@
 // js/main.js — Main Game Loop, Hold-to-Grip Input Controller, Multiplayer Sync, Checkpoints, Camera & HUD Manager
 
-import { PhysicsWorld } from './physics.js?v=79';
-import { Caterpillar } from './caterpillar.js?v=79';
-import { ParticleSystem } from './particles.js?v=79';
-import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=79';
-import { sound } from './audio.js?v=79';
+import { PhysicsWorld } from './physics.js?v=80';
+import { Caterpillar } from './caterpillar.js?v=80';
+import { ParticleSystem } from './particles.js?v=80';
+import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=80';
+import { sound } from './audio.js?v=80';
 import {
   GAMEPLAY_CONFIG,
   GAMEPLAY_PRESETS,
@@ -13,9 +13,9 @@ import {
   resetGameplayConfig,
   saveAsDefaultGameplayConfig,
   GRIP_STYLES
-} from './gameplayConfig.js?v=79';
-import { NetworkManager } from './network.js?v=79';
-import { UIManager } from './uiManager.js?v=79';
+} from './gameplayConfig.js?v=80';
+import { NetworkManager } from './network.js?v=80';
+import { UIManager } from './uiManager.js?v=80';
 
 class SlipGripGame {
   constructor() {
@@ -181,6 +181,193 @@ class SlipGripGame {
         );
       }
     });
+
+    this.network.on('remote_world_sync', (msg) => {
+      if (!this.isMultiplayer) return;
+      if (this.network.isHost()) return;
+      if (msg && msg.worldState) {
+        this.applyRemoteWorldSync(msg.worldState);
+      }
+    });
+  }
+
+  serializeWorldState() {
+    const aphids = (this.world.aphids || []).map(a => ({
+      id: a.id,
+      x: Math.round(a.x),
+      y: Math.round(a.y),
+      vx: Math.round(a.vx),
+      vy: Math.round(a.vy),
+      hp: a.hp,
+      isDefeated: !!a.isDefeated,
+      isHeld: !!a.isHeld,
+      isFlying: !!a.isFlying,
+      facing: a.facing
+    }));
+
+    const hedgehogs = (this.world.hedgehogs || []).map(h => ({
+      id: h.id,
+      x: Math.round(h.x),
+      y: Math.round(h.y),
+      vx: Math.round(h.vx),
+      vy: Math.round(h.vy),
+      hp: h.hp,
+      isDefeated: !!h.isDefeated,
+      isHeld: !!h.isHeld,
+      isFlying: !!h.isFlying,
+      facing: h.facing
+    }));
+
+    const props = (this.world.props || []).map(p => ({
+      id: p.id,
+      x: Math.round(p.x),
+      y: Math.round(p.y),
+      vx: Math.round(p.vx),
+      vy: Math.round(p.vy),
+      angle: +(p.angle.toFixed(2)),
+      angVel: +(p.angVel.toFixed(2)),
+      hp: p.hp,
+      isBroken: !!p.isBroken,
+      isHeld: !!p.isHeld
+    }));
+
+    const apples = (this.world.apples || []).map(a => ({
+      id: a.id,
+      x: Math.round(a.x),
+      y: Math.round(a.y),
+      type: a.type || a.kind,
+      collected: !!a.collected
+    }));
+
+    const platforms = (this.world.dynamicPlatforms || []).map(plat => ({
+      id: plat.id,
+      angle: +(plat.angle.toFixed(3)),
+      angVel: +(plat.angVel.toFixed(3)),
+      pivotX: Math.round(plat.pivotX),
+      pivotY: Math.round(plat.pivotY)
+    }));
+
+    return { aphids, hedgehogs, props, apples, platforms };
+  }
+
+  applyRemoteWorldSync(worldState) {
+    if (!worldState) return;
+
+    // 1. Synchronize Aphids
+    if (Array.isArray(worldState.aphids)) {
+      for (const sAphid of worldState.aphids) {
+        let a = this.world.aphids.find(x => x.id === sAphid.id);
+        if (!a && this.world.aphids.length > 0) {
+          a = this.world.aphids.find(x => Math.hypot(x.x - sAphid.x, x.y - sAphid.y) < 220);
+        }
+        if (a) {
+          const isHeldLocally = (this.caterpillar.rearAnchor.aphidRef === a || this.caterpillar.frontAnchor.aphidRef === a);
+          if (!isHeldLocally) {
+            const d = Math.hypot(a.x - sAphid.x, a.y - sAphid.y);
+            if (d > 160) {
+              a.x = sAphid.x;
+              a.y = sAphid.y;
+            } else {
+              a.x += (sAphid.x - a.x) * 0.45;
+              a.y += (sAphid.y - a.y) * 0.45;
+            }
+            a.vx = sAphid.vx;
+            a.vy = sAphid.vy;
+            a.isHeld = sAphid.isHeld;
+            a.isFlying = sAphid.isFlying;
+            if (sAphid.facing !== undefined) a.facing = sAphid.facing;
+          }
+          a.hp = sAphid.hp;
+          a.isDefeated = sAphid.isDefeated;
+        }
+      }
+    }
+
+    // 2. Synchronize Hedgehogs
+    if (Array.isArray(worldState.hedgehogs)) {
+      for (const sHedgehog of worldState.hedgehogs) {
+        let h = this.world.hedgehogs.find(x => x.id === sHedgehog.id);
+        if (!h && this.world.hedgehogs.length > 0) {
+          h = this.world.hedgehogs.find(x => Math.hypot(x.x - sHedgehog.x, x.y - sHedgehog.y) < 220);
+        }
+        if (h) {
+          const isHeldLocally = (this.caterpillar.rearAnchor.hedgehogRef === h || this.caterpillar.frontAnchor.hedgehogRef === h);
+          if (!isHeldLocally) {
+            const d = Math.hypot(h.x - sHedgehog.x, h.y - sHedgehog.y);
+            if (d > 160) {
+              h.x = sHedgehog.x;
+              h.y = sHedgehog.y;
+            } else {
+              h.x += (sHedgehog.x - h.x) * 0.45;
+              h.y += (sHedgehog.y - h.y) * 0.45;
+            }
+            h.vx = sHedgehog.vx;
+            h.vy = sHedgehog.vy;
+            h.isHeld = sHedgehog.isHeld;
+            h.isFlying = sHedgehog.isFlying;
+            if (sHedgehog.facing !== undefined) h.facing = sHedgehog.facing;
+          }
+          h.hp = sHedgehog.hp;
+          h.isDefeated = sHedgehog.isDefeated;
+        }
+      }
+    }
+
+    // 3. Synchronize Props (Acorns, Pinecones)
+    if (Array.isArray(worldState.props)) {
+      for (const sProp of worldState.props) {
+        let p = this.world.props.find(x => x.id === sProp.id);
+        if (!p && this.world.props.length > 0) {
+          p = this.world.props.find(x => Math.hypot(x.x - sProp.x, x.y - sProp.y) < 260);
+        }
+        if (p) {
+          const isHeldLocally = (this.caterpillar.rearAnchor.propRef === p || this.caterpillar.frontAnchor.propRef === p);
+          if (!isHeldLocally) {
+            const d = Math.hypot(p.x - sProp.x, p.y - sProp.y);
+            if (d > 180) {
+              p.x = sProp.x;
+              p.y = sProp.y;
+            } else {
+              p.x += (sProp.x - p.x) * 0.45;
+              p.y += (sProp.y - p.y) * 0.45;
+            }
+            p.vx = sProp.vx;
+            p.vy = sProp.vy;
+            p.angle = sProp.angle;
+            p.angVel = sProp.angVel;
+            p.isHeld = sProp.isHeld;
+          }
+          if (sProp.hp !== undefined) p.hp = sProp.hp;
+          p.isBroken = sProp.isBroken;
+        }
+      }
+    }
+
+    // 4. Synchronize Bonus Apples
+    if (Array.isArray(worldState.apples) && this.world.apples) {
+      for (const sApple of worldState.apples) {
+        let ap = this.world.apples.find(x => x.id === sApple.id);
+        if (ap) {
+          if (sApple.collected) ap.collected = true;
+          ap.x = sApple.x;
+          ap.y = sApple.y;
+        }
+      }
+    }
+
+    // 5. Synchronize Dynamic Platforms (Leaves, Hoses)
+    if (Array.isArray(worldState.platforms) && this.world.dynamicPlatforms) {
+      for (const sPlat of worldState.platforms) {
+        const plat = this.world.dynamicPlatforms.find(x => x.id === sPlat.id);
+        if (plat) {
+          plat.angle = sPlat.angle;
+          plat.angVel = sPlat.angVel;
+          plat.pivotX = sPlat.pivotX;
+          plat.pivotY = sPlat.pivotY;
+          this.world.updatePlatformWorldSegments(plat);
+        }
+      }
+    }
   }
 
   applyRemoteEntityThrow(msg) {
@@ -1288,6 +1475,15 @@ class SlipGripGame {
         this.netSyncTimer = 0;
         const progress = Math.max(0, Math.min(1, (this.caterpillar.head.x - this.level.startX) / (this.level.finishX - this.level.startX)));
         this.network.sendPlayerState(this.caterpillar.serializeState(progress));
+      }
+
+      // Authoritative room host synchronizes all enemies and objects at 12Hz
+      if (this.network.isHost()) {
+        this.netWorldSyncTimer = (this.netWorldSyncTimer || 0) + dt;
+        if (this.netWorldSyncTimer >= 0.08) {
+          this.netWorldSyncTimer = 0;
+          this.network.sendWorldSync(this.serializeWorldState());
+        }
       }
     }
 

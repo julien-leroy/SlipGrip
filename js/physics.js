@@ -304,7 +304,8 @@ export class PhysicsWorld {
   }
 
   addAphid(x, y, radius = 22, patrolMinX = x - 80, patrolMaxX = x + 80) {
-    this.aphids.push({
+    const aphid = {
+      id: this.nextSegId++,
       x,
       y,
       vx: 16 * (Math.random() > 0.5 ? 1 : -1),
@@ -315,6 +316,7 @@ export class PhysicsWorld {
       squashX: 1,
       squashY: 1,
       facing: 1,
+      turnCooldown: 0,
       isHeld: false,
       isFlying: false,
       mass: 3.5,
@@ -323,7 +325,9 @@ export class PhysicsWorld {
       isDefeated: false,
       damageCooldown: 0,
       hpBarTimer: 0
-    });
+    };
+    this.aphids.push(aphid);
+    return aphid;
   }
 
   addHedgehog(x, y, radius = 28, patrolMinX = x - 110, patrolMaxX = x + 110) {
@@ -548,26 +552,76 @@ export class PhysicsWorld {
           }
         }
       } else {
-        // Standard gentle ground patrol
-        if (a.x < a.patrolMinX) a.vx = Math.abs(a.vx) + 12 * dt;
-        if (a.x > a.patrolMaxX) a.vx = -Math.abs(a.vx) - 12 * dt;
-        if (Math.abs(a.vx) < 14) a.vx += (a.facing || 1) * 18 * dt;
-        a.facing = a.vx >= 0 ? 1 : -1;
+        // Standard gentle ground patrol along surface/slopes
+        a.turnCooldown = Math.max(0, (a.turnCooldown || 0) - dt);
+        if (a.facing === undefined) a.facing = (a.vx >= 0 ? 1 : -1);
 
-        a.vy += this.gravity * dt;
-        a.x += a.vx * dt;
-        a.y += a.vy * dt;
-        a.vx *= 0.985;
+        // Turn bounds without jitter
+        if (a.turnCooldown <= 0) {
+          if (a.facing > 0 && a.x >= a.patrolMaxX) {
+            a.facing = -1;
+            a.turnCooldown = 0.6;
+          } else if (a.facing < 0 && a.x <= a.patrolMinX) {
+            a.facing = 1;
+            a.turnCooldown = 0.6;
+          }
+        }
 
+        const patrolSpeed = 22;
         const hit = this.findClosestSurface(a.x, a.y, a.radius + 6);
-        if (hit && hit.dist < a.radius) {
-          const overlap = a.radius - hit.dist;
-          a.x += hit.nx * overlap;
-          a.y += hit.ny * overlap;
+        const isOnGround = hit && (hit.dist < a.radius + 3) && (hit.ny < -0.35);
+
+        if (isOnGround) {
+          // Push out of ground overlap
+          if (hit.dist < a.radius) {
+            const overlap = a.radius - hit.dist;
+            a.x += hit.nx * overlap;
+            a.y += hit.ny * overlap;
+          }
+          // Zero penetration normal velocity without bouncing (restitution = 0)
           const vn = a.vx * hit.nx + a.vy * hit.ny;
           if (vn < 0) {
-            a.vx -= hit.nx * vn * 1.1;
-            a.vy -= hit.ny * vn * 1.1;
+            a.vx -= hit.nx * vn;
+            a.vy -= hit.ny * vn;
+          }
+
+          // If hitting a steep wall ahead, turn around cleanly
+          if (a.turnCooldown <= 0 && Math.abs(hit.nx) > 0.65 && hit.ny > -0.35 && (hit.nx * a.facing < -0.2)) {
+            a.facing = -a.facing;
+            a.turnCooldown = 0.6;
+          }
+
+          // Orient motion along surface tangent (tx, ty)
+          let tx = hit.tx;
+          let ty = hit.ty;
+          if (tx < 0) {
+            tx = -tx;
+            ty = -ty;
+          }
+
+          const targetVx = a.facing * tx * patrolSpeed;
+          const targetVy = a.facing * ty * patrolSpeed;
+          a.vx += (targetVx - a.vx) * Math.min(1, dt * 14);
+          a.vy += (targetVy - a.vy) * Math.min(1, dt * 14);
+
+          a.x += a.vx * dt;
+          a.y += a.vy * dt;
+        } else {
+          // In the air (e.g. falling or stepping off a ledge)
+          a.vy += this.gravity * dt;
+          a.vx += (a.facing * patrolSpeed * 0.8 - a.vx) * Math.min(1, dt * 6);
+          a.x += a.vx * dt;
+          a.y += a.vy * dt;
+
+          if (hit && hit.dist < a.radius) {
+            const overlap = a.radius - hit.dist;
+            a.x += hit.nx * overlap;
+            a.y += hit.ny * overlap;
+            const vn = a.vx * hit.nx + a.vy * hit.ny;
+            if (vn < 0) {
+              a.vx -= hit.nx * vn;
+              a.vy -= hit.ny * vn;
+            }
           }
         }
       }
@@ -646,25 +700,76 @@ export class PhysicsWorld {
           }
         }
       } else {
-        if (h.x < h.patrolMinX) h.vx = Math.abs(h.vx) + 14 * dt;
-        if (h.x > h.patrolMaxX) h.vx = -Math.abs(h.vx) - 14 * dt;
-        if (Math.abs(h.vx) < 16) h.vx += (h.facing || 1) * 20 * dt;
-        h.facing = h.vx >= 0 ? 1 : -1;
+        // Standard gentle ground patrol along surface/slopes
+        h.turnCooldown = Math.max(0, (h.turnCooldown || 0) - dt);
+        if (h.facing === undefined) h.facing = (h.vx >= 0 ? 1 : -1);
 
-        h.vy += this.gravity * dt;
-        h.x += h.vx * dt;
-        h.y += h.vy * dt;
-        h.vx *= 0.985;
+        // Turn bounds without jitter
+        if (h.turnCooldown <= 0) {
+          if (h.facing > 0 && h.x >= h.patrolMaxX) {
+            h.facing = -1;
+            h.turnCooldown = 0.6;
+          } else if (h.facing < 0 && h.x <= h.patrolMinX) {
+            h.facing = 1;
+            h.turnCooldown = 0.6;
+          }
+        }
 
+        const patrolSpeed = 24;
         const hit = this.findClosestSurface(h.x, h.y, h.radius + 6);
-        if (hit && hit.dist < h.radius) {
-          const overlap = h.radius - hit.dist;
-          h.x += hit.nx * overlap;
-          h.y += hit.ny * overlap;
+        const isOnGround = hit && (hit.dist < h.radius + 3) && (hit.ny < -0.35);
+
+        if (isOnGround) {
+          // Push out of ground overlap
+          if (hit.dist < h.radius) {
+            const overlap = h.radius - hit.dist;
+            h.x += hit.nx * overlap;
+            h.y += hit.ny * overlap;
+          }
+          // Zero penetration normal velocity without bouncing (restitution = 0)
           const vn = h.vx * hit.nx + h.vy * hit.ny;
           if (vn < 0) {
-            h.vx -= hit.nx * vn * 1.1;
-            h.vy -= hit.ny * vn * 1.1;
+            h.vx -= hit.nx * vn;
+            h.vy -= hit.ny * vn;
+          }
+
+          // If hitting a steep wall ahead, turn around cleanly
+          if (h.turnCooldown <= 0 && Math.abs(hit.nx) > 0.65 && hit.ny > -0.35 && (hit.nx * h.facing < -0.2)) {
+            h.facing = -h.facing;
+            h.turnCooldown = 0.6;
+          }
+
+          // Orient motion along surface tangent (tx, ty)
+          let tx = hit.tx;
+          let ty = hit.ty;
+          if (tx < 0) {
+            tx = -tx;
+            ty = -ty;
+          }
+
+          const targetVx = h.facing * tx * patrolSpeed;
+          const targetVy = h.facing * ty * patrolSpeed;
+          h.vx += (targetVx - h.vx) * Math.min(1, dt * 14);
+          h.vy += (targetVy - h.vy) * Math.min(1, dt * 14);
+
+          h.x += h.vx * dt;
+          h.y += h.vy * dt;
+        } else {
+          // In the air (e.g. falling or stepping off a ledge)
+          h.vy += this.gravity * dt;
+          h.vx += (h.facing * patrolSpeed * 0.8 - h.vx) * Math.min(1, dt * 6);
+          h.x += h.vx * dt;
+          h.y += h.vy * dt;
+
+          if (hit && hit.dist < h.radius) {
+            const overlap = h.radius - hit.dist;
+            h.x += hit.nx * overlap;
+            h.y += hit.ny * overlap;
+            const vn = h.vx * hit.nx + h.vy * hit.ny;
+            if (vn < 0) {
+              h.vx -= hit.nx * vn;
+              h.vy -= hit.ny * vn;
+            }
           }
         }
       }

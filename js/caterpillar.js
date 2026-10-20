@@ -664,51 +664,12 @@ export class Caterpillar {
     const hasStrength = (this.activePowerUp && this.activePowerUp.type === 'strength') || mStats.strengthMult > 1.35;
     const strengthMult = (this.activePowerUp && this.activePowerUp.type === 'strength' ? 2.5 : 1.0) * mStats.strengthMult;
 
-    // Fling / Throw a grabbed rival caterpillar!
+    // Release grabbed rival caterpillar (caterpillars can be held, dragged, slowed down or used as bridges, but never thrown or dealt launch damage)
     if (anchor.playerRef) {
-      const rival = anchor.playerRef;
-      let { dx, dy } = this.getFrontVector();
-      if (!isFront) { dx = -dx; dy = -dy; }
-      const steerX = (this.lastInputs.right ? 1 : 0) - (this.lastInputs.left ? 1 : 0);
-      const steerY = (this.lastInputs.up ? -1 : 0) + (this.lastInputs.down ? 1 : 0);
-      let aimX = dx;
-      let aimY = dy;
-      if (steerX !== 0 || steerY !== 0) {
-        const sLen = Math.hypot(steerX, steerY) || 1;
-        aimX = dx * 0.30 + (steerX / sLen) * 0.70;
-        aimY = dy * 0.30 + (steerY / sLen) * 0.70;
-        const aLen = Math.hypot(aimX, aimY) || 1;
-        aimX /= aLen;
-        aimY /= aLen;
-      }
-      const boost = (this.extensionTimer > 0 || this.chargeDuration > 0.4) ? 2.0 : 1.25;
-      const throwSpeed = 280 * boost * Math.min(2.4, strengthMult);
-      const tvx = node.vx * 0.5 + aimX * throwSpeed;
-      const tvy = node.vy * 0.5 + aimY * throwSpeed - 140;
-      const dmg = hasStrength ? Math.round(18 * mStats.strengthMult) : 10;
-
-      if (rival.nodes) {
-        for (const rn of rival.nodes) {
-          rn.vx = tvx;
-          rn.vy = tvy;
-        }
-      }
-      if (this.onPvpActionCallback && rival.playerId) {
-        this.onPvpActionCallback({
-          targetId: rival.playerId,
-          actionType: 'throw_player',
-          damage: dmg,
-          vx: tvx,
-          vy: tvy,
-          reason: 'PROJECTION ! 🤼'
-        });
-      }
-      sound.playLaunch(0.75);
-      if (particles) {
-        particles.spawnMud(node.x, node.y, -aimX, -aimY, 7, 0.65);
-        particles.spawnPopup(node.x, node.y - 28, `ÉJECTÉ ! 🤼`, '#ffd93b');
-      }
       anchor.playerRef = null;
+      anchor.playerNodeIndex = -1;
+      sound.playGrip(false);
+      return;
     }
 
     // Fling / Throw grabbable enemy aphids!
@@ -1132,9 +1093,9 @@ export class Caterpillar {
           this.jumpCooldown = 0.35;
           this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles);
         } else {
-          this.rigidityTimer = 0.22;
-          this.bodyRigidity = 0.55;
-          this.extensionTimer = 0.24;
+          this.rigidityTimer = 0.15;
+          this.bodyRigidity = 0.35;
+          this.extensionTimer = 0; // Strictly ZERO jump, ZERO thrust, ZERO forward propulsion if < 0.5s!
           this.launchSpinePower = 0;
           this.extensionMomentum.timer = 0;
           this.extensionMomentum.consumed = true;
@@ -1475,7 +1436,7 @@ export class Caterpillar {
 
     this.enforceGrippedSegmentLocks(this.extendedSegLen);
     const isHopping = this.hopTimer > 0;
-    const isExtending = !inputs.space && this.contraction > 0.08;
+    const isExtending = !inputs.space && this.extensionTimer > 0;
     const anyOnGround = this.nodes.some(n => n.onGround) || rearLocked || frontLocked;
     const isAirborne = !anyOnGround;
 
@@ -2332,7 +2293,7 @@ export class Caterpillar {
         // Anti-escargot unroll: if body chord distance is very short while unbending/moving forward,
         // forcefully unroll the spine forward so it cannot fold into a snail shell!
         const chordDist = Math.hypot(this.head.x - this.rear.x, this.head.y - this.rear.y);
-        if (chordDist < this.extendedSegLen * 2.8 && !inputs.space) {
+        if (chordDist < this.extendedSegLen * 2.8 && !inputs.space && this.extensionTimer > 0) {
           const uncurlDirX = steerX !== 0 ? steerX : (this.head.x >= this.rear.x ? 1 : -1);
           const uncurlDirY = effSteerY !== 0 ? effSteerY : 0;
           const uDist = Math.hypot(uncurlDirX, uncurlDirY) || 1;
@@ -2552,7 +2513,7 @@ export class Caterpillar {
   handleWorldCollisions(dt, world, particles, inputs, isFirstSubstep) {
     const N = this.numNodes;
     const isHopping = this.hopTimer > 0;
-    const isExtending = this.extensionTimer > 0 || (!inputs.space && this.contraction > 0.04);
+    const isExtending = this.extensionTimer > 0;
     const isBending = !!inputs.space || this.contraction > 0.04;
     const hasSteer = !!(inputs.left || inputs.right || inputs.up || inputs.down);
     const steerX = (inputs.right ? 1 : 0) - (inputs.left ? 1 : 0);
