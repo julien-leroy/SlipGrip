@@ -1273,6 +1273,56 @@ export class PhysicsWorld {
     return true;
   }
 
+  // Precise segment-segment intersection test: checks if line (x1, y1) -> (x2, y2)
+  // crosses any obstacle or platform, returning the closest intersection point and surface normal.
+  checkSegmentIntersection(x1, y1, x2, y2, ignoreSeg = null) {
+    const rxMin = Math.min(x1, x2) - 4;
+    const rxMax = Math.max(x1, x2) + 4;
+    const ryMin = Math.min(y1, y2) - 4;
+    const ryMax = Math.max(y1, y2) + 4;
+
+    const midX = (x1 + x2) * 0.5;
+    const midY = (y1 + y2) * 0.5;
+    const rayLen = Math.hypot(x2 - x1, y2 - y1) || 0.001;
+    const candidates = this.getAllSegmentsNear(midX, midY, rayLen * 0.5 + 24);
+
+    let closestHit = null;
+    let minT = 1.0;
+
+    for (const s of candidates) {
+      if (s === ignoreSeg) continue;
+      const sMinX = Math.min(s.x1, s.x2);
+      const sMaxX = Math.max(s.x1, s.x2);
+      const sMinY = Math.min(s.y1, s.y2);
+      const sMaxY = Math.max(s.y1, s.y2);
+      if (rxMax < sMinX || rxMin > sMaxX || ryMax < sMinY || ryMin > sMaxY) continue;
+
+      const denom = (s.y2 - s.y1) * (x2 - x1) - (s.x2 - s.x1) * (y2 - y1);
+      if (Math.abs(denom) < 1e-6) continue;
+
+      const ua = ((s.x2 - s.x1) * (y1 - s.y1) - (s.y2 - s.y1) * (x1 - s.x1)) / denom;
+      const ub = ((x2 - x1) * (y1 - s.y1) - (y2 - y1) * (x1 - s.x1)) / denom;
+
+      if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
+        if (ua < minT) {
+          minT = ua;
+          const sDx = s.x2 - s.x1;
+          const sDy = s.y2 - s.y1;
+          const sLen = Math.hypot(sDx, sDy) || 1;
+          closestHit = {
+            x: x1 + ua * (x2 - x1),
+            y: y1 + ua * (y2 - y1),
+            t: ua,
+            seg: s,
+            surfNx: sDy / sLen,
+            surfNy: -sDx / sLen
+          };
+        }
+      }
+    }
+    return closestHit;
+  }
+
   findClosestSurface(px, py, maxDist) {
     const safeMax = (Number.isFinite(maxDist) && maxDist > 0) ? maxDist : 36;
     const candidates = this.getAllSegmentsNear(px, py, safeMax);

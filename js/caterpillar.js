@@ -1454,6 +1454,11 @@ export class Caterpillar {
     const head = this.head;
     const mStats = this.getModifierStats();
 
+    for (let i = 0; i < N; i++) {
+      this.nodes[i].stepStartX = this.nodes[i].x;
+      this.nodes[i].stepStartY = this.nodes[i].y;
+    }
+
     // 1. Update Suction Anchors
     this.updateAnchor(this.rearAnchor, rear, false, dt, world, particles, isFirstSubstep);
     this.updateAnchor(this.frontAnchor, head, true, dt, world, particles, isFirstSubstep);
@@ -1926,12 +1931,44 @@ export class Caterpillar {
             const dirY = toFrontY / toFrontDist;
 
             // 1. Horizontal tail steering (Left / Right arrows)
-            // Allows player to swing, slide, or sway the tail onto ledges or away/closer!
+            // Allows player to swing, slide, or sway the tail onto ledges or away/closer with snappy responsiveness!
             if (steerX !== 0) {
-              const tailHorizontalForce = 1500 * slideEase * resp * dt;
+              const tailHorizontalForce = 3400 * Math.max(0.75, slideEase) * resp * dt;
               for (let i = 0; i < N - 2; i++) {
-                const ratio = (N - 2 - i) / (N - 2);
+                const ratio = Math.pow((N - 2 - i) / (N - 2), 0.85);
                 this.nodes[i].vx += steerX * tailHorizontalForce * ratio;
+              }
+
+              // Dynamic pendulum / whip arc assistance around front anchor:
+              const relX = tail.x - this.frontAnchor.x;
+              const relY = tail.y - this.frontAnchor.y;
+              const rDist = Math.hypot(relX, relY) || 1;
+              let tangX = -relY / rDist;
+              let tangY = relX / rDist;
+              if (tangX * steerX < 0) {
+                tangX = -tangX;
+                tangY = -tangY;
+              }
+              const arcForce = 2600 * resp * dt;
+              for (let i = 0; i < N - 2; i++) {
+                const ratio = Math.pow((N - 2 - i) / (N - 2), 0.85);
+                this.nodes[i].vx += tangX * arcForce * ratio;
+                this.nodes[i].vy += tangY * arcForce * ratio;
+              }
+
+              // When steering tail towards front anchor horizontally, slightly arch body to allow free sliding!
+              if (steerX * toFrontX > 0) {
+                const archLift = 580 * resp * dt;
+                for (let i = 1; i < N - 2; i++) {
+                  const midRatio = Math.sin((i / (N - 2)) * Math.PI);
+                  this.nodes[i].vy -= archLift * midRatio;
+                }
+              }
+
+              // Ground unsticking relief so tail glides effortlessly sideways on floors & ledges
+              if (tail.onGround) {
+                tail.vy -= 140 * dt;
+                tail.onGround = false;
               }
             }
 
@@ -2171,8 +2208,13 @@ export class Caterpillar {
           this.nodes[i].vy += aimY * thrust * ratio * dt;
 
           // Smooth velocity-driven unrolling of curled spine towards full extension
-          const idealX = anchorPt.x + aimX * curExtendedSegLen * (i - 1);
-          const idealY = anchorPt.y + aimY * curExtendedSegLen * (i - 1);
+          let idealX = anchorPt.x + aimX * curExtendedSegLen * (i - 1);
+          let idealY = anchorPt.y + aimY * curExtendedSegLen * (i - 1);
+          const obsHit1 = world.checkSegmentIntersection(anchorPt.x, anchorPt.y, idealX, idealY);
+          if (obsHit1) {
+            idealX = obsHit1.x + obsHit1.surfNx * (this.nodes[i].r + 3);
+            idealY = obsHit1.y + obsHit1.surfNy * (this.nodes[i].r + 3);
+          }
           this.nodes[i].vx += (idealX - this.nodes[i].x) * (26.0 * extRatio) * ratio * dt;
           this.nodes[i].vy += (idealY - this.nodes[i].y) * (26.0 * extRatio) * ratio * dt;
         }
@@ -2198,8 +2240,13 @@ export class Caterpillar {
           this.nodes[i].vy += aimY * thrust * ratio * dt;
 
           const segCountFromFront = N - 2 - i;
-          const idealX = anchorPt.x + aimX * curExtendedSegLen * segCountFromFront;
-          const idealY = anchorPt.y + aimY * curExtendedSegLen * segCountFromFront;
+          let idealX = anchorPt.x + aimX * curExtendedSegLen * segCountFromFront;
+          let idealY = anchorPt.y + aimY * curExtendedSegLen * segCountFromFront;
+          const obsHit2 = world.checkSegmentIntersection(anchorPt.x, anchorPt.y, idealX, idealY);
+          if (obsHit2) {
+            idealX = obsHit2.x + obsHit2.surfNx * (this.nodes[i].r + 3);
+            idealY = obsHit2.y + obsHit2.surfNy * (this.nodes[i].r + 3);
+          }
           this.nodes[i].vx += (idealX - this.nodes[i].x) * (34.0 * extRatio) * ratio * dt;
           this.nodes[i].vy += (idealY - this.nodes[i].y) * (34.0 * extRatio) * ratio * dt;
         }
@@ -2255,6 +2302,11 @@ export class Caterpillar {
             const offsetFromMid = i - midIdx;
             idealX = anchorX + aimX * (curExtendedSegLen * offsetFromMid);
             idealY = anchorY + aimY * (curExtendedSegLen * offsetFromMid);
+          }
+          const obsHit3 = world.checkSegmentIntersection(anchorX, anchorY, idealX, idealY);
+          if (obsHit3) {
+            idealX = obsHit3.x + obsHit3.surfNx * (this.nodes[i].r + 3);
+            idealY = obsHit3.y + obsHit3.surfNy * (this.nodes[i].r + 3);
           }
 
           const ratio = isAdvancingOnGround ? (i / (N - 1)) : 1.0;
@@ -2425,6 +2477,25 @@ export class Caterpillar {
       }
     }
 
+    // Immediate platform barrier enforcement after constraint iterations:
+    // Prevents distance constraint relaxation from pushing nodes through platforms during détente!
+    for (let i = 0; i < N; i++) {
+      const n = this.nodes[i];
+      const isPinned = (i === 0 && rearLocked) || (i === N - 1 && frontLocked);
+      if (isPinned) continue;
+
+      const hit = world.checkSegmentIntersection(n.stepStartX, n.stepStartY, n.x, n.y);
+      if (hit) {
+        n.x = hit.x + hit.surfNx * (n.r + 2);
+        n.y = hit.y + hit.surfNy * (n.r + 2);
+        const vn = n.vx * hit.surfNx + n.vy * hit.surfNy;
+        if (vn < 0) {
+          n.vx -= hit.surfNx * vn;
+          n.vy -= hit.surfNy * vn;
+        }
+      }
+    }
+
     // Run gripped segment lock once per substep (smooth, no redundant velocity killing)
     this.enforceGrippedSegmentLocks(this.extendedSegLen);
 
@@ -2516,6 +2587,20 @@ export class Caterpillar {
 
           const isPinned = (i === 0 && this.rearAnchor.anchored) || (i === N - 1 && this.frontAnchor.anchored);
 
+          if (!isPinned && n.stepStartX !== undefined) {
+            const ccdHit = world.checkSegmentIntersection(n.stepStartX, n.stepStartY, n.x, n.y);
+            if (ccdHit) {
+              n.x = ccdHit.x + ccdHit.surfNx * (n.r + 2);
+              n.y = ccdHit.y + ccdHit.surfNy * (n.r + 2);
+              const vnCcd = n.vx * ccdHit.surfNx + n.vy * ccdHit.surfNy;
+              if (vnCcd < 0) {
+                n.vx -= ccdHit.surfNx * vnCcd;
+                n.vy -= ccdHit.surfNy * vnCcd;
+              }
+              n.onGround = true;
+            }
+          }
+
           if (!isPinned) {
             let colNx = cp.nx;
             let colNy = cp.ny;
@@ -2526,6 +2611,9 @@ export class Caterpillar {
               }
             }
 
+            const isHead = (i === N - 1);
+            const isSteeredTail = (this.frontAnchor.anchored && !this.rearAnchor.anchored && (steerX !== 0 || inputs.up || inputs.down) && i < 2);
+
             if (seg.material !== 'moss' && slopeGrade <= 0.30 && colNy < -0.5) {
               n.x += colNx * overlap;
               n.y += colNy * overlap;
@@ -2534,9 +2622,8 @@ export class Caterpillar {
               const vt = n.vx * cp.tx + n.vy * cp.ty;
               const newVn = vn < 0 ? -vn * mat.restitution * 0.3 : vn;
 
-              // Ground traction: allow free natural arching/contracting without locking feet into the dirt!
-              const isHead = (i === N - 1);
-              const frictionRate = (isHead && hasSteer) ? 2.5 : ((isHopping || isExtending || isBending) ? 8.0 : (hasSteer ? (isReverse ? 45.0 : 34.0) : 48.0));
+              // Ground traction: allow free natural arching/contracting/tail-sliding without locking into dirt!
+              const frictionRate = ((isHead && hasSteer) || isSteeredTail) ? 2.5 : ((isHopping || isExtending || isBending) ? 8.0 : (hasSteer ? (isReverse ? 45.0 : 34.0) : 48.0));
               let newVt = vt * Math.max(0, 1 - frictionRate * dt);
               if (!hasSteer && !isHopping && !isExtending && !isBending && Math.abs(newVt) < 24) {
                 newVt = 0;
@@ -2561,8 +2648,7 @@ export class Caterpillar {
                 newVt = vt * Math.max(0, 1 - 1.2 * dt);
               } else {
                 const excessSlope = Math.max(0, slopeGrade - 0.30);
-                const isHead = (i === N - 1);
-                const damping = (isHead && hasSteer) ? 1.5 : (hasSteer ? 5.5 : Math.max(2.0, 18.0 - excessSlope * 20.0));
+                const damping = ((isHead && hasSteer) || isSteeredTail) ? 1.5 : (hasSteer ? 5.5 : Math.max(2.0, 18.0 - excessSlope * 20.0));
                 newVt = vt * Math.max(0, 1 - damping * dt);
               }
 
@@ -3600,56 +3686,92 @@ export class Caterpillar {
     const frontSeg = samples[numSamples - 2];
     this.drawSuctionFoot(ctx, head.x, head.y, frontSeg.ux, frontSeg.uy, frontSeg.nx, frontSeg.ny, this.frontAnchor, true, this.frontCanGrip, pal, time);
 
-    // 2c. Thoracic true legs (3 cute pairs near the front: s = 15, 17, 19)
-    const legIndices = [15, 17, 19];
-    for (let li = 0; li < legIndices.length; li++) {
-      const s = legIndices[li];
-      const seg = samples[s];
-      const legSwing = Math.sin(this.crawlPhase * 1.5 - li * 0.9) * 3.2;
-      const bx = seg.x - seg.nx * (seg.r * 0.75);
-      const by = seg.y - seg.ny * (seg.r * 0.75);
-      const tipX = bx - seg.nx * 8.0 + seg.ux * (legSwing + 2);
-      const tipY = by - seg.ny * 8.0 + seg.uy * (legSwing + 2);
+    // 2c. Cute Multilegged Caterpillar Feet along belly:
+    // 10 pairs of adorable little feet (abdominal prolegs + thoracic true legs) with plump stalks and rounded toe pads!
+    const legSamples = [
+      { s: 2, isThoracic: false },
+      { s: 4, isThoracic: false },
+      { s: 6, isThoracic: false },
+      { s: 8, isThoracic: false },
+      { s: 10, isThoracic: false },
+      { s: 12, isThoracic: false },
+      { s: 14, isThoracic: false },
+      { s: 16, isThoracic: true },
+      { s: 18, isThoracic: true },
+      { s: 20, isThoracic: true }
+    ];
 
-      ctx.strokeStyle = pal.outline;
-      ctx.lineWidth = 5.5;
+    const isAirborne = !this.nodes.some(n => n.onGround);
+    const crawlSpeed = Math.hypot(this.nodes[0].vx, this.nodes[0].vy) + Math.hypot(this.head.vx, this.head.vy);
+    const isMoving = crawlSpeed > 10;
+    const crawlPhase = this.crawlPhase || 0;
+
+    const drawCuteLeg = (cfg, legIdx, isBackRow) => {
+      const seg = samples[cfg.s];
+      if (!seg) return;
+
+      const phaseOffset = isBackRow ? Math.PI : 0;
+      const legPhase = crawlPhase * 2.2 - legIdx * 0.65 + phaseOffset;
+
+      const swingAmp = isMoving ? (cfg.isThoracic ? 4.2 : 3.2) : (isAirborne ? Math.sin(time * 5.0 + legIdx * 0.8) * 2.5 : 1.0);
+      const swing = Math.sin(legPhase) * swingAmp;
+      const liftAmp = isMoving ? 2.5 : 0;
+      const lift = Math.max(0, Math.cos(legPhase)) * liftAmp;
+
+      // Base of the leg on the ventral surface (opposite to dorsal normal nx, ny)
+      const depthOffset = isBackRow ? -seg.r * 0.16 : 0;
+      const bx = seg.x - seg.nx * (seg.r * 0.82 + depthOffset);
+      const by = seg.y - seg.ny * (seg.r * 0.82 + depthOffset);
+
+      const legLen = (cfg.isThoracic ? 8.5 : 7.0) * sizeMult;
+      const effLen = Math.max(2.5, legLen - lift);
+      const tipX = bx - seg.nx * effLen + seg.ux * (swing + (cfg.isThoracic ? 1.5 : 0));
+      const tipY = by - seg.ny * effLen + seg.uy * (swing + (cfg.isThoracic ? 1.5 : 0));
+
+      const stalkWidth = (isBackRow ? (cfg.isThoracic ? 3.8 : 4.8) : (cfg.isThoracic ? 5.2 : 6.4)) * sizeMult;
+      const padR = (isBackRow ? (cfg.isThoracic ? 2.4 : 3.0) : (cfg.isThoracic ? 3.2 : 4.0)) * sizeMult;
+
+      // Stalk outline
+      ctx.strokeStyle = isBackRow ? '#140c06' : pal.outline;
+      ctx.lineWidth = stalkWidth + 2.0;
+      ctx.lineCap = 'round';
       ctx.beginPath();
       ctx.moveTo(bx, by);
       ctx.lineTo(tipX, tipY);
       ctx.stroke();
 
-      ctx.strokeStyle = pal.belly;
-      ctx.lineWidth = 3.0;
+      // Stalk fleshy fill
+      ctx.strokeStyle = isBackRow ? '#385828' : (cfg.isThoracic ? pal.belly : pal.bodyFill);
+      ctx.lineWidth = stalkWidth;
       ctx.beginPath();
       ctx.moveTo(bx, by);
       ctx.lineTo(tipX, tipY);
       ctx.stroke();
+
+      // Cute rounded tip pad / bean
+      ctx.fillStyle = isBackRow ? '#55823e' : (cfg.isThoracic ? pal.belly : '#ff9eb5');
+      ctx.strokeStyle = isBackRow ? '#140c06' : pal.outline;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(tipX, tipY, padR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      // Cute shiny highlight on front row pads
+      if (!isBackRow) {
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+        ctx.beginPath();
+        ctx.arc(tipX - seg.nx * 0.6 - 0.7, tipY - seg.ny * 0.6 - 0.7, padR * 0.38, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+
+    // Draw back row first (far side depth), then front row
+    for (let li = 0; li < legSamples.length; li++) {
+      drawCuteLeg(legSamples[li], li, true);
     }
-
-    // 2d. Abdominal prolegs (2 cute fleshy pairs along mid-belly: s = 6, 10)
-    const prolegIndices = [6, 10];
-    for (let pi = 0; pi < prolegIndices.length; pi++) {
-      const s = prolegIndices[pi];
-      const seg = samples[s];
-      const pSwing = Math.sin(this.crawlPhase * 1.2 - pi * 1.1) * 2.4;
-      const bx = seg.x - seg.nx * (seg.r * 0.82);
-      const by = seg.y - seg.ny * (seg.r * 0.82);
-      const tipX = bx - seg.nx * 6.5 + seg.ux * pSwing;
-      const tipY = by - seg.ny * 6.5 + seg.uy * pSwing;
-
-      ctx.strokeStyle = pal.outline;
-      ctx.lineWidth = 6.5;
-      ctx.beginPath();
-      ctx.moveTo(bx, by);
-      ctx.lineTo(tipX, tipY);
-      ctx.stroke();
-
-      ctx.strokeStyle = pal.bodyFill;
-      ctx.lineWidth = 3.8;
-      ctx.beginPath();
-      ctx.moveTo(bx, by);
-      ctx.lineTo(tipX, tipY);
-      ctx.stroke();
+    for (let li = 0; li < legSamples.length; li++) {
+      drawCuteLeg(legSamples[li], li, false);
     }
 
     // 3. CONTINUOUS SMOOTH CATERPILLAR BODY HULL (No overlapping balls!)
