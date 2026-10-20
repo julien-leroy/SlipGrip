@@ -1453,6 +1453,7 @@ export class Caterpillar {
     const rear = this.rear;
     const head = this.head;
     const mStats = this.getModifierStats();
+    const resp = (GAMEPLAY_CONFIG.orientationResponsiveness || 2.2) * mStats.speedMult;
 
     for (let i = 0; i < N; i++) {
       this.nodes[i].stepStartX = this.nodes[i].x;
@@ -1513,7 +1514,6 @@ export class Caterpillar {
       } else {
         // On the ground / anchored:
         const inertiaBoost = (isExtending || isHopping) ? 1.5 : 1.0;
-        const resp = (GAMEPLAY_CONFIG.orientationResponsiveness || 2.2) * mStats.speedMult;
         const clsAgility = ((this.bodyClass && this.bodyClass.agilityMult) || 1.0) * mStats.speedMult;
         const clsMass = (this.bodyClass && this.bodyClass.massMult) || 1.0;
         // Bending: orient continues smoothly at ~0.50x speed as requested; normal is full speed & snappy
@@ -2604,12 +2604,6 @@ export class Caterpillar {
           if (!isPinned) {
             let colNx = cp.nx;
             let colNy = cp.ny;
-            if (!seg.isGroundMass && cp.surfNy !== undefined && cp.surfNy < -0.3) {
-              if (n.y <= cp.cy + n.r * 0.7 || n.vy >= -30) {
-                colNx = cp.surfNx;
-                colNy = cp.surfNy;
-              }
-            }
 
             const isHead = (i === N - 1);
             const isSteeredTail = (this.frontAnchor.anchored && !this.rearAnchor.anchored && (steerX !== 0 || inputs.up || inputs.down) && i < 2);
@@ -2937,12 +2931,6 @@ export class Caterpillar {
             const overlap = minDist - cp.dist;
             let colNx = cp.nx;
             let colNy = cp.ny;
-            if (!seg.isGroundMass && cp.surfNy !== undefined && cp.surfNy < -0.3) {
-              if (sy <= cp.cy + sr * 0.7 || ((a.vy + b.vy) * 0.5 >= -30)) {
-                colNx = cp.surfNx;
-                colNy = cp.surfNy;
-              }
-            }
 
             const wA = aPinned ? 0 : (bPinned ? 1.0 : (1 - t));
             const wB = bPinned ? 0 : (aPinned ? 1.0 : t);

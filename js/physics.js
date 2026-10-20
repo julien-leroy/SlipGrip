@@ -1309,13 +1309,23 @@ export class PhysicsWorld {
           const sDx = s.x2 - s.x1;
           const sDy = s.y2 - s.y1;
           const sLen = Math.hypot(sDx, sDy) || 1;
+          const rawNx = sDy / sLen;
+          const rawNy = -sDx / sLen;
+          const rayDx = x2 - x1;
+          const rayDy = y2 - y1;
+          const dot = rayDx * rawNx + rayDy * rawNy;
+          const sideDot = (x1 - s.x1) * rawNx + (y1 - s.y1) * rawNy;
+          const normX = dot < 0 ? rawNx : (dot > 0 ? -rawNx : (sideDot >= 0 ? rawNx : -rawNx));
+          const normY = dot < 0 ? rawNy : (dot > 0 ? -rawNy : (sideDot >= 0 ? rawNy : -rawNy));
           closestHit = {
             x: x1 + ua * (x2 - x1),
             y: y1 + ua * (y2 - y1),
             t: ua,
             seg: s,
-            surfNx: sDy / sLen,
-            surfNy: -sDx / sLen
+            surfNx: normX,
+            surfNy: normY,
+            nx: normX,
+            ny: normY
           };
         }
       }
