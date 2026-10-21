@@ -1,4 +1,5 @@
 // js/levels.js — 9 Inédits Levels across 3 Themed Cups (Easy -> Medium -> Hard per Cup) + Cartoon Renderer
+import { CUPS_DEFINITIONS, GAMEPLAY_CONFIG } from './gameplayConfig.js?v=100';
 
 export const LEVEL_DEFINITIONS = [
   // ============================================================================
@@ -912,6 +913,140 @@ export const LEVEL_DEFINITIONS = [
   }
 ];
 
+// ==================== DECLARATIVE MAP BUILDER & SERIALIZER ====================
+export function extractDeclarativeMap(level) {
+  const data = {
+    polylines: [],
+    mushrooms: [],
+    props: [],
+    aphids: [],
+    hedgehogs: [],
+    thorns: [],
+    powerUps: [],
+    stickyCrumbs: [],
+    dynamicPlatforms: [],
+    checkpoints: [],
+    decorations: []
+  };
+  const recorder = {
+    addPolyline: (points, material, opts = {}) => data.polylines.push({ points, material, ...opts }),
+    addMushroom: (x, y, radius, bounceSpeed, angle) => data.mushrooms.push({ x, y, radius, bounceSpeed, angle }),
+    addProp: (type, x, y, scale) => data.props.push({ type, x, y, scale }),
+    addAphid: (x, y, radius, minX, maxX) => data.aphids.push({ x, y, radius, patrolMinX: minX, patrolMaxX: maxX }),
+    addHedgehog: (x, y, radius, minX, maxX) => data.hedgehogs.push({ x, y, radius, patrolMinX: minX, patrolMaxX: maxX }),
+    addThorn: (x, y, radius) => data.thorns.push({ x, y, radius }),
+    addPowerUp: (x, y, type) => data.powerUps.push({ x, y, type }),
+    addStickyCrumb: (x, y, radius, kind) => data.stickyCrumbs.push({ x, y, radius, kind }),
+    addDynamicPlatform: (cfg) => data.dynamicPlatforms.push(cfg),
+    addCheckpoint: (x, y, label) => data.checkpoints.push({ x, y, label }),
+    addDecoration: (type, x, y, scale, angle) => data.decorations.push({ type, x, y, scale, angle })
+  };
+  try {
+    if (typeof level.build === 'function') {
+      level.build(recorder);
+    }
+  } catch (err) {
+    console.error('Erreur extraction declarative map:', err);
+  }
+  return data;
+}
+
+export function buildFromDeclarative(world, data) {
+  if (!data) return;
+  if (data.polylines) {
+    for (const p of data.polylines) world.addPolyline(p.points, p.material, p);
+  }
+  if (data.mushrooms) {
+    for (const m of data.mushrooms) world.addMushroom(m.x, m.y, m.radius, m.bounceSpeed, m.angle);
+  }
+  if (data.props) {
+    for (const pr of data.props) world.addProp(pr.type, pr.x, pr.y, pr.scale);
+  }
+  if (data.aphids) {
+    for (const a of data.aphids) world.addAphid(a.x, a.y, a.radius, a.patrolMinX, a.patrolMaxX);
+  }
+  if (data.hedgehogs) {
+    for (const h of data.hedgehogs) world.addHedgehog(h.x, h.y, h.radius, h.patrolMinX, h.patrolMaxX);
+  }
+  if (data.thorns) {
+    for (const t of data.thorns) world.addThorn(t.x, t.y, t.radius);
+  }
+  if (data.powerUps) {
+    for (const pu of data.powerUps) world.addPowerUp(pu.x, pu.y, pu.type);
+  }
+  if (data.stickyCrumbs) {
+    for (const sc of data.stickyCrumbs) world.addStickyCrumb(sc.x, sc.y, sc.radius, sc.kind);
+  }
+  if (data.dynamicPlatforms) {
+    for (const dp of data.dynamicPlatforms) world.addDynamicPlatform(dp);
+  }
+  if (data.checkpoints) {
+    for (const cp of data.checkpoints) world.addCheckpoint(cp.x, cp.y, cp.label);
+  }
+  if (data.decorations) {
+    for (const d of data.decorations) world.addDecoration(d.type, d.x, d.y, d.scale, d.angle);
+  }
+}
+
+const MAPS_STORAGE_KEY = 'slipgrip_custom_maps_v1';
+export function loadSavedMaps() {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(MAPS_STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+          const idx = LEVEL_DEFINITIONS.findIndex(m => m.id === item.id);
+          const fullMap = {
+            ...item,
+            build(world) {
+              buildFromDeclarative(world, item.declarativeData || item);
+            }
+          };
+          if (idx >= 0) {
+            LEVEL_DEFINITIONS[idx] = fullMap;
+          } else {
+            LEVEL_DEFINITIONS.push(fullMap);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Impossible de charger les maps sauvegardées:', err);
+  }
+  return LEVEL_DEFINITIONS;
+}
+
+export function saveSavedMaps() {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      const serializable = LEVEL_DEFINITIONS.map(lvl => ({
+        id: lvl.id,
+        cupId: lvl.cupId,
+        difficulty: lvl.difficulty,
+        theme: lvl.theme,
+        name: lvl.name,
+        subtitle: lvl.subtitle,
+        skyTop: lvl.skyTop,
+        skyBottom: lvl.skyBottom,
+        accentBg: lvl.accentBg,
+        startX: lvl.startX,
+        startY: lvl.startY,
+        finishX: lvl.finishX,
+        finishY: lvl.finishY,
+        coachHint: lvl.coachHint,
+        declarativeData: lvl.declarativeData || extractDeclarativeMap(lvl)
+      }));
+      localStorage.setItem(MAPS_STORAGE_KEY, JSON.stringify(serializable));
+    }
+  } catch (err) {
+    console.warn('Impossible de sauvegarder les maps:', err);
+  }
+}
+
+// Initial hydration of any saved maps
+loadSavedMaps();
+
 // ==================== COMPLETE CARTOON TERRAIN, SCENERY & OBSTACLE RENDERER ====================
 export class LevelRenderer {
   constructor() {
@@ -1025,10 +1160,12 @@ export class LevelRenderer {
     return true;
   }
 
-  // Rich Multi-Layered Parallax Background adapted to each Level's Universe Theme!
-  drawBackground(ctx, width, height, cameraX, cameraY, level, time) {
+  // Rich Multi-Layered Parallax Background adapted to each Cup's Selected Universe!
+  drawBackground(ctx, width, height, cameraX, cameraY, level, time, cup = null) {
     const theme = level.theme || 'forest';
-    const bgSet = level.bgSet || 'game_background_2';
+    // Chaque coupe a 1 background unique sélectionné qui s'applique sur toutes ses maps !
+    const resolvedCup = cup || (level && level.cupId && CUPS_DEFINITIONS && CUPS_DEFINITIONS[level.cupId]);
+    const bgSet = (resolvedCup && resolvedCup.bgSet) || (level && level.bgSet) || 'game_background_2';
     const bgMode = (typeof GAMEPLAY_CONFIG !== 'undefined' && GAMEPLAY_CONFIG.backgroundMode) ? GAMEPLAY_CONFIG.backgroundMode : 'parallax';
 
     // ECO MODE: 1 single drawImage call with gentle parallax, saving 90% GPU fillrate!

@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=98" />
+  <link rel="stylesheet" href="styles.css?v=100" />
 </head>
 <body>
   <div id="game-wrapper">
@@ -90,9 +90,6 @@
         <button id="btn-cosmetics" class="action-btn icon-only" title="Personnaliser votre chenille (Chapeau, Couleur, Visage)">
           🎨
         </button>
-        <button id="btn-tuning" class="action-btn icon-only" title="Régler le Gameplay & Physique (Touche Tab ou T)">
-          ⚙️
-        </button>
         <button id="btn-checkpoint" class="action-btn icon-only" title="Revenir au dernier Checkpoint (Touche C)">
           🚩
         </button>
@@ -111,7 +108,7 @@
       <div id="anchor-rear-widget" class="anchor-widget">
         <div class="key-cap" id="key-q">Q</div>
         <div class="anchor-info">
-          <div class="anchor-title">PATTE ARRIÈRE (MAINTENIR)</div>
+          <div class="anchor-title">PATTE ARRIÈRE</div>
           <div class="anchor-state" id="state-q">LIBRE</div>
         </div>
         <div class="suction-icon" id="icon-q">⚪</div>
@@ -120,7 +117,7 @@
       <!-- Omega Arch & Rotation Widget -->
       <div class="omega-widget" id="omega-widget">
         <div class="omega-top-row">
-          <span class="omega-title"><kbd>ESPACE</kbd> Contraction de la Chenille</span>
+          <span class="omega-title"><kbd>ESPACE</kbd> Contraction</span>
           <span class="omega-pct" id="omega-pct">0%</span>
         </div>
         <div class="omega-meter-track">
@@ -137,7 +134,7 @@
       <div id="anchor-front-widget" class="anchor-widget">
         <div class="suction-icon" id="icon-d">⚪</div>
         <div class="anchor-info">
-          <div class="anchor-title">PATTE AVANT (MAINTENIR)</div>
+          <div class="anchor-title">PATTE AVANT</div>
           <div class="anchor-state" id="state-d">LIBRE</div>
         </div>
         <div class="key-cap" id="key-d">D</div>
@@ -308,176 +305,7 @@
       </div>
     </div>
 
-    <!-- Gameplay & Physics Tuning Modal -->
-    <div id="tuning-modal" class="modal-backdrop hidden">
-      <div class="modal-card tuning-card">
-        <div class="tuning-header">
-          <h2>⚙️ Laboratoire de Réglages Gameplay</h2>
-          <button id="btn-close-tuning-x" class="close-x-btn" title="Fermer">✕</button>
-        </div>
-        <p class="help-intro">
-          Testez différents gameplays en temps réel ou ajustez chaque variable pour trouver votre maniement idéal !
-          Vos réglages sont sauvegardés et peuvent être copiés dans <code>js/gameplayConfig.js</code>.
-        </p>
 
-        <!-- Presets -->
-        <div class="tuning-section">
-          <h4>🎮 Presets Prédéfinis</h4>
-          <div class="preset-buttons" id="preset-buttons">
-            <button class="preset-btn active" data-preset="arcade_dynamique">
-              <strong>🚀 Arcade Dynamique</strong>
-              <span>Tête vive, saut orienté puissant, gravité franche</span>
-            </button>
-            <button class="preset-btn" data-preset="visqueux_larvaire">
-              <strong>🐛 Visqueux / Larvaire</strong>
-              <span>Ultra-mou, lourd, bonds réduits, grand wiggle</span>
-            </button>
-            <button class="preset-btn" data-preset="omega_bouncy">
-              <strong>⚡ Oméga Rebondissant</strong>
-              <span>Arche Oméga spectaculaire, sauts lunaires</span>
-            </button>
-            <button class="preset-btn" data-preset="agile_grimpeur">
-              <strong>🧗 Agile Grimpeur</strong>
-              <span>Accroche longue portée, escalade snappy</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Sliders Grid -->
-        <div class="tuning-section">
-          <h4>🎛️ Variables de Physique & Contrôles</h4>
-          <div class="tuning-grid">
-            <div class="tune-item">
-              <label for="tune-gravity">🌍 Gravité (plaque au sol) : <span id="val-gravity" class="tune-val">490</span> px/s²</label>
-              <input type="range" id="tune-gravity" min="200" max="800" step="10" value="490" />
-            </div>
-
-            <div class="tune-item">
-              <label for="tune-groundSnapping">⬇️ Plaquage / Amorti au sol : <span id="val-groundSnapping" class="tune-val">1.5</span></label>
-              <input type="range" id="tune-groundSnapping" min="0.5" max="3.0" step="0.1" value="1.5" />
-            </div>
-
-            <div class="tune-item">
-              <label for="tune-orientationUpForce">🚀 Force Levage Tête (↑) : <span id="val-orientationUpForce" class="tune-val">1250</span></label>
-              <input type="range" id="tune-orientationUpForce" min="400" max="2200" step="50" value="1250" />
-            </div>
-
-            <div class="tune-item">
-              <label for="tune-orientationResponsiveness">⚡ Réactivité Orientation : <span id="val-orientationResponsiveness" class="tune-val">1.4</span></label>
-              <input type="range" id="tune-orientationResponsiveness" min="0.5" max="2.5" step="0.1" value="1.4" />
-            </div>
-
-            <div class="tune-item">
-              <label for="tune-bendOrientationPower">🧭 Force Orientation Charge Espace : <span id="val-bendOrientationPower" class="tune-val">1.0</span></label>
-              <input type="range" id="tune-bendOrientationPower" min="0.2" max="2.5" step="0.1" value="1.0" />
-            </div>
-
-            <div class="tune-item">
-              <label for="tune-jumpBoost">🦘 Puissance du Saut (Espace) : <span id="val-jumpBoost" class="tune-val">1.35</span></label>
-              <input type="range" id="tune-jumpBoost" min="0.5" max="2.5" step="0.05" value="1.35" />
-            </div>
-
-            <div class="tune-item">
-              <label for="tune-groundPushForce">🦶 Poussée Décollage Surface : <span id="val-groundPushForce" class="tune-val">1.35</span></label>
-              <input type="range" id="tune-groundPushForce" min="0.5" max="2.5" step="0.05" value="1.35" />
-            </div>
-
-            <div class="tune-item">
-              <label for="tune-unbendExtensionSpeed">⚡ Vitesse Détente / Déploiement : <span id="val-unbendExtensionSpeed" class="tune-val">8.0</span></label>
-              <input type="range" id="tune-unbendExtensionSpeed" min="3.0" max="18.0" step="0.5" value="8.0" />
-            </div>
-
-            <div class="tune-item">
-              <label for="tune-unbendReachBonus">📏 Portée Extension au Relâchement : <span id="val-unbendReachBonus" class="tune-val">1.0</span></label>
-              <input type="range" id="tune-unbendReachBonus" min="0.8" max="1.5" step="0.05" value="1.0" />
-            </div>
-
-
-            <div class="tune-item">
-              <label for="tune-jumpUpAngleBonus">📐 Bonus Saut vers le Haut : <span id="val-jumpUpAngleBonus" class="tune-val">1.55</span></label>
-              <input type="range" id="tune-jumpUpAngleBonus" min="0.5" max="2.5" step="0.05" value="1.55" />
-            </div>
-
-            <div class="tune-item">
-              <label for="tune-jumpChargeTime">⏱️ Temps Max de Charge Saut : <span id="val-jumpChargeTime" class="tune-val">3.0</span> s</label>
-              <input type="range" id="tune-jumpChargeTime" min="1.0" max="5.0" step="0.5" value="3.0" />
-            </div>
-
-            <div class="tune-item">
-              <label for="tune-gripDistance">🧲 Distance d'Accroche : <span id="val-gripDistance" class="tune-val">24</span> px</label>
-              <input type="range" id="tune-gripDistance" min="10" max="45" step="1" value="24" />
-            </div>
-
-            <div class="tune-item">
-              <label for="tune-omegaArchVisual">🔄 Forme Oméga Visuelle : <span id="val-omegaArchVisual" class="tune-val">1.0</span></label>
-              <input type="range" id="tune-omegaArchVisual" min="0.0" max="2.0" step="0.1" value="1.0" />
-            </div>
-
-            <div class="tune-item">
-              <label for="tune-wigglePhysicsAmount">🐛 Wiggle Larvaire Physique : <span id="val-wigglePhysicsAmount" class="tune-val">18</span></label>
-              <input type="range" id="tune-wigglePhysicsAmount" min="0" max="50" step="2" value="18" />
-            </div>
-
-            <div class="tune-item">
-              <label for="tune-clawScale">🐾 Taille des Griffes (Overflow) : <span id="val-clawScale" class="tune-val">1.35</span></label>
-              <input type="range" id="tune-clawScale" min="0.8" max="2.2" step="0.05" value="1.35" />
-            </div>
-
-            <div class="tune-item checkbox-item">
-              <label>
-                <input type="checkbox" id="tune-bendCanOrientVertically" checked />
-                <span>↕️ Autoriser l'orientation verticale (↑ / ↓) pendant la charge Espace</span>
-              </label>
-            </div>
-
-            <div class="tune-item checkbox-item">
-              <label>
-                <input type="checkbox" id="tune-preserveShapeOnBend" checked />
-                <span>🐛 Préserver la posture & courbure pendant la charge (ne pas écraser en barre)</span>
-              </label>
-            </div>
-
-            <div class="tune-item checkbox-item">
-              <label>
-                <input type="checkbox" id="tune-airborneExtensionOnly" checked />
-                <span>🦅 En l'air sans appui : Déploiement élastique pur (sans saut magique)</span>
-              </label>
-            </div>
-
-            <div class="tune-item" style="margin-top: 10px;">
-              <label for="tune-backgroundMode">🖼️ Rendu des Arrière-Plans :</label>
-              <select id="tune-backgroundMode" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 2px solid #58b368; background: #fff; font-family: inherit; font-weight: 700; color: #2d3436; font-size: 14px; margin-top: 4px;">
-                <option value="parallax">✨ Parallaxe Optimisé (4-5 couches fluides)</option>
-                <option value="eco">🍃 Mode Éco (1 image composite - ultra-fluide 120 FPS)</option>
-                <option value="minimal">🎨 Minimaliste (Collines vectorielles pures)</option>
-              </select>
-            </div>
-
-            <div class="tune-item checkbox-item">
-              <label>
-                <input type="checkbox" id="tune-showBadgesOverlay" checked />
-                <span>👁️ Afficher Aides Visuelles Q & D en Superposition</span>
-              </label>
-            </div>
-          </div>
-        </div>
-
-        <div class="modal-buttons tuning-actions">
-          <button id="btn-save-default" class="big-btn primary" title="Enregistrer ces réglages comme la configuration par défaut définitive">
-            💾 Définir par Défaut
-          </button>
-          <button id="btn-copy-config" class="big-btn secondary" title="Copier le code de la configuration active pour le coller dans js/gameplayConfig.js">
-            📋 Copier
-          </button>
-          <button id="btn-reset-tuning" class="big-btn secondary">
-            🔄 Réinitialiser
-          </button>
-          <button id="btn-close-tuning" class="big-btn secondary">
-            Fermer ✕
-          </button>
-        </div>
-      </div>
-    </div>
 
     <!-- Victory Overlay Modal -->
     <div id="victory-modal" class="modal-backdrop hidden">
@@ -567,6 +395,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=98"></script>
+  <script type="module" src="js/main.js?v=100"></script>
 </body>
 </html>

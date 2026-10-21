@@ -500,6 +500,13 @@ export const RACE_MODIFIERS = {
 };
 
 // ==================== COUPES (COMPÉTITIONS DE 3 COURSES PAR DIFFICULTÉ) ====================
+export const AVAILABLE_BACKGROUNDS = [
+  { id: 'game_background_1', name: 'Forêt & Ciel Bleu', desc: 'Roches, ciel limpide et cimes ensoleillées', icon: '🌲' },
+  { id: 'game_background_2', name: 'Sous-Bois Doux & Chênes', desc: 'Arbres feuillus, ambiance verdoyante', icon: '🌳' },
+  { id: 'game_background_3', name: 'Caverne Féerique & Spores', desc: 'Tons violet et champignons luminescents', icon: '🍄' },
+  { id: 'game_background_4', name: 'Canyon Marécageux & Pique-Nique', desc: 'Roches stratifiées et canyon vertigineux', icon: '🏜️' }
+];
+
 export const CUPS_DEFINITIONS = {
   coupe_bourgeons: {
     id: 'coupe_bourgeons',
@@ -507,6 +514,7 @@ export const CUPS_DEFINITIONS = {
     difficulty: 'Facile',
     icon: '🌱',
     desc: 'Initiation douce & sous-bois : 1. L’Orée des Pousses • 2. Les Ponts de Lianes • 3. Le Verger Fleuri !',
+    bgSet: 'game_background_2',
     levels: [0, 1, 2],
     cards: [
       { levelId: 0, title: '1. L’ORÉE DES POUSSES', icon: '🌱', bg: 'linear-gradient(135deg, #2d5a27, #8cf5ab)' },
@@ -520,6 +528,7 @@ export const CUPS_DEFINITIONS = {
     difficulty: 'Moyen',
     icon: '🍃',
     desc: 'Aventure aérienne & caverne : 4. La Grotte aux Spores • 5. Le Gouffre Poids-Plume • 6. La Falaise des Cimes !',
+    bgSet: 'game_background_4',
     levels: [3, 4, 5],
     cards: [
       { levelId: 3, title: '4. LA GROTTE AUX SPORES', icon: '🍄', bg: 'linear-gradient(135deg, #5f27cd, #fd79a8)' },
@@ -533,6 +542,7 @@ export const CUPS_DEFINITIONS = {
     difficulty: 'Difficile',
     icon: '⚡',
     desc: 'Défi expert & vertige : 7. Le Tronc des Titans • 8. La Ruche des Cires • 9. Le Festin des Tempêtes !',
+    bgSet: 'game_background_1',
     levels: [6, 7, 8],
     cards: [
       { levelId: 6, title: '7. LE TRONC DES TITANS', icon: '🪵', bg: 'linear-gradient(135deg, #6c5ce7, #d63031)' },
@@ -541,6 +551,33 @@ export const CUPS_DEFINITIONS = {
     ]
   }
 };
+
+const CUPS_STORAGE_KEY = 'slipgrip_custom_cups_v1';
+export function loadSavedCups() {
+  try {
+    const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(CUPS_STORAGE_KEY) : null;
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      for (const [k, v] of Object.entries(parsed)) {
+        CUPS_DEFINITIONS[k] = v;
+      }
+    }
+  } catch (err) {
+    console.warn('Impossible de charger les coupes personnalisées:', err);
+  }
+  return CUPS_DEFINITIONS;
+}
+
+export function saveSavedCups() {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(CUPS_STORAGE_KEY, JSON.stringify(CUPS_DEFINITIONS));
+    }
+  } catch (err) {
+    console.warn('Impossible de sauvegarder les coupes:', err);
+  }
+}
+
 // Aliases de compatibilité avec les configurations existantes (non-énumérables pour éviter les doublons dans l'UI)
 Object.defineProperty(CUPS_DEFINITIONS, 'potager_geant', { value: CUPS_DEFINITIONS.coupe_bourgeons, enumerable: false, writable: true, configurable: true });
 Object.defineProperty(CUPS_DEFINITIONS, 'vallee_folle', { value: CUPS_DEFINITIONS.coupe_vents, enumerable: false, writable: true, configurable: true });

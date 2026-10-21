@@ -10,10 +10,10 @@ import {
   isCosmeticUnlocked,
   unlockRandomCosmeticGift,
   getUnlockedCosmeticsCount
-} from './gameplayConfig.js?v=98';
-import { COSMETIC_PALETTES, Caterpillar } from './caterpillar.js?v=98';
-import { LEVEL_DEFINITIONS } from './levels.js?v=98';
-import { sound } from './audio.js?v=98';
+} from './gameplayConfig.js?v=100';
+import { COSMETIC_PALETTES, Caterpillar } from './caterpillar.js?v=100';
+import { LEVEL_DEFINITIONS } from './levels.js?v=100';
+import { sound } from './audio.js?v=100';
 
 export class UIManager {
   constructor(game, network) {
@@ -78,12 +78,12 @@ export class UIManager {
           <div class="home-hero-panel">
             <div class="hero-wood-header">
               <span class="wood-bolt left"></span>
-              <h1>COURSE DE CHENILLES & COMBAT PVP</h1>
+              <h1>SLIPGRIP</h1>
               <span class="wood-bolt right"></span>
             </div>
 
             <p class="hero-tagline">
-              Affrontez vos amis dans le même monde ! Saisissez les autres chenilles, lancez-leur des glands et des ennemis, et décrochez des <strong>Modificateurs de rattrapage</strong> sur 3 courses pour remporter un <strong>Cadeau Cosmétique</strong> !
+              Courses physiques déjantées à ventouses & combat d'objets !
             </p>
 
             <!-- Live Caterpillar Podium Canvas -->
@@ -98,41 +98,39 @@ export class UIManager {
                 <span class="cta-icon">🏠</span>
                 <div class="cta-text">
                   <strong>CRÉER UNE ROOM</strong>
-                  <small>Héberger une Coupe (Admin)</small>
                 </div>
               </button>
 
               <button id="btn-home-join-lobbies" class="cartoon-cta-btn orange-cta">
                 <span class="cta-icon">🌐</span>
                 <div class="cta-text">
-                  <strong>REJOINDRE UNE ROOM</strong>
-                  <small>Voir les salons ouverts (<span id="home-open-rooms-badge">0</span>)</small>
+                  <strong>REJOINDRE</strong>
+                  <small>Salons (<span id="home-open-rooms-badge">0</span>)</small>
                 </div>
               </button>
             </div>
 
             <div class="home-secondary-actions">
               <button id="btn-home-customize" class="wood-btn">
-                🎨 Atelier & Cosmétiques
+                🎨 Atelier
               </button>
               <button id="btn-home-rules" class="wood-btn">
-                ❓ Contrôles & Règles
+                ❓ Règles
               </button>
             </div>
           </div>
 
           <!-- LAN Server & QR Code Signpost -->
           <aside class="lan-qr-signpost">
-            <div class="wood-sign-header">📡 SERVEUR LOCAL / LAN</div>
+            <div class="wood-sign-header">📡 MULTIJOUEUR LOCAL</div>
             <div class="lan-qr-body">
               <div class="lan-status-row">
                 <span id="net-status-dot" class="status-dot offline"></span>
-                <span id="net-status-text">Connexion au serveur...</span>
+                <span id="net-status-text">Connexion...</span>
               </div>
               <div class="qr-box">
                 <img id="lan-qr-img" alt="QR Code LAN" src="" />
               </div>
-              <p class="lan-url-label">Rejoindre sur le même Wi-Fi :</p>
               <code id="lan-url-code" class="lan-url-code">http://localhost:8090</code>
             </div>
           </aside>

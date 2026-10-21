@@ -1,10 +1,10 @@
 // js/main.js — Main Game Loop, Hold-to-Grip Input Controller, Multiplayer Sync, Checkpoints, Camera & HUD Manager
 
-import { PhysicsWorld } from './physics.js?v=98';
-import { Caterpillar } from './caterpillar.js?v=98';
-import { ParticleSystem } from './particles.js?v=98';
-import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=98';
-import { sound } from './audio.js?v=98';
+import { PhysicsWorld } from './physics.js?v=100';
+import { Caterpillar } from './caterpillar.js?v=100';
+import { ParticleSystem } from './particles.js?v=100';
+import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=100';
+import { sound } from './audio.js?v=100';
 import {
   GAMEPLAY_CONFIG,
   GAMEPLAY_PRESETS,
@@ -13,9 +13,10 @@ import {
   resetGameplayConfig,
   saveAsDefaultGameplayConfig,
   GRIP_STYLES
-} from './gameplayConfig.js?v=98';
-import { NetworkManager } from './network.js?v=98';
-import { UIManager } from './uiManager.js?v=98';
+} from './gameplayConfig.js?v=100';
+import { NetworkManager } from './network.js?v=100';
+import { UIManager } from './uiManager.js?v=100';
+import { AdminManager, isAdminRoute } from './adminManager.js?v=100';
 
 class SlipGripGame {
   constructor() {
@@ -86,8 +87,13 @@ class SlipGripGame {
     this.resize();
     this.loadLevel(0);
 
-    // Show Home screen on launch
-    this.ui.showScreen('home');
+    // Initialize Admin Manager (accessible exclusively via /admin route)
+    this.adminManager = new AdminManager(this);
+
+    // Show Home screen on launch if not in admin mode
+    if (!isAdminRoute()) {
+      this.ui.showScreen('home');
+    }
 
     requestAnimationFrame((t) => this.loop(t));
   }
@@ -754,12 +760,6 @@ class SlipGripGame {
         } else {
           this.loadLevel(this.currentLevelIndex);
         }
-      }
-
-      // T or Tab -> Toggle Gameplay & Physics Tuning Lab
-      if (key === 't' || code === 'Tab') {
-        e.preventDefault();
-        this.toggleTuningModal();
       }
     });
 
@@ -1566,7 +1566,7 @@ class SlipGripGame {
 
     ctx.clearRect(0, 0, w, h);
 
-    this.renderer.drawBackground(ctx, w, h, this.camera.x * this.camera.scale, this.camera.y * this.camera.scale, this.level, this.globalTime);
+    this.renderer.drawBackground(ctx, w, h, this.camera.x * this.camera.scale, this.camera.y * this.camera.scale, this.level, this.globalTime, this.currentCup);
 
     ctx.save();
     ctx.scale(this.camera.scale, this.camera.scale);

@@ -157,7 +157,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  const relPath = urlPath === '/' ? '/index.html' : decodeURIComponent(urlPath);
+  const relPath = (urlPath === '/' || urlPath === '/admin' || urlPath === '/admin/') ? '/index.html' : decodeURIComponent(urlPath);
   const filePath = path.join(ROOT, path.normalize(relPath));
 
   if (!filePath.startsWith(ROOT)) {

@@ -160,6 +160,7 @@ export class Caterpillar {
     };
     this.extensionTimer = 0;
     this.hopTimer = 0;
+    this.spamPenaltyTimer = 0;
 
     this.wiggleTime = 0;
     this.crawlPhase = 0;
@@ -977,6 +978,9 @@ export class Caterpillar {
     if (this.invulnerableTimer > 0) {
       this.invulnerableTimer = Math.max(0, this.invulnerableTimer - safeDt);
     }
+    if (this.spamPenaltyTimer > 0) {
+      this.spamPenaltyTimer = Math.max(0, this.spamPenaltyTimer - safeDt);
+    }
     if (this.jumpCooldown > 0) {
       this.jumpCooldown = Math.max(0, this.jumpCooldown - safeDt);
     }
@@ -1025,8 +1029,14 @@ export class Caterpillar {
 
     // SPACEBAR: Pure longitudinal contraction of segment lengths (never lifts body into air!)
     const spaceHeld = !!inputs.space;
+    if (spaceHeld && !this.wasSpaceHeld) {
+      this.spacePressStartComX = (this.head.x + this.rear.x) * 0.5;
+      this.spacePressStartTime = 0;
+    }
+
     this.updateStickyExtraction(safeDt, spaceHeld, particles);
     if (spaceHeld) {
+      this.spacePressStartTime = (this.spacePressStartTime || 0) + safeDt;
       this.extensionTimer = 0; // Never allow extension to fight contraction
       this.extensionMomentum.timer = 0;
       this.extensionMomentum.consumed = false;
@@ -1067,45 +1077,67 @@ export class Caterpillar {
       this.bodyRigidity += (0.85 - this.bodyRigidity) * Math.min(1, safeDt * 10.0);
     } else {
       if (this.wasSpaceHeld) {
-        // Space released: snap unbend with organic spring inertia
-        // Compute overall body spine orientation from tail to head
+        const pressTime = this.spacePressStartTime || this.chargeDuration;
         const N = this.numNodes;
-        let spineDx = 0, spineDy = 0;
-        for (let i = 0; i < N - 1; i++) {
-          const segDx = this.nodes[i + 1].x - this.nodes[i].x;
-          const segDy = this.nodes[i + 1].y - this.nodes[i].y;
-          const sDist = Math.hypot(segDx, segDy) || 1;
-          spineDx += segDx / sDist;
-          spineDy += segDy / sDist;
-        }
-        const sLen = Math.hypot(spineDx, spineDy) || 1;
-        this.launchSpineDir = { x: spineDx / sLen, y: spineDy / sLen };
 
-        // PROGRESSIVE JUMP: strictly requires at least 0.50s of charge to jump!
-        // "pour les sauts, il ne faut pas pouvoir sauter a partir de 0,5 de charge sinon on peut voler."
-        const minJumpCharge = 0.50;
-        const maxChargeTime = Math.max(1.5, GAMEPLAY_CONFIG.jumpChargeTime || 2.4);
-        const canJump = this.chargeDuration >= minJumpCharge && this.jumpCooldown <= 0;
-        if (canJump) {
-          const u = Math.min(1.0, Math.max(0, (this.chargeDuration - minJumpCharge) / (maxChargeTime - minJumpCharge)));
-          const effectivePower = 0.15 + 0.85 * Math.pow(u, 1.30);
-          this.rigidityTimer = 0.35;
-          this.bodyRigidity = 0.85;
-          this.extensionTimer = 0.30 + 0.14 * effectivePower; // Active deployment phase
-          this.jumpCooldown = 0.30;
-          this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles, world);
-        } else {
-          // Zero jump impulse under 0.5s: strictly impossible to fly by spamming Space!
-          this.rigidityTimer = 0.20;
-          this.bodyRigidity = 0.40;
-          this.extensionTimer = 0.30; // Unbends and extends forward smoothly with arrow direction
+        if (pressTime < 0.20) {
+          // Micro-pression / Spam Espace (< 0.20s) :
+          // "quand je spamm espace ca me fait avancer, il faut que je recule autant que j'avance quand je fais espace pendant moins de 0,2 sec afin qu'il n'y ai aucun avantage a spammer"
+          const facingSign = (this.head.x >= this.rear.x) ? 1 : -1;
+          const curComX = (this.head.x + this.rear.x) * 0.5;
+          const forwardAdvance = (curComX - (this.spacePressStartComX !== undefined ? this.spacePressStartComX : curComX)) * facingSign;
+          const recoil = Math.max(forwardAdvance, 10.0);
+          for (let i = 0; i < N; i++) {
+            this.nodes[i].x -= facingSign * recoil;
+            this.nodes[i].vx = -facingSign * Math.max(Math.abs(this.nodes[i].vx), 90);
+          }
+          this.spamPenaltyTimer = 0.35;
+          this.extensionTimer = 0;
           this.launchSpinePower = 0;
-          this.extensionMomentum.timer = 0.30;
-          this.extensionMomentum.consumed = false;
-          this.extensionMomentum.chargeTime = 0;
+          this.extensionMomentum.timer = 0;
+          this.extensionMomentum.consumed = true;
+          this.contraction = 0;
+          this.rigidityTimer = 0.05;
+          this.bodyRigidity = 0.20;
+        } else {
+          // Space released after >= 0.20s: snap unbend with organic spring inertia
+          let spineDx = 0, spineDy = 0;
+          for (let i = 0; i < N - 1; i++) {
+            const segDx = this.nodes[i + 1].x - this.nodes[i].x;
+            const segDy = this.nodes[i + 1].y - this.nodes[i].y;
+            const sDist = Math.hypot(segDx, segDy) || 1;
+            spineDx += segDx / sDist;
+            spineDy += segDy / sDist;
+          }
+          const sLen = Math.hypot(spineDx, spineDy) || 1;
+          this.launchSpineDir = { x: spineDx / sLen, y: spineDy / sLen };
+
+          // PROGRESSIVE JUMP: strictly requires at least 0.50s of charge to jump!
+          const minJumpCharge = 0.50;
+          const maxChargeTime = Math.max(1.5, GAMEPLAY_CONFIG.jumpChargeTime || 2.4);
+          const canJump = this.chargeDuration >= minJumpCharge && this.jumpCooldown <= 0;
+          if (canJump) {
+            const u = Math.min(1.0, Math.max(0, (this.chargeDuration - minJumpCharge) / (maxChargeTime - minJumpCharge)));
+            const effectivePower = 0.15 + 0.85 * Math.pow(u, 1.30);
+            this.rigidityTimer = 0.35;
+            this.bodyRigidity = 0.85;
+            this.extensionTimer = 0.30 + 0.14 * effectivePower; // Active deployment phase
+            this.jumpCooldown = 0.30;
+            this.onReleaseSpace(effectivePower, this.hadAnchorDuringContraction, inputs, particles, world);
+          } else {
+            // Entre 0.20s et 0.50s : Déploiement sans saut
+            this.rigidityTimer = 0.20;
+            this.bodyRigidity = 0.40;
+            this.extensionTimer = 0.25;
+            this.launchSpinePower = 0;
+            this.extensionMomentum.timer = 0.25;
+            this.extensionMomentum.consumed = false;
+            this.extensionMomentum.chargeTime = 0;
+          }
         }
         this.hadRearAnchorDuringContraction = false;
         this.hadFrontAnchorDuringContraction = false;
+        this.spacePressStartTime = 0;
       }
       this.chargeDuration = 0;
       this.chargeShake = 0;
@@ -2300,6 +2332,13 @@ export class Caterpillar {
       const drag = isAirborne ? (isVoltige ? 0.997 : 0.994) : (hasSteer ? 0.968 : 0.978);
       n.vx *= Math.pow(drag, dt * 60);
       n.vy *= Math.pow(drag, dt * 60);
+
+      if (this.spamPenaltyTimer > 0) {
+        const facingSign = (this.head.x >= this.rear.x) ? 1 : -1;
+        if (n.vx * facingSign > 0) {
+          n.vx = 0;
+        }
+      }
 
       n.x += n.vx * dt;
       n.y += n.vy * dt;
