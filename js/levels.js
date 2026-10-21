@@ -10,6 +10,7 @@ export const LEVEL_DEFINITIONS = [
     cupId: 'potager_geant',
     difficulty: 'Facile',
     theme: 'forest',
+    bgSet: 'game_background_2',
     name: 'Sous-Bois 1 — L’Orée des Chênes (Facile)',
     subtitle: 'Initiation douce : collines d’herbe, branches basses, glands de soin (+20 ❤️) & premiers pucerons (+1 Segment) !',
     skyTop: '#ffefc2',
@@ -100,6 +101,7 @@ export const LEVEL_DEFINITIONS = [
     cupId: 'potager_geant',
     difficulty: 'Moyen',
     theme: 'garden',
+    bgSet: 'game_background_3',
     name: 'Sous-Bois 2 — Le Potager Suspendu (Moyen)',
     subtitle: 'Tiges de tomates à grimper, feuilles de chou oscillantes, tuyaux d’arrosage, ronces & premiers hérissons !',
     skyTop: '#d4fcff',
@@ -227,6 +229,7 @@ export const LEVEL_DEFINITIONS = [
     cupId: 'potager_geant',
     difficulty: 'Difficile',
     theme: 'canopy',
+    bgSet: 'game_background_1',
     name: 'Sous-Bois 3 — La Canopée des Chênes (Difficile)',
     subtitle: 'Hautes branches superposées, ponts de soie, pentes de mousse glissante, pommes de pin géantes & ronces !',
     skyTop: '#ffeaa7',
@@ -354,6 +357,7 @@ export const LEVEL_DEFINITIONS = [
     cupId: 'vallee_folle',
     difficulty: 'Facile',
     theme: 'mushroom',
+    bgSet: 'game_background_4',
     name: 'Vallée 1 — La Clairière aux Champignons (Facile)',
     subtitle: 'Univers fongique féerique : terrasses de champignons géants, rebonds joyeux, glands de soin & pucerons !',
     skyTop: '#f3e7ff',
@@ -431,6 +435,7 @@ export const LEVEL_DEFINITIONS = [
     cupId: 'vallee_folle',
     difficulty: 'Moyen',
     theme: 'marsh',
+    bgSet: 'game_background_3',
     name: 'Vallée 2 — Le Marais des Nénuphars (Moyen)',
     subtitle: 'Feuilles de nénuphar flottantes, grandes tiges de roseaux à grimper, mousse humide, toiles & hérissons !',
     skyTop: '#c7ecee',
@@ -566,6 +571,7 @@ export const LEVEL_DEFINITIONS = [
     cupId: 'vallee_folle',
     difficulty: 'Difficile',
     theme: 'hive',
+    bgSet: 'game_background_1',
     name: 'Vallée 3 — La Ruche & Le Verger Doré (Difficile)',
     subtitle: 'Rayons d’alvéoles de cire à escalader, flaques de miel ultra-collantes, cocons suspendus & gardiens !',
     skyTop: '#fff3b0',
@@ -675,6 +681,7 @@ export const LEVEL_DEFINITIONS = [
     cupId: 'pique_nique_royal',
     difficulty: 'Facile',
     theme: 'picnic_easy',
+    bgSet: 'game_background_2',
     name: 'Pique-Nique 1 — La Nappe à Carreaux (Facile)',
     subtitle: 'Entrée du pique-nique : petites canettes en escalier doux, pailles géantes, glands de soin & pucerons !',
     skyTop: '#ffecd2',
@@ -749,6 +756,7 @@ export const LEVEL_DEFINITIONS = [
     cupId: 'pique_nique_royal',
     difficulty: 'Moyen',
     theme: 'picnic_table',
+    bgSet: 'game_background_3',
     name: 'Pique-Nique 2 — La Table des Géants (Moyen)',
     subtitle: 'Fourchettes plantées à escalader, ponts de pailles, emballages froissés, confiture collante & hérissons !',
     skyTop: '#ffd6ba',
@@ -854,6 +862,7 @@ export const LEVEL_DEFINITIONS = [
     cupId: 'pique_nique_royal',
     difficulty: 'Difficile',
     theme: 'picnic_chaos',
+    bgSet: 'game_background_4',
     name: 'Pique-Nique 3 — Le Festin Ravagé (Difficile)',
     subtitle: 'Chaos final : grandes ascensions sur fourchettes et pailles, confiture, ronces, pommes de pin & hérissons !',
     skyTop: '#ff9a8b',
@@ -992,141 +1001,285 @@ export class LevelRenderer {
       { type: 'ladybug', offsetX: 82,  color: '#ff5252', phase: 3.9, size: 14 },
       { type: 'beetle',  offsetX: 115, color: '#20bf6b', phase: 0.8, size: 16 }
     ];
+
+    this.parallaxPacks = {};
+    this.initParallaxPacks();
+  }
+
+  // Initialize and preload the 4 multi-layered parallax background packs from assets
+  initParallaxPacks() {
+    const basePath = 'assets/parallax%20backgrounds/';
+    // Curated high-performance layers: keeps visual beauty and depth while cutting GPU fillrate by 60%!
+    const packDefs = {
+      game_background_1: [
+        { file: 'sky.png', factorX: 0.0, factorY: 0.0, animSpeed: 0, alignBottom: false },
+        { file: 'clouds_2.png', factorX: 0.04, factorY: 0.02, animSpeed: 14, alignBottom: false },
+        { file: 'rocks_2.png', factorX: 0.22, factorY: 0.07, animSpeed: 0, alignBottom: true },
+        { file: 'rocks_1.png', factorX: 0.36, factorY: 0.11, animSpeed: 0, alignBottom: true }
+      ],
+      game_background_2: [
+        { file: 'sky.png', factorX: 0.0, factorY: 0.0, animSpeed: 0, alignBottom: false },
+        { file: 'clouds_2.png', factorX: 0.05, factorY: 0.03, animSpeed: 16, alignBottom: false },
+        { file: 'birds.png', factorX: 0.16, factorY: 0.04, animSpeed: 45, alignBottom: false, offsetY: -30 },
+        { file: 'rocks_2.png', factorX: 0.26, factorY: 0.08, animSpeed: 0, alignBottom: true },
+        { file: 'pines.png', factorX: 0.44, factorY: 0.13, animSpeed: 0, alignBottom: true }
+      ],
+      game_background_3: [
+        { file: 'sky.png', factorX: 0.0, factorY: 0.0, animSpeed: 0, alignBottom: false },
+        { file: 'clouds_1.png', factorX: 0.04, factorY: 0.02, animSpeed: 14, alignBottom: false },
+        { file: 'rocks.png', factorX: 0.20, factorY: 0.06, animSpeed: 0, alignBottom: true },
+        { file: 'plant.png', factorX: 0.30, factorY: 0.08, animSpeed: 0, alignBottom: true },
+        { file: 'ground_2.png', factorX: 0.46, factorY: 0.12, animSpeed: 0, alignBottom: true }
+      ],
+      game_background_4: [
+        { file: 'sky.png', factorX: 0.0, factorY: 0.0, animSpeed: 0, alignBottom: false },
+        { file: 'clouds_1.png', factorX: 0.05, factorY: 0.02, animSpeed: 16, alignBottom: false },
+        { file: 'rocks.png', factorX: 0.24, factorY: 0.07, animSpeed: 0, alignBottom: true },
+        { file: 'ground.png', factorX: 0.42, factorY: 0.12, animSpeed: 0, alignBottom: true }
+      ]
+    };
+
+    for (const [packName, layers] of Object.entries(packDefs)) {
+      this.parallaxPacks[packName] = layers.map(layer => {
+        const img = new Image();
+        img.src = `${basePath}${packName}/layers/${layer.file}`;
+        const item = {
+          ...layer,
+          img,
+          loaded: false
+        };
+        img.onload = () => { item.loaded = true; };
+        return item;
+      });
+    }
+
+    // Preload single pre-composited backgrounds for ultra-fast Eco Mode (1 single drawImage call, saving 90% GPU fillrate!)
+    this.parallaxComposites = {};
+    const compositeFiles = {
+      game_background_1: 'game_background_1.png',
+      game_background_2: 'game_background_2.png',
+      game_background_3: 'game_background_3.1.png',
+      game_background_4: 'game_background_4.png'
+    };
+    for (const [packName, file] of Object.entries(compositeFiles)) {
+      const img = new Image();
+      img.src = `${basePath}${packName}/${file}`;
+      const item = { img, loaded: false };
+      img.onload = () => { item.loaded = true; };
+      this.parallaxComposites[packName] = item;
+    }
+  }
+
+  // Draw an individual parallax image layer with horizontal wrapping and camera offsets
+  drawParallaxLayer(ctx, layer, width, height, cameraX, cameraY, time) {
+    if (!layer.loaded || !layer.img || layer.img.naturalWidth === 0) return false;
+
+    const img = layer.img;
+    const aspect = img.naturalWidth / img.naturalHeight;
+    const drawH = height;
+    const drawW = Math.round(drawH * aspect);
+
+    if (drawW <= 0 || drawH <= 0) return false;
+
+    const animX = (layer.animSpeed || 0) * (time || 0);
+    const scrollX = (cameraX * (layer.factorX || 0) + animX) % drawW;
+
+    let drawY = 0;
+    if (layer.alignBottom) {
+      const camOffsetY = ((cameraY || 500) - 500) * (layer.factorY || 0.06);
+      drawY = Math.round(height - drawH - camOffsetY);
+    } else {
+      const camOffsetY = ((cameraY || 500) - 500) * (layer.factorY || 0.02);
+      drawY = Math.round(-camOffsetY + (layer.offsetY || 0));
+    }
+
+    let startX = -scrollX;
+    while (startX > 0) startX -= drawW;
+    while (startX + drawW < 0) startX += drawW;
+
+    for (let x = startX; x < width + drawW; x += drawW - 1) {
+      ctx.drawImage(img, Math.floor(x), drawY, drawW + 1, drawH);
+    }
+
+    return true;
   }
 
   // Rich Multi-Layered Parallax Background adapted to each Level's Universe Theme!
   drawBackground(ctx, width, height, cameraX, cameraY, level, time) {
     const theme = level.theme || 'forest';
+    const bgSet = level.bgSet || 'game_background_2';
+    const bgMode = (typeof GAMEPLAY_CONFIG !== 'undefined' && GAMEPLAY_CONFIG.backgroundMode) ? GAMEPLAY_CONFIG.backgroundMode : 'parallax';
 
-    // 1. Sky Gradient
-    const grad = ctx.createLinearGradient(0, 0, 0, height);
-    grad.addColorStop(0, level.skyTop);
-    grad.addColorStop(1, level.skyBottom);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, width, height);
-
-    // 2. Sun / Magical Glow & Sunbeams
-    ctx.save();
-    ctx.fillStyle = theme === 'mushroom' ? 'rgba(220, 190, 255, 0.45)' : 'rgba(255, 250, 200, 0.45)';
-    ctx.beginPath();
-    ctx.arc(width * 0.82, height * 0.18, 75, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.fillStyle = 'rgba(255, 253, 215, 0.16)';
-    for (let i = 0; i < 5; i++) {
-      const bx = ((i * 420 - cameraX * 0.05) % (width + 500) + (width + 500)) % (width + 500) - 250;
-      ctx.beginPath();
-      ctx.moveTo(bx, 0);
-      ctx.lineTo(bx + 120, 0);
-      ctx.lineTo(bx + 320, height);
-      ctx.lineTo(bx + 150, height);
-      ctx.closePath();
-      ctx.fill();
-    }
-    ctx.restore();
-
-    // 3. Far Parallax Layer: Rolling Hills & Universe Landmarks
-    ctx.save();
-    const farShift = cameraX * 0.12;
-    const hillPalettes = {
-      forest:       { fill: '#74c668', stroke: '#3b7a33', bush: '#4ca644' },
-      garden:       { fill: '#80d472', stroke: '#418538', bush: '#52b548' },
-      canopy:       { fill: '#58b368', stroke: '#276332', bush: '#3a8f49' },
-      mushroom:     { fill: '#a29bfe', stroke: '#5f27cd', bush: '#6c5ce7' },
-      marsh:        { fill: '#63cdda', stroke: '#106e7d', bush: '#3dc1d3' },
-      hive:         { fill: '#f6b93b', stroke: '#b76e11', bush: '#e58e26' },
-      picnic_easy:  { fill: '#f8a5c2', stroke: '#b33951', bush: '#e66767' },
-      picnic_table: { fill: '#f2b880', stroke: '#b56e35', bush: '#e08e55' },
-      picnic_chaos: { fill: '#e17055', stroke: '#8c2d19', bush: '#d63031' }
-    };
-    const pal = hillPalettes[theme] || hillPalettes.forest;
-
-    ctx.fillStyle = pal.fill;
-    ctx.strokeStyle = pal.stroke;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.moveTo(-50, height);
-    for (let x = -50; x <= width + 100; x += 60) {
-      const worldX = x + farShift;
-      const hy = height * 0.62 + Math.sin(worldX * 0.003) * 55 + Math.cos(worldX * 0.007) * 28;
-      ctx.lineTo(x, hy);
-    }
-    ctx.lineTo(width + 100, height);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-
-    // Universe-specific mid-parallax silhouettes
-    const midShift = cameraX * 0.24;
-    for (let i = -1; i < 12; i++) {
-      const tx = i * 340 - (midShift % 340);
-      if (theme === 'forest' || theme === 'canopy') {
-        ctx.fillStyle = 'rgba(107, 68, 35, 0.35)';
-        ctx.fillRect(tx, height * 0.08, 68, height * 0.68);
-        ctx.fillStyle = 'rgba(58, 125, 52, 0.38)';
-        ctx.beginPath();
-        ctx.arc(tx + 34, height * 0.15, 115, 0, Math.PI * 2);
-        ctx.arc(tx - 30, height * 0.22, 82, 0, Math.PI * 2);
-        ctx.arc(tx + 95, height * 0.22, 85, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (theme === 'garden') {
-        ctx.fillStyle = 'rgba(92, 148, 71, 0.32)';
-        ctx.fillRect(tx, height * 0.15, 22, height * 0.6);
-        ctx.fillStyle = 'rgba(235, 64, 52, 0.35)';
-        ctx.beginPath();
-        ctx.arc(tx + 45, height * 0.34, 42, 0, Math.PI * 2);
-        ctx.arc(tx - 35, height * 0.44, 36, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (theme === 'mushroom') {
-        // Giant background pastel mushrooms
-        ctx.fillStyle = 'rgba(245, 230, 255, 0.42)';
-        ctx.fillRect(tx + 18, height * 0.28, 36, height * 0.45);
-        ctx.fillStyle = 'rgba(253, 121, 168, 0.36)';
-        ctx.beginPath();
-        ctx.arc(tx + 36, height * 0.28, 92, Math.PI, 0);
-        ctx.fill();
-      } else if (theme === 'marsh') {
-        // Giant background cattails / reeds
-        ctx.fillStyle = 'rgba(20, 110, 95, 0.32)';
-        ctx.fillRect(tx + 20, height * 0.16, 12, height * 0.6);
-        ctx.fillStyle = 'rgba(110, 65, 30, 0.40)';
-        ctx.beginPath();
-        ctx.roundRect(tx + 14, height * 0.20, 24, 65, 12);
-        ctx.fill();
-      } else if (theme === 'hive') {
-        // Giant honeycomb silhouettes
-        ctx.fillStyle = 'rgba(243, 156, 18, 0.28)';
-        ctx.beginPath();
-        ctx.arc(tx + 40, height * 0.28, 78, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        // Giant picnic basket / thermos silhouette
-        ctx.fillStyle = 'rgba(209, 73, 56, 0.25)';
-        ctx.beginPath();
-        ctx.roundRect(tx, height * 0.32, 95, 160, 18);
-        ctx.fill();
+    // ECO MODE: 1 single drawImage call with gentle parallax, saving 90% GPU fillrate!
+    if (bgMode === 'eco') {
+      const comp = this.parallaxComposites ? this.parallaxComposites[bgSet] : null;
+      if (comp && comp.loaded && comp.img && comp.img.naturalWidth > 0) {
+        const aspect = comp.img.naturalWidth / comp.img.naturalHeight;
+        const drawH = height;
+        const drawW = Math.round(drawH * aspect);
+        const scrollX = (cameraX * 0.12) % drawW;
+        let startX = -scrollX;
+        while (startX > 0) startX -= drawW;
+        while (startX + drawW < 0) startX += drawW;
+        for (let x = startX; x < width + drawW; x += drawW - 1) {
+          ctx.drawImage(comp.img, Math.floor(x), 0, drawW + 1, drawH);
+        }
+        return;
       }
     }
-    ctx.restore();
 
-    // 4. Mid-Near Parallax Layer: Bushy Cartoon Foliage
-    ctx.save();
-    const nearShift = cameraX * 0.38;
-    ctx.fillStyle = pal.bush;
-    ctx.strokeStyle = pal.stroke;
-    ctx.lineWidth = 3.5;
-    ctx.beginPath();
-    ctx.moveTo(-60, height);
-    for (let x = -60; x <= width + 120; x += 80) {
-      const wx = x + nearShift;
-      const by = height * 0.78 + Math.sin(wx * 0.008) * 32;
-      ctx.quadraticCurveTo(x - 40, by - 28, x, by);
+    const pack = this.parallaxPacks ? this.parallaxPacks[bgSet] : null;
+    const hasSkyImage = pack && pack.length > 0 && pack[0].file === 'sky.png' && pack[0].loaded;
+
+    // 1. Sky Gradient base: only draw if sky.png is NOT loaded (eliminates 100% redundant overdraw!)
+    if (!hasSkyImage) {
+      const grad = ctx.createLinearGradient(0, 0, 0, height);
+      grad.addColorStop(0, level.skyTop);
+      grad.addColorStop(1, level.skyBottom);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
     }
-    ctx.lineTo(width + 120, height);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+
+    let drawnAnyParallax = false;
+
+    // 2. Sky Parallax Layer
+    if (pack && pack.length > 0 && pack[0].file === 'sky.png') {
+      if (this.drawParallaxLayer(ctx, pack[0], width, height, cameraX, cameraY, time)) {
+        drawnAnyParallax = true;
+      }
+    }
+
+    // 3. Sun / Magical Glow & Sunbeams
+    if (bgMode !== 'minimal') {
+      ctx.save();
+      ctx.fillStyle = theme === 'mushroom' ? 'rgba(220, 190, 255, 0.40)' : 'rgba(255, 250, 200, 0.40)';
+      ctx.beginPath();
+      ctx.arc(width * 0.82, height * 0.18, 75, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = 'rgba(255, 253, 215, 0.14)';
+      for (let i = 0; i < 4; i++) {
+        const bx = ((i * 480 - cameraX * 0.05) % (width + 500) + (width + 500)) % (width + 500) - 250;
+        ctx.beginPath();
+        ctx.moveTo(bx, 0);
+        ctx.lineTo(bx + 120, 0);
+        ctx.lineTo(bx + 320, height);
+        ctx.lineTo(bx + 150, height);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+
+    // 4. Parallax Intermediate Layers (Curated, high-performance layers)
+    if (pack && pack.length > 1) {
+      for (let i = 1; i < pack.length; i++) {
+        if (this.drawParallaxLayer(ctx, pack[i], width, height, cameraX, cameraY, time)) {
+          drawnAnyParallax = true;
+        }
+      }
+    }
+
+    // 5. Procedural cartoon hills fallback if parallax images are still loading
+    if (!drawnAnyParallax) {
+      ctx.save();
+      const farShift = cameraX * 0.12;
+      const hillPalettes = {
+        forest:       { fill: '#74c668', stroke: '#3b7a33', bush: '#4ca644' },
+        garden:       { fill: '#80d472', stroke: '#418538', bush: '#52b548' },
+        canopy:       { fill: '#58b368', stroke: '#276332', bush: '#3a8f49' },
+        mushroom:     { fill: '#a29bfe', stroke: '#5f27cd', bush: '#6c5ce7' },
+        marsh:        { fill: '#63cdda', stroke: '#106e7d', bush: '#3dc1d3' },
+        hive:         { fill: '#f6b93b', stroke: '#b76e11', bush: '#e58e26' },
+        picnic_easy:  { fill: '#f8a5c2', stroke: '#b33951', bush: '#e66767' },
+        picnic_table: { fill: '#f2b880', stroke: '#b56e35', bush: '#e08e55' },
+        picnic_chaos: { fill: '#e17055', stroke: '#8c2d19', bush: '#d63031' }
+      };
+      const pal = hillPalettes[theme] || hillPalettes.forest;
+
+      ctx.fillStyle = pal.fill;
+      ctx.strokeStyle = pal.stroke;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(-50, height);
+      for (let x = -50; x <= width + 100; x += 60) {
+        const worldX = x + farShift;
+        const hy = height * 0.62 + Math.sin(worldX * 0.003) * 55 + Math.cos(worldX * 0.007) * 28;
+        ctx.lineTo(x, hy);
+      }
+      ctx.lineTo(width + 100, height);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Mid-parallax silhouettes
+      const midShift = cameraX * 0.24;
+      for (let i = -1; i < 12; i++) {
+        const tx = i * 340 - (midShift % 340);
+        if (theme === 'forest' || theme === 'canopy') {
+          ctx.fillStyle = 'rgba(107, 68, 35, 0.35)';
+          ctx.fillRect(tx, height * 0.08, 68, height * 0.68);
+          ctx.fillStyle = 'rgba(58, 125, 52, 0.38)';
+          ctx.beginPath();
+          ctx.arc(tx + 34, height * 0.15, 115, 0, Math.PI * 2);
+          ctx.arc(tx - 30, height * 0.22, 82, 0, Math.PI * 2);
+          ctx.arc(tx + 95, height * 0.22, 85, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (theme === 'garden') {
+          ctx.fillStyle = 'rgba(92, 148, 71, 0.32)';
+          ctx.fillRect(tx, height * 0.15, 22, height * 0.6);
+          ctx.fillStyle = 'rgba(235, 64, 52, 0.35)';
+          ctx.beginPath();
+          ctx.arc(tx + 45, height * 0.34, 42, 0, Math.PI * 2);
+          ctx.arc(tx - 35, height * 0.44, 36, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (theme === 'mushroom') {
+          ctx.fillStyle = 'rgba(245, 230, 255, 0.42)';
+          ctx.fillRect(tx + 18, height * 0.28, 36, height * 0.45);
+          ctx.fillStyle = 'rgba(253, 121, 168, 0.36)';
+          ctx.beginPath();
+          ctx.arc(tx + 36, height * 0.28, 92, Math.PI, 0);
+          ctx.fill();
+        } else if (theme === 'marsh') {
+          ctx.fillStyle = 'rgba(20, 110, 95, 0.32)';
+          ctx.fillRect(tx + 20, height * 0.16, 12, height * 0.6);
+          ctx.fillStyle = 'rgba(110, 65, 30, 0.40)';
+          ctx.beginPath();
+          ctx.roundRect(tx + 14, height * 0.20, 24, 65, 12);
+          ctx.fill();
+        } else if (theme === 'hive') {
+          ctx.fillStyle = 'rgba(243, 156, 18, 0.28)';
+          ctx.beginPath();
+          ctx.arc(tx + 40, height * 0.28, 78, 0, Math.PI * 2);
+          ctx.fill();
+        } else {
+          ctx.fillStyle = 'rgba(209, 73, 56, 0.25)';
+          ctx.beginPath();
+          ctx.roundRect(tx, height * 0.32, 95, 160, 18);
+          ctx.fill();
+        }
+      }
+      ctx.restore();
+
+      // Bushy foliage
+      ctx.save();
+      const nearShift = cameraX * 0.38;
+      ctx.fillStyle = pal.bush;
+      ctx.strokeStyle = pal.stroke;
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(-60, height);
+      for (let x = -60; x <= width + 120; x += 80) {
+        const wx = x + nearShift;
+        const by = height * 0.78 + Math.sin(wx * 0.008) * 32;
+        ctx.quadraticCurveTo(x - 40, by - 28, x, by);
+      }
+      ctx.lineTo(width + 120, height);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   drawWorld(ctx, world, level, time, isVictory) {

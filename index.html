@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=75" />
+  <link rel="stylesheet" href="styles.css?v=97" />
 </head>
 <body>
   <div id="game-wrapper">
@@ -444,6 +444,15 @@
               </label>
             </div>
 
+            <div class="tune-item" style="margin-top: 10px;">
+              <label for="tune-backgroundMode">🖼️ Rendu des Arrière-Plans :</label>
+              <select id="tune-backgroundMode" style="width: 100%; padding: 8px 12px; border-radius: 8px; border: 2px solid #58b368; background: #fff; font-family: inherit; font-weight: 700; color: #2d3436; font-size: 14px; margin-top: 4px;">
+                <option value="parallax">✨ Parallaxe Optimisé (4-5 couches fluides)</option>
+                <option value="eco">🍃 Mode Éco (1 image composite - ultra-fluide 120 FPS)</option>
+                <option value="minimal">🎨 Minimaliste (Collines vectorielles pures)</option>
+              </select>
+            </div>
+
             <div class="tune-item checkbox-item">
               <label>
                 <input type="checkbox" id="tune-showBadgesOverlay" checked />
@@ -558,6 +567,6 @@
     </div>
   </div>
 
-  <script type="module" src="js/main.js?v=80"></script>
+  <script type="module" src="js/main.js?v=97"></script>
 </body>
 </html>

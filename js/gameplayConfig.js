@@ -159,11 +159,11 @@ export const GAMEPLAY_PRESETS = {
     gripAngleTolerance: -0.15,
     omegaArchVisual: 0.75,
     wigglePhysicsAmount: 4,
-    maxGroundCrawl: 26,
+    maxGroundCrawl: 50,
     clawScale: 1.35,
     showBadgesOverlay: true,
     bendCanOrientVertically: true,
-    bendOrientationPower: 0.55,
+    bendOrientationPower: 1.0,
     bendContractSpeed: 11.0,
     unbendExtensionSpeed: 36.0,
     anchorReleaseMomentumWindow: 0.30,
@@ -299,8 +299,8 @@ export const GAMEPLAY_CONFIG = {
   // Amplitude de l'ondulation physique larvaire naturelle (0 = aucun wiggle, très calme et doux)
   wigglePhysicsAmount: 4,
 
-  // Vitesse maximale de reptation passive au sol avec les flèches seules (très lente, privilégie l'arpentage)
-  maxGroundCrawl: 26,
+  // Vitesse maximale de reptation passive au sol avec les flèches seules (marche avant base 50, arrière 30)
+  maxGroundCrawl: 50,
 
   // Échelle des paires de griffes en overflow (taille visuelle)
   clawScale: 1.35,
@@ -312,7 +312,7 @@ export const GAMEPLAY_CONFIG = {
   bendCanOrientVertically: true,
 
   // Multiplicateur de puissance d'orientation pendant la charge Espace
-  bendOrientationPower: 0.55,
+  bendOrientationPower: 1.0,
 
   // Vitesse de contraction douce du corps au clic Espace (marche d'arpenteuse)
   bendContractSpeed: 11.0,
@@ -334,6 +334,9 @@ export const GAMEPLAY_CONFIG = {
 
   // Préserver la posture et courbure du corps pendant la charge (ne pas écraser en barre droite)
   preserveShapeOnBend: true,
+
+  // Mode de rendu des arrière-plans : 'parallax' (optimisé 4-5 couches), 'eco' (1 couche composite fluide), 'minimal' (dessin vectoriel pur)
+  backgroundMode: 'parallax',
 
   // Nom du preset actuellement chargé
   activePreset: 'arcade_dynamique'

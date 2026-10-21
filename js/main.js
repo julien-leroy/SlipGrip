@@ -1,10 +1,10 @@
 // js/main.js — Main Game Loop, Hold-to-Grip Input Controller, Multiplayer Sync, Checkpoints, Camera & HUD Manager
 
-import { PhysicsWorld } from './physics.js?v=80';
-import { Caterpillar } from './caterpillar.js?v=80';
-import { ParticleSystem } from './particles.js?v=80';
-import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=80';
-import { sound } from './audio.js?v=80';
+import { PhysicsWorld } from './physics.js?v=97';
+import { Caterpillar } from './caterpillar.js?v=97';
+import { ParticleSystem } from './particles.js?v=97';
+import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=97';
+import { sound } from './audio.js?v=97';
 import {
   GAMEPLAY_CONFIG,
   GAMEPLAY_PRESETS,
@@ -13,9 +13,9 @@ import {
   resetGameplayConfig,
   saveAsDefaultGameplayConfig,
   GRIP_STYLES
-} from './gameplayConfig.js?v=80';
-import { NetworkManager } from './network.js?v=80';
-import { UIManager } from './uiManager.js?v=80';
+} from './gameplayConfig.js?v=97';
+import { NetworkManager } from './network.js?v=97';
+import { UIManager } from './uiManager.js?v=97';
 
 class SlipGripGame {
   constructor() {
@@ -651,6 +651,9 @@ class SlipGripGame {
     const chkBadges = document.getElementById('tune-showBadgesOverlay');
     if (chkBadges) chkBadges.checked = !!cfg.showBadgesOverlay;
 
+    const selBgMode = document.getElementById('tune-backgroundMode');
+    if (selBgMode) selBgMode.value = cfg.backgroundMode || 'parallax';
+
     document.querySelectorAll('#preset-buttons .preset-btn').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.preset === cfg.activePreset);
     });
@@ -1004,6 +1007,13 @@ class SlipGripGame {
     bindCheckbox('tune-preserveShapeOnBend', 'preserveShapeOnBend');
     bindCheckbox('tune-airborneExtensionOnly', 'airborneExtensionOnly');
     bindCheckbox('tune-showBadgesOverlay', 'showBadgesOverlay');
+
+    const selBgMode = document.getElementById('tune-backgroundMode');
+    if (selBgMode) {
+      selBgMode.addEventListener('change', () => {
+        GAMEPLAY_CONFIG.backgroundMode = selBgMode.value;
+      });
+    }
 
     // Copy config button
     const btnCopyConfig = document.getElementById('btn-copy-config');

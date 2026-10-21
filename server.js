@@ -63,7 +63,7 @@ const CUPS_CATALOG = {
 
 function createDefaultRoomConfig() {
   return {
-    cupId: 'potager_geant',
+    cupId: null, // No cup selected by default
     maxPlayers: 4,
     jumpBoost: 1.0,
     startScale: 1.0,
@@ -656,12 +656,19 @@ function handleWsMessage(client, msg) {
       const room = rooms.get(client.roomCode);
       if (!room || room.hostId !== client.id) return;
 
-      // Reset cup scores & modifiers for all players in the room
+      if (!room.config.cupId) {
+        sendWs(client, 'room_error', { message: 'Veuillez sélectionner une Coupe avant de lancer la compétition !' });
+        return;
+      }
+
+      // Reset cup scores, times, and modifiers for all players in the room
       for (const p of room.players.values()) {
         p.score = 0;
         p.totalTime = 0;
         p.modifiers = [];
         p.lastRank = null;
+        p.draftChoice = null;
+        p.draftOptions = [];
       }
 
       launchRoomRace(room, 0);
@@ -884,14 +891,26 @@ function handleWsMessage(client, msg) {
         clearTimeout(room.raceTimerHandle);
         room.raceTimerHandle = null;
       }
+      if (room.draftTimerHandle) {
+        clearTimeout(room.draftTimerHandle);
+        room.draftTimerHandle = null;
+      }
+      if (room.autoLaunchTimerHandle) {
+        clearTimeout(room.autoLaunchTimerHandle);
+        room.autoLaunchTimerHandle = null;
+      }
       room.state = 'lobby';
       room.raceIndex = 0;
       for (const p of room.players.values()) {
         p.finished = false;
         p.finishTime = null;
         p.progress = 0;
+        p.score = 0;
+        p.totalTime = 0;
         p.modifiers = [];
+        p.lastRank = null;
         p.draftChoice = null;
+        p.draftOptions = [];
       }
       broadcastRoom(room, 'returned_to_lobby', { room: serializeRoom(room) });
       broadcastLobbyList();

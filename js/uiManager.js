@@ -10,10 +10,10 @@ import {
   isCosmeticUnlocked,
   unlockRandomCosmeticGift,
   getUnlockedCosmeticsCount
-} from './gameplayConfig.js?v=73';
-import { COSMETIC_PALETTES, Caterpillar } from './caterpillar.js?v=73';
-import { LEVEL_DEFINITIONS } from './levels.js?v=73';
-import { sound } from './audio.js?v=73';
+} from './gameplayConfig.js?v=97';
+import { COSMETIC_PALETTES, Caterpillar } from './caterpillar.js?v=97';
+import { LEVEL_DEFINITIONS } from './levels.js?v=97';
+import { sound } from './audio.js?v=97';
 
 export class UIManager {
   constructor(game, network) {
@@ -253,10 +253,12 @@ export class UIManager {
             </div>
 
             <div class="admin-scroll-body">
-              <!-- Cup Selection (3 Races) -->
+              <!-- Cup Selection (3 Races) - Designated Square / Card -->
               <div class="admin-block">
-                <label class="admin-block-title">🗺️ Coupe Choisie (3 Courses) :</label>
-                <div id="cup-selector-list" class="cup-selector-list"></div>
+                <div class="admin-block-header">
+                  <label class="admin-block-title">🏆 Coupe de la Compétition :</label>
+                </div>
+                <div id="room-cup-slot-container" class="room-cup-slot-container"></div>
               </div>
 
               <!-- Host Gameplay Settings -->
@@ -429,6 +431,26 @@ export class UIManager {
           </div>
         </div>
       </div>
+
+      <!-- ==================== 7. MODAL SÉLECTION DE LA COUPE (POPUP EN UN CLIC) ==================== -->
+      <div id="modal-cup-picker" class="modal-backdrop hidden">
+        <div class="modal-card cup-picker-modal dark-glass-panel">
+          <div class="panel-wood-header big-wood-header gold-wood">
+            <span>🏆 CHOISIR UNE COUPE (3 COURSES)</span>
+            <button id="btn-close-cup-picker" class="close-modal-icon-btn" title="Fermer">✕</button>
+          </div>
+
+          <p class="cup-picker-subtitle">
+            Cliquez sur une coupe pour la sélectionner immédiatement et préparer la compétition :
+          </p>
+
+          <div id="cup-picker-grid" class="cup-picker-grid"></div>
+
+          <div class="modal-buttons">
+            <button id="btn-dismiss-cup-picker" class="wood-btn">Fermer</button>
+          </div>
+        </div>
+      </div>
     `;
 
     wrapper.appendChild(uiContainer);
@@ -521,6 +543,8 @@ export class UIManager {
     // Room Lobby screen buttons
     document.getElementById('btn-leave-room')?.addEventListener('click', () => {
       sound.playGrip(false);
+      this.game.caterpillar.resetProgression();
+      this.game.isInActiveCup = false;
       this.network.leaveRoom();
       this.showScreen('home');
     });
@@ -585,6 +609,12 @@ export class UIManager {
     document.getElementById('btn-room-start-cup')?.addEventListener('click', () => {
       if (!this.network.currentRoom) return;
       if (this.network.isHost()) {
+        const cfg = this.network.currentRoom.config || {};
+        if (!cfg.cupId) {
+          sound.playHit();
+          this.openCupPickerModal(null);
+          return;
+        }
         sound.playVictory();
         this.network.startCup();
       } else {
@@ -592,6 +622,22 @@ export class UIManager {
         const me = this.network.getLocalPlayer();
         const nextReady = !(me && me.ready);
         this.network.updateProfile(this.network.pseudo, this.game.caterpillar.cosmetics, nextReady);
+      }
+    });
+
+    // Cup Picker Modal Close Buttons
+    document.getElementById('btn-close-cup-picker')?.addEventListener('click', () => {
+      sound.playGrip(false);
+      this.closeCupPickerModal();
+    });
+    document.getElementById('btn-dismiss-cup-picker')?.addEventListener('click', () => {
+      sound.playGrip(false);
+      this.closeCupPickerModal();
+    });
+    document.getElementById('modal-cup-picker')?.addEventListener('click', (e) => {
+      if (e.target.id === 'modal-cup-picker') {
+        sound.playGrip(false);
+        this.closeCupPickerModal();
       }
     });
 
@@ -620,6 +666,8 @@ export class UIManager {
     // Podium Return to Room button
     document.getElementById('btn-podium-return-room')?.addEventListener('click', () => {
       document.getElementById('modal-cup-podium')?.classList.add('hidden');
+      this.game.caterpillar.resetProgression();
+      this.game.isInActiveCup = false;
       if (this.network.isHost()) {
         this.network.returnToLobby();
       }
@@ -661,6 +709,9 @@ export class UIManager {
     this.network.on('returned_to_lobby', (room) => {
       document.getElementById('modal-race-results')?.classList.add('hidden');
       document.getElementById('modal-cup-podium')?.classList.add('hidden');
+      this.closeCupPickerModal();
+      this.game.caterpillar.resetProgression();
+      this.game.isInActiveCup = false;
       this.showScreen('room');
       this.renderRoomLobby(room);
     });
@@ -668,6 +719,9 @@ export class UIManager {
     this.network.on('left_room', (msg) => {
       document.getElementById('modal-race-results')?.classList.add('hidden');
       document.getElementById('modal-cup-podium')?.classList.add('hidden');
+      this.closeCupPickerModal();
+      this.game.caterpillar.resetProgression();
+      this.game.isInActiveCup = false;
       if (msg && Array.isArray(msg.rooms)) {
         this.renderOpenLobbies(msg.rooms);
       }
@@ -936,39 +990,52 @@ export class UIManager {
       }).join('');
     }
 
-    // 2. Render Cup Selection Cards
-    const cupListEl = document.getElementById('cup-selector-list');
-    if (cupListEl) {
-      const currentCupId = cfg.cupId || 'potager_geant';
-      cupListEl.innerHTML = Object.values(CUPS_DEFINITIONS).map((cup) => {
-        const selected = currentCupId === cup.id;
-        const lvls = cup.levels || [0, 1, 2];
-        const mapNames = lvls.map((idx, i) => {
-          const lvl = LEVEL_DEFINITIONS[idx] || LEVEL_DEFINITIONS[0];
-          return `${i + 1}. ${lvl.name}`;
-        }).join(' • ');
+    // 2. Render Cup Slot (Designated square/card in Room Lobby)
+    const slotContainer = document.getElementById('room-cup-slot-container');
+    if (slotContainer) {
+      const selectedCup = cfg.cupId ? CUPS_DEFINITIONS[cfg.cupId] : null;
 
-        return `
-          <div class="cup-card ${selected ? 'active' : ''} ${!isHost ? 'readonly' : ''}" data-cup="${cup.id}">
-            <div class="cup-card-top">
-              <span class="cup-icon">${cup.icon}</span>
-              <div class="cup-titles">
-                <strong>${cup.name}</strong>
-                <small>${cup.desc || ''}</small>
-              </div>
-              ${selected ? '<span class="cup-check">✔</span>' : ''}
+      if (!selectedCup) {
+        slotContainer.innerHTML = `
+          <div class="cup-slot-card empty ${isHost ? 'clickable' : 'readonly'}" id="btn-open-cup-slot">
+            <div class="cup-slot-icon-box empty-icon-box">
+              <span class="cup-slot-icon">➕</span>
             </div>
-            <div class="cup-maps-preview">${mapNames}</div>
+            <div class="cup-slot-info">
+              <strong class="cup-slot-title">${isHost ? 'CHOISIR UNE COUPE' : 'AUCUNE COUPE SÉLECTIONNÉE'}</strong>
+              <small class="cup-slot-hint">${isHost ? 'Cliquez pour ouvrir le sélecteur de coupes (3 courses)' : "L'admin n'a pas encore choisi de coupe"}</small>
+            </div>
+            ${isHost ? '<span class="cup-slot-action-btn">Choisir 👆</span>' : ''}
           </div>
         `;
-      }).join('');
+      } else {
+        const lvls = selectedCup.levels || [0, 1, 2];
+        const mapsList = lvls.map((idx, i) => {
+          const lvl = LEVEL_DEFINITIONS[idx] || LEVEL_DEFINITIONS[0];
+          return `<span class="cup-slot-map-pill">#${i + 1} ${lvl.name}</span>`;
+        }).join('');
+
+        slotContainer.innerHTML = `
+          <div class="cup-slot-card selected ${isHost ? 'clickable' : 'readonly'}" id="btn-open-cup-slot">
+            <div class="cup-slot-icon-box">
+              <span class="cup-slot-icon">${selectedCup.icon}</span>
+            </div>
+            <div class="cup-slot-info">
+              <div class="cup-slot-title-row">
+                <strong class="cup-slot-title">${selectedCup.name}</strong>
+                ${isHost ? '<span class="cup-slot-change-badge">Changer ✏️</span>' : ''}
+              </div>
+              <small class="cup-slot-desc">${selectedCup.desc || ''}</small>
+              <div class="cup-slot-maps-row">${mapsList}</div>
+            </div>
+          </div>
+        `;
+      }
 
       if (isHost) {
-        cupListEl.querySelectorAll('.cup-card').forEach(card => {
-          card.addEventListener('click', () => {
-            sound.playGrip(true);
-            this.network.updateRoomConfig({ cupId: card.dataset.cup });
-          });
+        document.getElementById('btn-open-cup-slot')?.addEventListener('click', () => {
+          sound.playGrip(true);
+          this.openCupPickerModal(cfg.cupId);
         });
       }
     }
@@ -1006,9 +1073,15 @@ export class UIManager {
     if (startBtn && startLabel && startSub) {
       const pCount = (room.players || []).length;
       if (isHost) {
-        startBtn.className = 'cartoon-cta-btn green-cta full-width';
-        startLabel.textContent = 'LANCER LA COMPÉTITION !';
-        startSub.textContent = `3 Courses • ${pCount} Joueur${pCount > 1 ? 's' : ''} dans le monde`;
+        if (!cfg.cupId) {
+          startBtn.className = 'cartoon-cta-btn orange-cta full-width';
+          startLabel.textContent = '⚠️ CHOISIR UNE COUPE D\'ABORD';
+          startSub.textContent = 'Cliquez ici ou sur le carré pour choisir la coupe';
+        } else {
+          startBtn.className = 'cartoon-cta-btn green-cta full-width';
+          startLabel.textContent = '🏁 LANCER LA COMPÉTITION !';
+          startSub.textContent = `3 Courses • ${pCount} Joueur${pCount > 1 ? 's' : ''} dans le monde`;
+        }
       } else {
         const me = this.network.getLocalPlayer();
         const ready = me && me.ready;
@@ -1017,6 +1090,69 @@ export class UIManager {
         startSub.textContent = 'Vous pouvez modifier votre chenille en attendant';
       }
     }
+  }
+
+  // ==================== CUP PICKER MODAL (1-CLICK SELECTION) ====================
+  openCupPickerModal(selectedCupId = null) {
+    const modal = document.getElementById('modal-cup-picker');
+    const grid = document.getElementById('cup-picker-grid');
+    if (!modal || !grid) return;
+
+    grid.innerHTML = Object.values(CUPS_DEFINITIONS).map((cup) => {
+      const isSelected = selectedCupId === cup.id;
+      const lvls = cup.levels || [0, 1, 2];
+      const diffLabels = ['Niveau 1 (Facile)', 'Niveau 2 (Moyen)', 'Niveau 3 (Difficile)'];
+      const mapsHtml = lvls.map((idx, i) => {
+        const lvl = LEVEL_DEFINITIONS[idx] || LEVEL_DEFINITIONS[0];
+        const diff = diffLabels[i] || `Course ${i + 1}`;
+        return `
+          <div class="picker-map-row">
+            <span class="pmr-pill pmr-step">Course ${i + 1}</span>
+            <div class="pmr-details">
+              <strong class="pmr-name">${lvl.name}</strong>
+              <small class="pmr-diff diff-lvl-${i + 1}">${diff}</small>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      return `
+        <div class="picker-cup-card ${isSelected ? 'selected' : ''}" data-cup="${cup.id}">
+          <div class="pcc-header">
+            <span class="pcc-icon">${cup.icon}</span>
+            <div class="pcc-titles">
+              <h3 class="pcc-name">${cup.name}</h3>
+              <p class="pcc-desc">${cup.desc || ''}</p>
+            </div>
+            ${isSelected ? '<span class="pcc-badge-selected">✔ CHOISIE</span>' : ''}
+          </div>
+          <div class="pcc-maps-container">
+            ${mapsHtml}
+          </div>
+          <button class="cartoon-btn green-btn full-width pcc-select-btn" data-cup="${cup.id}">
+            ${isSelected ? '✔ Actuellement Choisie' : 'Sélectionner cette Coupe ▶'}
+          </button>
+        </div>
+      `;
+    }).join('');
+
+    // In 1 single click: select cup and close popup immediately!
+    grid.querySelectorAll('.picker-cup-card, .pcc-select-btn').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cupId = el.dataset.cup;
+        if (!cupId) return;
+        sound.playVictory();
+        this.network.updateRoomConfig({ cupId });
+        this.closeCupPickerModal();
+      });
+    });
+
+    modal.classList.remove('hidden');
+  }
+
+  closeCupPickerModal() {
+    document.getElementById('modal-cup-picker')?.classList.add('hidden');
   }
 
   renderWorkshopGrid() {
@@ -1333,6 +1469,10 @@ export class UIManager {
     if (!modal) return;
     modal.classList.remove('hidden');
     sound.playVictory();
+
+    // Reset progression now that the 3 races of the cup are completed!
+    this.game.caterpillar.resetProgression();
+    this.game.isInActiveCup = false;
 
     this.hasClaimedCupGift = false;
     const standings = msg.overallStandings || [];

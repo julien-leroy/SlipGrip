@@ -134,6 +134,28 @@ export class ParticleSystem {
     });
   }
 
+  // Floating feathers / wind glides for Voltige
+  spawnFeatherDrift(x, y, count = 2) {
+    const colors = ['rgba(176, 224, 255, 0.85)', 'rgba(255, 255, 255, 0.9)', 'rgba(84, 160, 255, 0.8)'];
+    for (let i = 0; i < count; i++) {
+      this.particles.push({
+        type: 'feather',
+        x: x + (Math.random() - 0.5) * 24,
+        y: y + (Math.random() - 0.5) * 12,
+        vx: (Math.random() - 0.5) * 60,
+        vy: -15 + Math.random() * 25,
+        r: 3 + Math.random() * 3,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        rot: Math.random() * Math.PI * 2,
+        vrot: (Math.random() - 0.5) * 5,
+        gravity: 25,
+        wobble: Math.random() * Math.PI * 2,
+        life: 0,
+        maxLife: 0.7 + Math.random() * 0.4
+      });
+    }
+  }
+
   // Comic popup text ("POP!", "BOING!", "SLIP!", "SCHLURP!")
   spawnPopup(x, y, text, color = '#ffd93b') {
     if (this.popups.length > 8) this.popups.shift();
@@ -249,6 +271,19 @@ export class ParticleSystem {
         ctx.lineWidth = 1.2;
         ctx.fillRect(-p.r, -p.r * 0.55, p.r * 2, p.r * 1.1);
         ctx.strokeRect(-p.r, -p.r * 0.55, p.r * 2, p.r * 1.1);
+      } else if (p.type === 'feather') {
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, p.r * 2.2, p.r * 0.9, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-p.r * 2.2, 0);
+        ctx.lineTo(p.r * 2.2, 0);
+        ctx.stroke();
       }
 
       ctx.restore();
