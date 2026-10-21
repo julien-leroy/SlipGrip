@@ -1,992 +1,913 @@
-// js/levels.js — 9 Distinct Levels across 3 Themed Cups (Easy -> Medium -> Hard per Cup) + Cartoon Renderer
+// js/levels.js — 9 Inédits Levels across 3 Themed Cups (Easy -> Medium -> Hard per Cup) + Cartoon Renderer
 
 export const LEVEL_DEFINITIONS = [
   // ============================================================================
-  // COUPE 1 : COUPE DU SOUS-BOIS & POTAGER (potager_geant)
-  // Course 1 (id: 0) = FACILE | Course 2 (id: 1) = MOYEN | Course 3 (id: 2) = DIFFICILE
+  // COUPE 1 : COUPE DES BOURGEONS (Facile)
+  // Course 1 (id: 0) | Course 2 (id: 1) | Course 3 (id: 2)
   // ============================================================================
+
+  // --------------------------------------------------------------------------
+  // NIVEAU 0 : L'Orée des Pousses (Facile)
+  // --------------------------------------------------------------------------
   {
     id: 0,
-    cupId: 'potager_geant',
+    cupId: 'coupe_bourgeons',
     difficulty: 'Facile',
     theme: 'forest',
     bgSet: 'game_background_2',
-    name: 'Sous-Bois 1 — L’Orée des Chênes (Facile)',
-    subtitle: 'Initiation douce : collines d’herbe, branches basses, glands de soin (+20 ❤️) & premiers pucerons (+1 Segment) !',
+    name: 'Bourgeons 1 — L’Orée des Pousses (Facile)',
+    subtitle: 'Initiation douce : collines d’herbe, racines basses, premiers pucerons et arche en raccourci !',
     skyTop: '#ffefc2',
     skyBottom: '#b8f59e',
     accentBg: '#2d5a27',
     startX: 160,
     startY: 500,
-    finishX: 4800,
-    finishY: 440,
-    coachHint: '💡 <strong>Facile — L’Orée des Chênes :</strong> Cassez les <strong>Glands 🌰</strong> pour obtenir une <strong>Pomme de Soin (+20 ❤️)</strong>, et éliminez les <strong>Pucerons 🐛</strong> en les lançant pour gagner une <strong>Pomme +1 Segment 🍏</strong> !',
+    finishX: 4400,
+    finishY: 460,
+    coachHint: '💡 <strong>Facile — L’Orée des Pousses :</strong> Rampez avec souplesse. Cassez les <strong>Glands 🌰</strong> pour du soin (+20 ❤️) et projetez les <strong>Pucerons 🐛</strong> pour gagner <strong>+1 Segment 🍏</strong> ! Empruntez la racine haute pour survoler le premier fossé.',
     build(world) {
-      // SECTION 1 : Collines douces & Premiers Glands de soin
+      // SECTION 1 : Collines herbeuses douces & Initiation
       world.addPolyline([
-        [-200, 260], [-200, 560], [0, 560], [340, 560], [560, 520], [820, 550],
-        [1080, 490], [1320, 490], [1500, 540], [1720, 480]
+        [-200, 260], [-200, 560], [0, 560], [350, 560], [600, 520], [900, 550],
+        [1150, 500], [1400, 500], [1650, 540]
       ], 'dirt', { thickness: 24, isGroundMass: true });
 
-      // Branche basse facile à grimper
+      // Branche basse d'initiation à l'escalade
       world.addPolyline([
-        [780, 470], [960, 420], [1160, 420], [1320, 490]
+        [750, 480], [950, 430], [1150, 430], [1350, 490]
       ], 'root', { thickness: 26, isGroundMass: false });
 
-      world.addProp('acorn', 450, 490, 1.0);
-      world.addAphid(670, 520, 22, 560, 760);
-      world.addProp('acorn', 1050, 390, 1.0);
-      world.addPowerUp(1050, 310, 'speed');
+      world.addProp('acorn', 450, 520, 1.0);
+      world.addAphid(700, 520, 22, 580, 820);
+      world.addProp('acorn', 1050, 400, 1.0);
+      world.addPowerUp(1050, 320, 'speed');
 
-      world.addDecoration('flower', 240, 560, 1.1);
-      world.addDecoration('fern', 610, 540, 1.2);
-      world.addDecoration('flower', 1240, 490, 1.0);
+      world.addDecoration('flower', 250, 560, 1.1);
+      world.addDecoration('fern', 620, 530, 1.2);
+      world.addDecoration('flower', 1250, 500, 1.0);
 
-      // CHECKPOINT 1 (Rapproché)
-      world.addCheckpoint(1580, 510, 'Checkpoint 1');
+      // CHECKPOINT 1
+      world.addCheckpoint(1550, 520, 'Checkpoint 1');
 
-      // SECTION 2 : Le Petit Vallon & Feuille Portante
+      // SECTION 2 : Le Petit Fossé & Arche Racinaire (Raccourci aérien)
+      // Fossé de boue au sol avec champignon tremplin de secours
       world.addPolyline([
-        [1710, 480], [1900, 580], [2280, 580], [2480, 460], [2980, 460]
+        [1650, 540], [1780, 630], [2020, 630], [2150, 520], [2750, 520]
       ], 'dirt', { thickness: 24, isGroundMass: true });
 
-      world.addMushroom(2080, 545, 42, 380, 0.08);
+      // Champignon pour s'éjecter du fossé
+      world.addMushroom(1900, 595, 42, 390, 0.05);
 
+      // Arche haute (raccourci propre pour chenille habile)
+      world.addPolyline([
+        [1680, 490], [1820, 420], [1980, 420], [2120, 480]
+      ], 'root', { thickness: 24, isGroundMass: false });
+
+      // Feuille oscillante douce au-dessus du plateau
       world.addDynamicPlatform({
         type: 'leaf',
         material: 'leaf',
-        pivotX: 2090,
-        pivotY: 410,
-        moveX: 85,
-        moveY: 15,
+        pivotX: 2350,
+        pivotY: 440,
+        moveX: 65,
+        moveY: 10,
         moveSpeed: 0.9,
-        localPoints: [[-110, 0], [-35, -6], [35, -6], [110, 0]],
+        localPoints: [[-110, 0], [-35, -5], [35, -5], [110, 0]],
         baseAngle: 0,
         stiffness: 20,
         damping: 3.0,
         thickness: 20
       });
 
-      world.addProp('acorn', 2580, 430, 1.0);
-      world.addAphid(2740, 435, 22, 2620, 2880);
-      world.addDecoration('rock', 1820, 520, 1.0);
-      world.addDecoration('fern', 2840, 460, 1.2);
+      world.addProp('acorn', 2480, 490, 1.0);
+      world.addAphid(2620, 495, 22, 2520, 2720);
+      world.addDecoration('rock', 1720, 560, 1.0);
+      world.addDecoration('fern', 2680, 520, 1.2);
 
       // CHECKPOINT 2
-      world.addCheckpoint(2900, 460, 'Checkpoint 2');
+      world.addCheckpoint(2800, 510, 'Checkpoint 2');
 
-      // SECTION 3 : Pont de Soie & Dernière Colline vers l'Arrivée
+      // SECTION 3 : Pont de Lianes Souples & Ligne Droite Finale
       world.addPolyline([
-        [2970, 460], [3220, 410], [3480, 490], [3850, 490], [4120, 420],
-        [4420, 440], [5200, 440], [5200, 180]
+        [2750, 520], [3000, 470], [3250, 530], [3600, 530], [3900, 470],
+        [4150, 480], [4800, 480], [4800, 200]
       ], 'dirt', { thickness: 24, isGroundMass: true });
 
-      // Pont de soie de chenille au-dessus du creux
+      // Pont de soie au-dessus de la dépression
       world.addPolyline([
-        [3200, 410], [3520, 385], [3840, 410], [4120, 420]
-      ], 'silk', { thickness: 20, isGroundMass: false });
+        [3000, 465], [3280, 435], [3580, 465], [3880, 470]
+      ], 'silk', { thickness: 22, isGroundMass: false });
 
-      world.addMushroom(3660, 455, 40, 370, 0.05);
-      world.addProp('acorn', 3520, 355, 1.0);
-      world.addAphid(3980, 395, 22, 3880, 4100);
-      world.addPowerUp(3520, 275, 'feather');
+      world.addMushroom(3420, 495, 40, 360, 0.05);
+      world.addProp('acorn', 3280, 400, 1.0);
+      world.addAphid(3750, 450, 22, 3620, 3860);
+      world.addPowerUp(3280, 320, 'feather');
 
-      world.addDecoration('flower', 4320, 440, 1.2);
-      world.addDecoration('fern', 4560, 440, 1.3);
+      world.addDecoration('flower', 4050, 480, 1.2);
+      world.addDecoration('fern', 4280, 480, 1.3);
     }
   },
 
+  // --------------------------------------------------------------------------
+  // NIVEAU 1 : Les Ponts de Lianes (Facile)
+  // --------------------------------------------------------------------------
   {
     id: 1,
-    cupId: 'potager_geant',
-    difficulty: 'Moyen',
+    cupId: 'coupe_bourgeons',
+    difficulty: 'Facile',
     theme: 'garden',
-    bgSet: 'game_background_3',
-    name: 'Sous-Bois 2 — Le Potager Suspendu (Moyen)',
-    subtitle: 'Tiges de tomates à grimper, feuilles de chou oscillantes, tuyaux d’arrosage, ronces & premiers hérissons !',
+    bgSet: 'game_background_1',
+    name: 'Bourgeons 2 — Les Ponts de Lianes (Facile)',
+    subtitle: 'Tiges de jardin, feuille oscillante, champignons rebondissants et ponts de soie suspendus !',
     skyTop: '#d4fcff',
     skyBottom: '#ffe596',
     accentBg: '#236937',
-    startX: 150,
+    startX: 160,
     startY: 540,
-    finishX: 5750,
-    finishY: 380,
-    coachHint: '💡 <strong>Moyen — Le Potager :</strong> Grimpez sur les tiges de tomates 🌱 pour éviter les ronces  thorny, et saisissez les <strong>Hérissons 🦔 par le museau avant (D)</strong> pour les projeter et gagner <strong>+1 Segment 🍏</strong> !',
+    finishX: 4600,
+    finishY: 420,
+    coachHint: '💡 <strong>Facile — Les Ponts de Lianes :</strong> Les <strong>Champignons 🍄</strong> vous propulsent dans les airs. Utilisez-les pour atteindre les lianes de soie supérieures et contourner les bosses de boue !',
     build(world) {
-      // SECTION 1 : Les Buttes du Potager & Première Tige de Tomate
+      // SECTION 1 : Tiges montantes & Premières lianes
       world.addPolyline([
-        [-200, 300], [-200, 580], [440, 580], [620, 540], [740, 640],
-        [1220, 640], [1360, 380], [1860, 380]
+        [-200, 280], [-200, 580], [0, 580], [400, 580], [650, 540], [850, 590],
+        [1100, 590], [1350, 510], [1650, 510]
       ], 'dirt', { thickness: 24, isGroundMass: true });
 
-      world.addProp('acorn', 380, 550, 1.0);
-      world.addAphid(520, 535, 22, 420, 610);
+      // Rampe de racine à grimper
+      world.addPolyline([
+        [500, 560], [700, 470], [900, 470], [1100, 530]
+      ], 'stem', { thickness: 24, isGroundMass: false });
 
-      // Buisson de ronces au fond du fossé + hérisson
-      world.addThorn(860, 625, 28);
-      world.addHedgehog(1040, 620, 28, 920, 1180);
+      world.addProp('acorn', 420, 545, 1.0);
+      world.addAphid(750, 445, 22, 650, 850);
+      world.addDecoration('tomato', 880, 450, 1.1);
 
-      // Feuille de chou oscillante + Tige de tomate pour passer par le haut
+      // CHECKPOINT 1
+      world.addCheckpoint(1500, 500, 'Checkpoint 1');
+
+      // SECTION 2 : Ravin & Feuille Mobile + Rebond Champignon
+      world.addPolyline([
+        [1650, 510], [1800, 640], [2150, 640], [2300, 500], [2850, 500]
+      ], 'dirt', { thickness: 24, isGroundMass: true });
+
+      // Plateforme feuille mobile au-dessus du ravin
       world.addDynamicPlatform({
         type: 'leaf',
         material: 'leaf',
-        pivotX: 780,
-        pivotY: 500,
-        localPoints: [[-130, 6], [-40, -8], [40, -8], [130, 6]],
-        baseAngle: -0.04,
+        pivotX: 1980,
+        pivotY: 490,
+        moveX: 75,
+        moveY: 12,
+        moveSpeed: 1.0,
+        localPoints: [[-120, 0], [-40, -6], [40, -6], [120, 0]],
+        baseAngle: 0,
         stiffness: 18,
         damping: 2.8,
-        maxAngle: 0.45,
-        inertia: 16500,
         thickness: 22
       });
 
+      // Champignon tremplin au fond du creux
+      world.addMushroom(1980, 605, 44, 400, 0.06);
+
+      // Treille en tige en raccourci aérien
       world.addPolyline([
-        [930, 490], [1060, 390], [1200, 340], [1360, 380]
-      ], 'stem', { thickness: 26, isGroundMass: false });
+        [1850, 390], [2050, 350], [2250, 390]
+      ], 'stem', { thickness: 22, isGroundMass: false });
 
-      world.addProp('acorn', 1180, 310, 1.0);
-      world.addPowerUp(1180, 230, 'strength');
-      world.addDecoration('tomato', 1050, 370, 1.15);
-      world.addDecoration('flower', 260, 580, 1.1);
-
-      // CHECKPOINT 1
-      world.addCheckpoint(1680, 380, 'Checkpoint 1');
-
-      // SECTION 2 : Tuyaux d'Arrosage & Sève Collante
-      world.addPolyline([
-        [1850, 380], [1980, 600], [2680, 600], [2820, 420], [3420, 420]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
-
-      world.addDynamicPlatform({
-        type: 'hose',
-        material: 'hose',
-        pivotX: 2140,
-        pivotY: 390,
-        localPoints: [[-140, 6], [-45, -10], [45, -10], [140, 6]],
-        baseAngle: 0,
-        stiffness: 16,
-        damping: 2.5,
-        maxAngle: 0.45,
-        wobbleFreq: 1.4,
-        wobbleAmp: 0.08,
-        thickness: 26
-      });
-
-      world.addDynamicPlatform({
-        type: 'hose',
-        material: 'hose',
-        pivotX: 2500,
-        pivotY: 400,
-        moveX: 85,
-        moveY: 18,
-        moveSpeed: 1.0,
-        localPoints: [[-140, 6], [-45, -10], [45, -10], [140, 6]],
-        baseAngle: -0.03,
-        stiffness: 16,
-        damping: 2.5,
-        maxAngle: 0.45,
-        thickness: 26
-      });
-
-      world.addMushroom(2320, 565, 42, 390, 0.08);
-      world.addStickyCrumb(2980, 404, 26, 'sap');
-      world.addProp('pinecone', 3140, 380, 1.0);
-      world.addAphid(3260, 395, 22, 3180, 3380);
+      world.addPowerUp(2050, 270, 'strength');
+      world.addProp('acorn', 2450, 470, 1.0);
+      world.addAphid(2650, 475, 22, 2500, 2780);
 
       // CHECKPOINT 2
-      world.addCheckpoint(3340, 420, 'Checkpoint 2');
+      world.addCheckpoint(2900, 490, 'Checkpoint 2');
 
-      // SECTION 3 : Grande Ascension du Treillis & Sprint vers la Serre
+      // SECTION 3 : Double Pont de Soie & Arrivée
       world.addPolyline([
-        [3410, 420], [3620, 520], [4180, 520], [4350, 360], [4880, 360],
-        [5120, 450], [5380, 380], [6150, 380], [6150, 150]
+        [2850, 500], [3150, 440], [3450, 520], [3800, 520], [4050, 430],
+        [4300, 440], [5000, 440], [5000, 220]
       ], 'dirt', { thickness: 24, isGroundMass: true });
 
-      // Tige de tomate en arche au-dessus des ronces
+      // Ponts suspendus de soie
       world.addPolyline([
-        [3450, 410], [3640, 290], [3920, 270], [4180, 330], [4350, 360]
-      ], 'stem', { thickness: 26, isGroundMass: false });
-      world.addDecoration('tomato', 3640, 260, 1.2);
-      world.addDecoration('tomato', 3920, 240, 1.1);
+        [3120, 435], [3420, 400], [3750, 435]
+      ], 'silk', { thickness: 22, isGroundMass: false });
 
-      world.addThorn(3760, 505, 30);
-      world.addHedgehog(3980, 500, 28, 3840, 4120);
-      world.addProp('acorn', 3920, 240, 1.0);
-      world.addPowerUp(3920, 165, 'speed');
+      world.addPolyline([
+        [3760, 435], [4030, 400], [4280, 435]
+      ], 'silk', { thickness: 22, isGroundMass: false });
 
-      // CHECKPOINT 3
-      world.addCheckpoint(4620, 360, 'Checkpoint 3');
+      world.addPowerUp(3420, 320, 'feather');
+      world.addProp('acorn', 3900, 480, 1.0);
+      world.addAphid(4150, 415, 22, 4060, 4260);
 
-      world.addStickyCrumb(4780, 344, 25, 'sap');
-      world.addHedgehog(5240, 425, 28, 5100, 5360);
-      world.addProp('acorn', 5520, 350, 1.0);
+      world.addDecoration('flower', 3300, 520, 1.1);
+      world.addDecoration('fern', 4450, 440, 1.3);
     }
   },
 
+  // --------------------------------------------------------------------------
+  // NIVEAU 2 : Le Verger Fleuri (Facile)
+  // --------------------------------------------------------------------------
   {
     id: 2,
-    cupId: 'potager_geant',
+    cupId: 'coupe_bourgeons',
+    difficulty: 'Facile',
+    theme: 'canopy',
+    bgSet: 'game_background_3',
+    name: 'Bourgeons 3 — Le Verger Fleuri (Facile)',
+    subtitle: 'Terrasses en caisses de bois, nénuphars flottants et grand fil de soie aérien !',
+    skyTop: '#e8f5e9',
+    skyBottom: '#fff9c4',
+    accentBg: '#1e4620',
+    startX: 160,
+    startY: 520,
+    finishX: 4700,
+    finishY: 400,
+    coachHint: '💡 <strong>Facile — Le Verger Fleuri :</strong> Les marches en caisses de bois se montent marche après marche. Au niveau de la mare aux nénuphars, hissez-vous sur le grand fil de soie pour planer jusqu’à l’arrivée !',
+    build(world) {
+      // SECTION 1 : Marches de caisses de bois
+      world.addPolyline([
+        [-200, 300], [-200, 580], [300, 580], [550, 540], [800, 540],
+        [800, 470], [1150, 470], [1150, 400], [1550, 400], [1700, 480]
+      ], 'root', { thickness: 24, isGroundMass: true });
+
+      world.addProp('acorn', 450, 545, 1.0);
+      world.addAphid(980, 445, 22, 850, 1100);
+      world.addProp('acorn', 1350, 370, 1.0);
+
+      // CHECKPOINT 1
+      world.addCheckpoint(1600, 470, 'Checkpoint 1');
+
+      // SECTION 2 : La Mare aux Nénuphars & Fil Céleste
+      world.addPolyline([
+        [1700, 480], [1820, 620], [2600, 620], [2720, 480], [3150, 480]
+      ], 'dirt', { thickness: 24, isGroundMass: true });
+
+      // Nénuphars flottants (plateformes oscillantes douces)
+      world.addDynamicPlatform({
+        type: 'leaf',
+        material: 'leaf',
+        pivotX: 2020,
+        pivotY: 570,
+        localPoints: [[-90, 0], [90, 0]],
+        stiffness: 22,
+        damping: 3.2,
+        thickness: 20
+      });
+
+      world.addDynamicPlatform({
+        type: 'leaf',
+        material: 'leaf',
+        pivotX: 2380,
+        pivotY: 570,
+        localPoints: [[-90, 0], [90, 0]],
+        stiffness: 22,
+        damping: 3.2,
+        thickness: 20
+      });
+
+      // Fil de soie suspendu au sommet (Raccourci aérien)
+      world.addPolyline([
+        [1680, 370], [2150, 310], [2680, 370]
+      ], 'silk', { thickness: 20, isGroundMass: false });
+
+      world.addPowerUp(2150, 230, 'feather');
+      world.addProp('acorn', 2850, 450, 1.0);
+      world.addAphid(3000, 455, 22, 2880, 3100);
+
+      // CHECKPOINT 2
+      world.addCheckpoint(3180, 470, 'Checkpoint 2');
+
+      // SECTION 3 : Allée de Pommiers & Podium
+      world.addPolyline([
+        [3150, 480], [3450, 420], [3800, 490], [4150, 410], [4450, 420],
+        [5100, 420], [5100, 200]
+      ], 'dirt', { thickness: 24, isGroundMass: true });
+
+      world.addMushroom(3620, 455, 42, 380, 0.05);
+      world.addPowerUp(4150, 330, 'speed');
+      world.addProp('acorn', 4280, 390, 1.0);
+
+      world.addDecoration('flower', 3350, 450, 1.2);
+      world.addDecoration('fern', 4550, 420, 1.3);
+    }
+  },
+
+  // ============================================================================
+  // COUPE 2 : COUPE DES VENTS (Moyen)
+  // Course 1 (id: 3) | Course 2 (id: 4) | Course 3 (id: 5)
+  // ============================================================================
+
+  // --------------------------------------------------------------------------
+  // NIVEAU 3 : La Grotte aux Spores (Moyen)
+  // --------------------------------------------------------------------------
+  {
+    id: 3,
+    cupId: 'coupe_vents',
+    difficulty: 'Moyen',
+    theme: 'mushroom',
+    bgSet: 'game_background_3',
+    name: 'Vents 1 — La Grotte aux Spores (Moyen)',
+    subtitle: 'Plafond rocheux avec varappe inversée, premier hérisson patrouilleur et plateformes mobiles !',
+    skyTop: '#3a1c71',
+    skyBottom: '#d76d77',
+    accentBg: '#5f27cd',
+    startX: 160,
+    startY: 520,
+    finishX: 4900,
+    finishY: 440,
+    coachHint: '💡 <strong>Moyen — La Grotte aux Spores :</strong> Agrippez-vous au <strong>Plafond</strong> pour progresser la tête en bas et éviter le hérisson au sol, ou attrapez le hérisson par le museau avant pour l’éjecter !',
+    build(world) {
+      // SECTION 1 : Entrée de la Caverne & Premier Hérisson
+      world.addPolyline([
+        [-200, 300], [-200, 560], [300, 560], [600, 520], [900, 560],
+        [1250, 560], [1450, 490], [1700, 490]
+      ], 'dirt', { thickness: 24, isGroundMass: true });
+
+      // Plafond de grotte pour varappe inversée
+      world.addPolyline([
+        [200, 280], [600, 250], [1000, 270], [1400, 240], [1750, 280]
+      ], 'root', { thickness: 22, isGroundMass: false });
+
+      world.addProp('acorn', 450, 525, 1.0);
+      world.addHedgehog(1050, 540, 28, 920, 1200);
+
+      // CHECKPOINT 1
+      world.addCheckpoint(1650, 480, 'Checkpoint 1');
+
+      // SECTION 2 : Fosse de Ronces & Plateformes Mobiles Synchronisées
+      world.addPolyline([
+        [1700, 490], [1820, 640], [2550, 640], [2680, 480], [3150, 480]
+      ], 'dirt', { thickness: 24, isGroundMass: true });
+
+      // Ronces au fond du gouffre
+      world.addThorn(2000, 625, 28);
+      world.addThorn(2200, 625, 28);
+      world.addThorn(2400, 625, 28);
+
+      // 2 Plateformes mobiles horizontales au-dessus des ronces
+      world.addDynamicPlatform({
+        type: 'leaf',
+        material: 'root',
+        pivotX: 1980,
+        pivotY: 480,
+        moveX: 90,
+        moveY: 0,
+        moveSpeed: 1.1,
+        localPoints: [[-90, 0], [90, 0]],
+        stiffness: 22,
+        damping: 3.0,
+        thickness: 20
+      });
+
+      world.addDynamicPlatform({
+        type: 'leaf',
+        material: 'root',
+        pivotX: 2380,
+        pivotY: 480,
+        moveX: -90,
+        moveY: 0,
+        moveSpeed: 1.1,
+        localPoints: [[-90, 0], [90, 0]],
+        stiffness: 22,
+        damping: 3.0,
+        thickness: 20
+      });
+
+      // Plafond suspendu (shortcut continu)
+      world.addPolyline([
+        [1800, 270], [2150, 230], [2550, 270]
+      ], 'silk', { thickness: 20, isGroundMass: false });
+
+      world.addPowerUp(2150, 160, 'strength');
+      world.addProp('acorn', 2850, 450, 1.0);
+      world.addAphid(2980, 455, 22, 2850, 3100);
+
+      // CHECKPOINT 2
+      world.addCheckpoint(3200, 470, 'Checkpoint 2');
+
+      // SECTION 3 : Sortie de Grotte & Champignons Éclatants
+      world.addPolyline([
+        [3150, 480], [3450, 420], [3750, 520], [4100, 520], [4400, 440],
+        [4650, 440], [5300, 440], [5300, 200]
+      ], 'dirt', { thickness: 24, isGroundMass: true });
+
+      world.addMushroom(3900, 485, 44, 410, 0.05);
+      world.addHedgehog(4250, 500, 28, 4120, 4380);
+      world.addProp('acorn', 4500, 410, 1.0);
+
+      world.addDecoration('rock', 3300, 460, 1.1);
+      world.addDecoration('fern', 4750, 440, 1.3);
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // NIVEAU 4 : Le Gouffre Poids-Plume (Moyen) — SIGNATURE USER REQUEST!
+  // --------------------------------------------------------------------------
+  {
+    id: 4,
+    cupId: 'coupe_vents',
+    difficulty: 'Moyen',
+    theme: 'marsh',
+    bgSet: 'game_background_4',
+    name: 'Vents 2 — Le Gouffre Poids-Plume (Moyen)',
+    subtitle: 'L’épreuve phare : Canyon vertigineux, boost Poids-Plume 🪶 et slalom aérien entre graines piquantes !',
+    skyTop: '#74ebd5',
+    skyBottom: '#acb6e5',
+    accentBg: '#0984e3',
+    startX: 160,
+    startY: 480,
+    finishX: 5200,
+    finishY: 440,
+    coachHint: '💡 <strong>Moyen — Le Gouffre Poids-Plume :</strong> Prenez la <strong>Plume 🪶</strong> au bord de la falaise, détendez votre corps à pleine charge et planez à travers le gouffre en évitant les graines piquantes suspendues ! En cas de chute, rebondissez sur les champignons au fond du canyon.',
+    build(world) {
+      // SECTION 1 : Rampe d'élan vers la falaise
+      world.addPolyline([
+        [-200, 260], [-200, 520], [200, 520], [500, 480], [800, 520],
+        [1100, 460], [1400, 400], [1600, 360]
+      ], 'dirt', { thickness: 24, isGroundMass: true });
+
+      world.addProp('acorn', 650, 485, 1.0);
+      world.addAphid(950, 495, 22, 850, 1050);
+      world.addProp('acorn', 1300, 395, 1.0);
+
+      // CHECKPOINT 1 (Juste avant le saut dans le vide !)
+      world.addCheckpoint(1520, 350, 'Tremplin');
+
+      // LE BOOST POIDS-PLUME SUR LE BORD DE LA FALAISE
+      world.addPowerUp(1620, 310, 'feather');
+
+      // SECTION 2 : LE GRAND GOUFFRE (1400px de vide !) & GRAINES PIQUANTES AÉRIENNES
+      // Falaise de réception à l'autre bout du gouffre
+      world.addPolyline([
+        [3000, 380], [3300, 440], [3650, 440]
+      ], 'dirt', { thickness: 24, isGroundMass: true });
+
+      // GRAINES PIQUANTES AÉRIENNES EN PLEIN AIR (Slalom de vol)
+      world.addThorn(1900, 350, 26);
+      world.addThorn(2150, 280, 26);
+      world.addThorn(2400, 380, 26);
+      world.addThorn(2650, 310, 26);
+      world.addThorn(2880, 360, 26);
+
+      // FOND DU CANYON (Voie de secours pour ceux qui ratent le vol)
+      world.addPolyline([
+        [1600, 360], [1700, 680], [2900, 680], [3000, 380]
+      ], 'dirt', { thickness: 24, isGroundMass: true });
+
+      // Hérissons de garde au fond
+      world.addHedgehog(2000, 660, 28, 1850, 2200);
+      world.addHedgehog(2550, 660, 28, 2400, 2750);
+
+      // Champignons tremplins pour remonter du fond
+      world.addMushroom(1850, 645, 44, 440, 0.08);
+      world.addMushroom(2300, 645, 44, 440, 0.08);
+      world.addMushroom(2750, 645, 44, 460, 0.08);
+
+      // Fil de secours intermédiaire
+      world.addPolyline([
+        [2200, 500], [2500, 500]
+      ], 'silk', { thickness: 20, isGroundMass: false });
+
+      // CHECKPOINT 2
+      world.addCheckpoint(3600, 430, 'Checkpoint 2');
+
+      // SECTION 3 : Crêtes Rocheuses & Balancier vers l'Arrivée
+      world.addPolyline([
+        [3650, 440], [3950, 380], [4250, 480], [4550, 480], [4800, 440],
+        [5600, 440], [5600, 200]
+      ], 'dirt', { thickness: 24, isGroundMass: true });
+
+      world.addDynamicPlatform({
+        type: 'leaf',
+        material: 'root',
+        pivotX: 4400,
+        pivotY: 420,
+        moveX: 85,
+        moveY: 15,
+        moveSpeed: 1.2,
+        localPoints: [[-95, 0], [95, 0]],
+        stiffness: 20,
+        damping: 2.8,
+        thickness: 20
+      });
+
+      world.addProp('acorn', 4100, 440, 1.0);
+      world.addPowerUp(4400, 320, 'speed');
+      world.addAphid(4700, 420, 22, 4580, 4800);
+
+      world.addDecoration('flower', 4950, 440, 1.2);
+      world.addDecoration('fern', 5100, 440, 1.3);
+    }
+  },
+
+  // --------------------------------------------------------------------------
+  // NIVEAU 5 : La Falaise des Cimes (Moyen)
+  // --------------------------------------------------------------------------
+  {
+    id: 5,
+    cupId: 'coupe_vents',
+    difficulty: 'Moyen',
+    theme: 'forest',
+    bgSet: 'game_background_2',
+    name: 'Vents 3 — La Falaise des Cimes (Moyen)',
+    subtitle: 'Ascension verticale à 80°, ronces latérales, balancier pendulaire géant et rampe de lancement !',
+    skyTop: '#2b5876',
+    skyBottom: '#4e4376',
+    accentBg: '#2d3436',
+    startX: 160,
+    startY: 560,
+    finishX: 5100,
+    finishY: 360,
+    coachHint: '💡 <strong>Moyen — La Falaise des Cimes :</strong> La paroi est abrupte ! Progressez en alternant tête et queue pour grimper sans glisser. Embarquez sur le balancier géant pour survoler les ronces.',
+    build(world) {
+      // SECTION 1 : L'Escalade de la Grande Falaise (80° d'inclinaison !)
+      world.addPolyline([
+        [-200, 300], [-200, 580], [300, 580], [550, 580],
+        [750, 380], [850, 240], [1200, 240], [1450, 360]
+      ], 'root', { thickness: 26, isGroundMass: true });
+
+      // Ronces latérales sur la paroi pour contraindre la trajectoire
+      world.addThorn(720, 450, 26);
+      world.addThorn(800, 310, 26);
+
+      world.addProp('acorn', 400, 555, 1.0);
+      world.addPowerUp(1000, 170, 'strength');
+      world.addAphid(1050, 220, 22, 920, 1180);
+
+      // CHECKPOINT 1
+      world.addCheckpoint(1400, 340, 'Checkpoint 1');
+
+      // SECTION 2 : Grand Balancier Pendulaire au-dessus du Vide
+      world.addPolyline([
+        [1450, 360], [1600, 580], [2500, 580], [2650, 360]
+      ], 'dirt', { thickness: 24, isGroundMass: true });
+
+      world.addThorn(1900, 560, 30);
+      world.addThorn(2200, 560, 30);
+
+      // Grand balancier pendulaire (ascenseur aérien)
+      world.addDynamicPlatform({
+        type: 'leaf',
+        material: 'root',
+        pivotX: 2050,
+        pivotY: 300,
+        moveX: 120,
+        moveY: 35,
+        moveSpeed: 1.25,
+        localPoints: [[-130, 0], [130, 0]],
+        stiffness: 22,
+        damping: 3.2,
+        thickness: 24
+      });
+
+      // Liane haute en raccourci
+      world.addPolyline([
+        [1550, 220], [1850, 180], [2150, 220]
+      ], 'silk', { thickness: 20, isGroundMass: false });
+
+      world.addPowerUp(1850, 120, 'speed');
+      world.addMushroom(2050, 545, 44, 420, 0.06);
+
+      // CHECKPOINT 2
+      world.addCheckpoint(2750, 350, 'Checkpoint 2');
+
+      // SECTION 3 : Canopée des Cimes & Hérisson Perché
+      world.addPolyline([
+        [2650, 360], [3000, 360], [3300, 440], [3650, 360], [4000, 360],
+        [4300, 440], [4600, 360], [5500, 360], [5500, 160]
+      ], 'dirt', { thickness: 24, isGroundMass: true });
+
+      world.addHedgehog(3150, 340, 28, 3020, 3280);
+      world.addMushroom(3480, 405, 42, 380, 0.05);
+      world.addProp('pinecone', 3850, 320, 0.9);
+      world.addAphid(4450, 415, 22, 4320, 4560);
+
+      world.addDecoration('flower', 4750, 360, 1.2);
+      world.addDecoration('fern', 4950, 360, 1.4);
+    }
+  },
+
+  // ============================================================================
+  // COUPE 3 : COUPE DES TITANS (Difficile)
+  // Course 1 (id: 6) | Course 2 (id: 7) | Course 3 (id: 8)
+  // ============================================================================
+
+  // --------------------------------------------------------------------------
+  // NIVEAU 6 : Le Tronc des Titans (Difficile)
+  // --------------------------------------------------------------------------
+  {
+    id: 6,
+    cupId: 'coupe_titans',
     difficulty: 'Difficile',
     theme: 'canopy',
     bgSet: 'game_background_1',
-    name: 'Sous-Bois 3 — La Canopée des Chênes (Difficile)',
-    subtitle: 'Hautes branches superposées, ponts de soie, pentes de mousse glissante, pommes de pin géantes & ronces !',
-    skyTop: '#ffeaa7',
-    skyBottom: '#7bed9f',
-    accentBg: '#1e4620',
-    startX: 150,
-    startY: 520,
-    finishX: 6450,
-    finishY: 320,
-    coachHint: '💡 <strong>Difficile — La Canopée :</strong> Escaladez les hautes branches de chêne 🌳 et les fils de soie 🕸️ ! Attention à la mousse glissante, aux pommes de pin géantes 🌲 et aux fossés de ronces !',
-    build(world) {
-      // SECTION 1 : Montée sur les Racines & Pente de Mousse
-      world.addPolyline([
-        [-200, 280], [-200, 560], [380, 560], [640, 480], [880, 420]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
-
-      world.addPolyline([
-        [870, 420], [1160, 520], [1420, 610]
-      ], 'moss', { thickness: 24, isGroundMass: true });
-
-      world.addPolyline([
-        [1410, 610], [1820, 610], [1980, 430], [2340, 430]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
-
-      // Double étage de branches au-dessus de la pente de mousse et des ronces
-      world.addPolyline([
-        [840, 415], [1080, 330], [1380, 310], [1680, 350], [1980, 430]
-      ], 'root', { thickness: 26, isGroundMass: false });
-
-      world.addThorn(1560, 595, 30);
-      world.addMushroom(1740, 575, 42, 410, 0.12);
-      world.addProp('pinecone', 1360, 270, 1.05);
-      world.addProp('acorn', 1080, 300, 1.0);
-      world.addHedgehog(640, 460, 28, 500, 780);
-      world.addAphid(1640, 325, 22, 1520, 1780);
-
-      // CHECKPOINT 1
-      world.addCheckpoint(2160, 430, 'Checkpoint 1');
-
-      // SECTION 2 : Les Balançoires de Soie & Le Gouffre des Ronces
-      world.addPolyline([
-        [2330, 430], [2500, 640], [3480, 640], [3660, 390], [4120, 390]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
-
-      world.addThorn(2720, 625, 32);
-      world.addThorn(3180, 625, 32);
-      world.addMushroom(2950, 605, 44, 430, 0.0);
-
-      // Hamacs / Balançoires de soie suspendus en hauteur
-      world.addDynamicPlatform({
-        type: 'silk_swing',
-        material: 'silk',
-        pivotX: 2680,
-        pivotY: 360,
-        moveX: 110,
-        moveY: 20,
-        moveSpeed: 1.25,
-        localPoints: [[-110, 10], [-35, -6], [35, -6], [110, 10]],
-        baseAngle: 0,
-        stiffness: 18,
-        damping: 2.6,
-        thickness: 20
-      });
-
-      world.addDynamicPlatform({
-        type: 'silk_swing',
-        material: 'silk',
-        pivotX: 3220,
-        pivotY: 330,
-        moveX: -115,
-        moveY: 25,
-        moveSpeed: 1.3,
-        localPoints: [[-110, 10], [-35, -6], [35, -6], [110, 10]],
-        baseAngle: 0,
-        stiffness: 18,
-        damping: 2.6,
-        thickness: 20
-      });
-
-      world.addPowerUp(2950, 210, 'strength');
-      world.addProp('acorn', 3780, 360, 1.0);
-      world.addHedgehog(3920, 370, 28, 3760, 4060);
-
-      // CHECKPOINT 2
-      world.addCheckpoint(4020, 390, 'Checkpoint 2');
-
-      // SECTION 3 : Escalade de la Cime Géante
-      world.addPolyline([
-        [4110, 390], [4380, 490], [4680, 560]
-      ], 'moss', { thickness: 24, isGroundMass: true });
-
-      world.addPolyline([
-        [4670, 560], [5200, 560], [5450, 420], [5750, 320], [6850, 320], [6850, 120]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
-
-      // Grande structure de branches & fils de soie à 2 niveaux
-      world.addPolyline([
-        [4250, 380], [4520, 280], [4850, 280], [5120, 340]
-      ], 'root', { thickness: 26, isGroundMass: false });
-
-      world.addPolyline([
-        [5080, 340], [5380, 250], [5680, 250], [5880, 320]
-      ], 'silk', { thickness: 20, isGroundMass: false });
-
-      world.addStickyCrumb(4700, 264, 27, 'sap');
-      world.addProp('pinecone', 4820, 240, 1.1);
-      world.addAphid(4960, 535, 22, 4780, 5120);
-      world.addHedgehog(5560, 230, 28, 5420, 5660);
-      world.addProp('acorn', 5380, 220, 1.0);
-
-      // CHECKPOINT 3
-      world.addCheckpoint(5460, 420, 'Checkpoint 3');
-
-      world.addProp('pinecone', 6060, 280, 1.1);
-      world.addStickyCrumb(6200, 304, 27, 'sap');
-    }
-  },
-
-  // ============================================================================
-  // COUPE 2 : COUPE DE LA VALLÉE FÉERIQUE (vallee_folle)
-  // Course 1 (id: 3) = FACILE | Course 2 (id: 4) = MOYEN | Course 3 (id: 5) = DIFFICILE
-  // ============================================================================
-  {
-    id: 3,
-    cupId: 'vallee_folle',
-    difficulty: 'Facile',
-    theme: 'mushroom',
-    bgSet: 'game_background_4',
-    name: 'Vallée 1 — La Clairière aux Champignons (Facile)',
-    subtitle: 'Univers fongique féerique : terrasses de champignons géants, rebonds joyeux, glands de soin & pucerons !',
-    skyTop: '#f3e7ff',
-    skyBottom: '#b8fff9',
-    accentBg: '#4a2c6d',
+    name: 'Titans 1 — Le Tronc des Titans (Difficile)',
+    subtitle: 'Étagères d’écorce glissantes, plateformes en contre-phase et câble aérien ultra-fin !',
+    skyTop: '#141e30',
+    skyBottom: '#243b55',
+    accentBg: '#6c5ce7',
     startX: 160,
-    startY: 500,
-    finishX: 4900,
-    finishY: 420,
-    coachHint: '💡 <strong>Facile — Clairière aux Champignons :</strong> Rebondissez sur les champignons 🍄, grimpez sur les grands chapeaux fongiques et éliminez les pucerons pour grandir d’un segment 🍏 !',
+    startY: 540,
+    finishX: 5300,
+    finishY: 380,
+    coachHint: '💡 <strong>Difficile — Le Tronc des Titans :</strong> La <strong>Mousse</strong> est extrêmement glissante (adhérence quasi nulle). Synchronisez vos sauts entre les troncs en mouvement ou risquez le câble ultra-fin tout en haut !',
     build(world) {
-      // SECTION 1 : Terrasses Fongiques Douces
+      // SECTION 1 : Étagères de mousse glissante & Ravin de ronces
       world.addPolyline([
-        [-200, 260], [-200, 550], [420, 550], [660, 490], [980, 550],
-        [1360, 550], [1600, 470], [1920, 470]
+        [-200, 300], [-200, 580], [300, 580], [550, 520], [800, 520]
       ], 'dirt', { thickness: 24, isGroundMass: true });
 
-      // Grand plateau de champignon géant facile d'accès
+      // Plateforme de mousse glissante
       world.addPolyline([
-        [940, 440], [1160, 415], [1380, 440]
-      ], 'mushroom_cap', { thickness: 28, isGroundMass: false });
-
-      world.addMushroom(820, 515, 42, 380, 0.05);
-      world.addProp('acorn', 540, 490, 1.0);
-      world.addAphid(1160, 390, 22, 1020, 1300);
-      world.addProp('acorn', 1480, 480, 1.0);
-
-      world.addDecoration('flower', 280, 550, 1.2);
-      world.addDecoration('fern', 1720, 470, 1.2);
-
-      // CHECKPOINT 1
-      world.addCheckpoint(1780, 470, 'Checkpoint 1');
-
-      // SECTION 2 : La Vallée des Spores & Pont de Soie
-      world.addPolyline([
-        [1910, 470], [2120, 590], [2680, 590], [2900, 450], [3360, 450]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
-
-      world.addMushroom(2260, 555, 44, 395, 0.08);
-      world.addMushroom(2540, 555, 44, 395, -0.06);
-
-      // Terrasse de champignon au milieu + fil de soie
-      world.addPolyline([
-        [2240, 390], [2560, 390]
-      ], 'mushroom_cap', { thickness: 28, isGroundMass: false });
-
-      world.addPowerUp(2400, 290, 'feather');
-      world.addProp('acorn', 2400, 360, 1.0);
-      world.addAphid(3080, 425, 22, 2960, 3220);
-
-      // CHECKPOINT 2
-      world.addCheckpoint(3240, 450, 'Checkpoint 2');
-
-      // SECTION 3 : Les Escaliers de Champignons vers l'Arrivée
-      world.addPolyline([
-        [3350, 450], [3660, 520], [4120, 520], [4380, 420], [5300, 420], [5300, 180]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
-
-      world.addPolyline([
-        [3560, 410], [3820, 390], [4060, 410]
-      ], 'mushroom_cap', { thickness: 28, isGroundMass: false });
-
-      world.addMushroom(3480, 480, 40, 375, 0.06);
-      world.addProp('acorn', 3820, 360, 1.0);
-      world.addAphid(4240, 445, 22, 4120, 4340);
-      world.addPowerUp(3820, 280, 'speed');
-
-      // CHECKPOINT 3
-      world.addCheckpoint(4460, 420, 'Checkpoint 3');
-    }
-  },
-
-  {
-    id: 4,
-    cupId: 'vallee_folle',
-    difficulty: 'Moyen',
-    theme: 'marsh',
-    bgSet: 'game_background_3',
-    name: 'Vallée 2 — Le Marais des Nénuphars (Moyen)',
-    subtitle: 'Feuilles de nénuphar flottantes, grandes tiges de roseaux à grimper, mousse humide, toiles & hérissons !',
-    skyTop: '#c7ecee',
-    skyBottom: '#dff9fb',
-    accentBg: '#136f63',
-    startX: 150,
-    startY: 510,
-    finishX: 5850,
-    finishY: 390,
-    coachHint: '💡 <strong>Moyen — Le Marais :</strong> Traversez sur les <strong>Nénuphars flottants 🪷</strong>, escaladez les <strong>Roseaux 🎋</strong> et méfiez-vous des toiles gluantes et des hérissons sur les berges !',
-    build(world) {
-      // SECTION 1 : La Berge Brumeuse & Premier Étang de Nénuphars
-      world.addPolyline([
-        [-200, 280], [-200, 550], [440, 550], [640, 630], [1340, 630],
-        [1520, 460], [1960, 460]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
-
-      world.addDynamicPlatform({
-        type: 'lilypad',
-        material: 'leaf',
-        pivotX: 820,
-        pivotY: 515,
-        moveX: 70,
-        moveY: 12,
-        moveSpeed: 1.0,
-        localPoints: [[-125, 0], [-40, -6], [40, -6], [125, 0]],
-        baseAngle: 0,
-        stiffness: 20,
-        damping: 3.0,
-        thickness: 22
-      });
-
-      world.addDynamicPlatform({
-        type: 'lilypad',
-        material: 'leaf',
-        pivotX: 1180,
-        pivotY: 495,
-        moveX: -70,
-        moveY: 12,
-        moveSpeed: 1.05,
-        localPoints: [[-125, 0], [-40, -6], [40, -6], [125, 0]],
-        baseAngle: 0,
-        stiffness: 20,
-        damping: 3.0,
-        thickness: 22
-      });
-
-      world.addThorn(990, 615, 28);
-      world.addProp('acorn', 360, 520, 1.0);
-      world.addAphid(820, 485, 22, 730, 910);
-      world.addHedgehog(1680, 440, 28, 1540, 1820);
-
-      // CHECKPOINT 1
-      world.addCheckpoint(1860, 460, 'Checkpoint 1');
-
-      // SECTION 2 : La Forêt de Roseaux & Pente de Mousse Humide
-      world.addPolyline([
-        [1950, 460], [2200, 540], [2440, 600]
+        [800, 520], [1050, 460], [1300, 460], [1500, 520]
       ], 'moss', { thickness: 24, isGroundMass: true });
 
+      world.addThorn(1050, 560, 30);
+      world.addThorn(1250, 560, 30);
+
+      world.addProp('acorn', 450, 550, 1.0);
+      world.addAphid(650, 500, 22, 560, 760);
+
+      // CHECKPOINT 1
+      world.addCheckpoint(1600, 500, 'Checkpoint 1');
+
+      // SECTION 2 : Double Bûche Oscillante en Contre-Phase
       world.addPolyline([
-        [2430, 600], [3120, 600], [3320, 420], [3820, 420]
+        [1500, 520], [1650, 660], [2750, 660], [2900, 480]
       ], 'dirt', { thickness: 24, isGroundMass: true });
 
-      // Grandes tiges de roseaux arquées à grimper au-dessus du marais
-      world.addPolyline([
-        [2040, 455], [2220, 320], [2520, 300], [2780, 360]
-      ], 'reed', { thickness: 24, isGroundMass: false });
+      world.addThorn(1950, 640, 30);
+      world.addThorn(2200, 640, 30);
+      world.addThorn(2450, 640, 30);
 
-      world.addPolyline([
-        [2740, 360], [3020, 290], [3260, 350], [3320, 420]
-      ], 'reed', { thickness: 24, isGroundMass: false });
-
-      world.addStickyCrumb(2520, 284, 26, 'web');
-      world.addProp('acorn', 2380, 275, 1.0);
-      world.addPowerUp(3020, 210, 'length');
-      world.addAphid(2840, 575, 22, 2680, 3020);
-      world.addProp('pinecone', 3520, 385, 1.05);
-
-      // CHECKPOINT 2
-      world.addCheckpoint(3700, 420, 'Checkpoint 2');
-
-      // SECTION 3 : Le Grand Lagon aux Lotus
-      world.addPolyline([
-        [3810, 420], [4020, 620], [4920, 620], [5140, 390], [6250, 390], [6250, 160]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
-
+      // Bûche 1 (oscille vers la droite quand l'autre va vers la gauche)
       world.addDynamicPlatform({
-        type: 'lilypad',
-        material: 'leaf',
-        pivotX: 4220,
+        type: 'leaf',
+        material: 'root',
+        pivotX: 1950,
         pivotY: 460,
-        moveX: 95,
-        moveY: 16,
-        moveSpeed: 1.15,
-        localPoints: [[-130, 0], [-40, -6], [40, -6], [130, 0]],
-        baseAngle: 0,
-        stiffness: 19,
-        damping: 2.8,
+        moveX: 100,
+        moveY: 0,
+        moveSpeed: 1.3,
+        localPoints: [[-90, 0], [90, 0]],
+        stiffness: 24,
+        damping: 3.2,
         thickness: 22
       });
 
+      // Bûche 2
       world.addDynamicPlatform({
-        type: 'lilypad',
-        material: 'leaf',
-        pivotX: 4680,
-        pivotY: 430,
-        moveX: -95,
-        moveY: 16,
-        moveSpeed: 1.2,
-        localPoints: [[-130, 0], [-40, -6], [40, -6], [130, 0]],
-        baseAngle: 0,
-        stiffness: 19,
-        damping: 2.8,
+        type: 'leaf',
+        material: 'root',
+        pivotX: 2450,
+        pivotY: 460,
+        moveX: -100,
+        moveY: 0,
+        moveSpeed: 1.3,
+        localPoints: [[-90, 0], [90, 0]],
+        stiffness: 24,
+        damping: 3.2,
         thickness: 22
       });
 
-      world.addMushroom(4450, 585, 42, 410, 0.0);
-      world.addThorn(4140, 605, 28);
-      world.addThorn(4780, 605, 28);
-
-      // CHECKPOINT 3
-      world.addCheckpoint(5240, 390, 'Checkpoint 3');
-
-      world.addStickyCrumb(5440, 374, 26, 'web');
-      world.addHedgehog(5600, 370, 28, 5480, 5760);
-      world.addProp('acorn', 5360, 360, 1.0);
-    }
-  },
-
-  {
-    id: 5,
-    cupId: 'vallee_folle',
-    difficulty: 'Difficile',
-    theme: 'hive',
-    bgSet: 'game_background_1',
-    name: 'Vallée 3 — La Ruche & Le Verger Doré (Difficile)',
-    subtitle: 'Rayons d’alvéoles de cire à escalader, flaques de miel ultra-collantes, cocons suspendus & gardiens !',
-    skyTop: '#fff3b0',
-    skyBottom: '#ffbe76',
-    accentBg: '#b86b11',
-    startX: 150,
-    startY: 520,
-    finishX: 6550,
-    finishY: 340,
-    coachHint: '💡 <strong>Difficile — La Ruche Dorée :</strong> Escaladez les rayons de cire 🍯, arrachez-vous des flaques de miel avec <kbd>ESPACE</kbd> et utilisez les pommes de pin et ennemis pour nettoyer la route !',
-    build(world) {
-      // SECTION 1 : Les Alvéoles Basses & Le Miel Collant
+      // Câble aérien ultra-fin en raccourci vertigineux
       world.addPolyline([
-        [-200, 280], [-200, 560], [420, 560], [680, 470], [980, 470],
-        [1180, 620], [1780, 620], [1980, 420], [2380, 420]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
+        [1550, 240], [2150, 200], [2850, 240]
+      ], 'silk', { thickness: 12, isGroundMass: false });
 
-      // Rampe d'alvéoles de cire
-      world.addPolyline([
-        [940, 465], [1180, 350], [1520, 350], [1760, 415]
-      ], 'honeycomb', { thickness: 26, isGroundMass: false });
-
-      world.addStickyCrumb(560, 502, 27, 'honey');
-      world.addStickyCrumb(1350, 334, 28, 'honey');
-      world.addThorn(1460, 605, 30);
-      world.addProp('acorn', 820, 440, 1.0);
-      world.addProp('pinecone', 1500, 310, 1.05);
-      world.addHedgehog(1620, 600, 28, 1500, 1740);
-      world.addAphid(2120, 395, 22, 2000, 2260);
-
-      // CHECKPOINT 1
-      world.addCheckpoint(2240, 420, 'Checkpoint 1');
-
-      // SECTION 2 : La Grande Ascension de la Ruche Royale
-      world.addPolyline([
-        [2370, 420], [2580, 630], [3620, 630], [3860, 400], [4320, 400]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
-
-      // Double étage d'alvéoles de cire à grimper !
-      world.addPolyline([
-        [2420, 410], [2680, 290], [3020, 290]
-      ], 'honeycomb', { thickness: 26, isGroundMass: false });
-
-      world.addPolyline([
-        [2960, 290], [3240, 190], [3580, 190], [3820, 310]
-      ], 'honeycomb', { thickness: 26, isGroundMass: false });
-
-      // Balançoire de soie en secours au milieu
-      world.addDynamicPlatform({
-        type: 'silk_swing',
-        material: 'silk',
-        pivotX: 3100,
-        pivotY: 450,
-        moveX: 120,
-        moveY: 20,
-        moveSpeed: 1.2,
-        localPoints: [[-115, 8], [-35, -6], [35, -6], [115, 8]],
-        baseAngle: 0,
-        stiffness: 18,
-        damping: 2.6,
-        thickness: 20
-      });
-
-      world.addThorn(2820, 615, 30);
-      world.addThorn(3380, 615, 30);
-      world.addPowerUp(3400, 110, 'strength');
-      world.addProp('acorn', 2840, 260, 1.0);
-      world.addHedgehog(3420, 170, 28, 3260, 3550);
-      world.addStickyCrumb(4020, 384, 28, 'honey');
+      world.addPowerUp(2150, 130, 'feather');
+      world.addMushroom(2200, 625, 46, 440, 0.08);
 
       // CHECKPOINT 2
-      world.addCheckpoint(4180, 400, 'Checkpoint 2');
+      world.addCheckpoint(3000, 460, 'Checkpoint 2');
 
-      // SECTION 3 : Le Verger Glissant & Les Branches d'Or
+      // SECTION 3 : Bûche Roulante & Arrivée
       world.addPolyline([
-        [4310, 400], [4600, 510], [4880, 580]
-      ], 'moss', { thickness: 24, isGroundMass: true });
+        [2900, 480], [3250, 400], [3650, 480], [4000, 400], [4400, 440],
+        [4750, 380], [5600, 380], [5600, 160]
+      ], 'root', { thickness: 26, isGroundMass: true });
 
-      world.addPolyline([
-        [4870, 580], [5420, 580], [5680, 340], [6950, 340], [6950, 140]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
+      world.addProp('pinecone', 3350, 350, 1.1);
+      world.addHedgehog(3850, 455, 28, 3700, 3980);
+      world.addPowerUp(4400, 360, 'speed');
+      world.addAphid(4600, 395, 22, 4480, 4720);
 
-      world.addPolyline([
-        [4560, 390], [4860, 300], [5220, 300], [5520, 350]
-      ], 'root', { thickness: 26, isGroundMass: false });
-
-      world.addMushroom(5120, 545, 42, 410, 0.1);
-      world.addProp('pinecone', 5040, 260, 1.1);
-      world.addProp('acorn', 4880, 270, 1.0);
-      world.addAphid(5280, 555, 22, 5160, 5390);
-
-      // CHECKPOINT 3
-      world.addCheckpoint(5740, 340, 'Checkpoint 3');
-
-      world.addStickyCrumb(5960, 324, 28, 'honey');
-      world.addHedgehog(6160, 320, 28, 6020, 6320);
-      world.addProp('pinecone', 6340, 300, 1.05);
+      world.addDecoration('flower', 4900, 380, 1.2);
+      world.addDecoration('fern', 5150, 380, 1.4);
     }
   },
 
-  // ============================================================================
-  // COUPE 3 : COUPE DU PIQUE-NIQUE ROYAL (pique_nique_royal)
-  // Course 1 (id: 6) = FACILE | Course 2 (id: 7) = MOYEN | Course 3 (id: 8) = DIFFICILE
-  // ============================================================================
-  {
-    id: 6,
-    cupId: 'pique_nique_royal',
-    difficulty: 'Facile',
-    theme: 'picnic_easy',
-    bgSet: 'game_background_2',
-    name: 'Pique-Nique 1 — La Nappe à Carreaux (Facile)',
-    subtitle: 'Entrée du pique-nique : petites canettes en escalier doux, pailles géantes, glands de soin & pucerons !',
-    skyTop: '#ffecd2',
-    skyBottom: '#fcb69f',
-    accentBg: '#c0392b',
-    startX: 160,
-    startY: 500,
-    finishX: 4950,
-    finishY: 420,
-    coachHint: '💡 <strong>Facile — La Nappe à Carreaux :</strong> Grimpez sur les canettes 🥫 et les pailles colorées 🥤 ! Cassez les glands pour vous soigner (+20 ❤️) et lancez les pucerons pour gagner +1 segment 🍏 !',
-    build(world) {
-      // SECTION 1 : La Pelouse & Première Canette Douce
-      world.addPolyline([
-        [-200, 260], [-200, 550], [460, 550], [740, 460], [1040, 460],
-        [1280, 520], [1620, 470], [1940, 470]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
-
-      world.addPolyline([
-        [450, 548], [740, 458], [1040, 458]
-      ], 'can', { thickness: 26, isGroundMass: false });
-
-      world.addProp('acorn', 360, 520, 1.0);
-      world.addAphid(880, 435, 22, 760, 1000);
-      world.addStickyCrumb(1280, 502, 24, 'jam');
-      world.addProp('acorn', 1480, 465, 1.0);
-
-      // CHECKPOINT 1
-      world.addCheckpoint(1800, 470, 'Checkpoint 1');
-
-      // SECTION 2 : Le Pont de Paille Géante & Emballage Rebondissant
-      world.addPolyline([
-        [1930, 470], [2180, 570], [2740, 570], [2980, 450], [3420, 450]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
-
-      // Paille géante inclinée facile à grimper
-      world.addPolyline([
-        [2060, 465], [2380, 380], [2720, 380], [2980, 450]
-      ], 'straw', { thickness: 24, isGroundMass: false });
-
-      world.addMushroom(2450, 535, 42, 385, 0.0);
-      world.addProp('acorn', 2520, 350, 1.0);
-      world.addPowerUp(2520, 270, 'speed');
-      world.addAphid(3160, 425, 22, 3020, 3300);
-
-      // CHECKPOINT 2
-      world.addCheckpoint(3320, 450, 'Checkpoint 2');
-
-      // SECTION 3 : Les Marches du Panier vers l'Arrivée
-      world.addPolyline([
-        [3410, 450], [3680, 510], [3960, 450], [4260, 420], [5350, 420], [5350, 180]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
-
-      world.addPolyline([
-        [3410, 448], [3680, 508], [3960, 448]
-      ], 'plastic', { thickness: 22, isGroundMass: false });
-
-      world.addPolyline([
-        [3960, 448], [4260, 418], [4560, 418]
-      ], 'can', { thickness: 26, isGroundMass: false });
-
-      world.addStickyCrumb(4120, 415, 25, 'jam');
-      world.addProp('acorn', 4420, 390, 1.0);
-      world.addAphid(4680, 395, 22, 4560, 4820);
-
-      // CHECKPOINT 3
-      world.addCheckpoint(4580, 420, 'Checkpoint 3');
-    }
-  },
-
+  // --------------------------------------------------------------------------
+  // NIVEAU 7 : La Ruche & les Cires (Difficile)
+  // --------------------------------------------------------------------------
   {
     id: 7,
-    cupId: 'pique_nique_royal',
-    difficulty: 'Moyen',
-    theme: 'picnic_table',
+    cupId: 'coupe_titans',
+    difficulty: 'Difficile',
+    theme: 'hive',
     bgSet: 'game_background_3',
-    name: 'Pique-Nique 2 — La Table des Géants (Moyen)',
-    subtitle: 'Fourchettes plantées à escalader, ponts de pailles, emballages froissés, confiture collante & hérissons !',
-    skyTop: '#ffd6ba',
-    skyBottom: '#fff2b2',
-    accentBg: '#8c2d19',
-    startX: 150,
-    startY: 500,
-    finishX: 5950,
+    name: 'Titans 2 — La Ruche & les Cires (Difficile)',
+    subtitle: 'Alvéoles hexagonales, mares de miel collantes, bascules d’ambre et conduit de gelée royale !',
+    skyTop: '#ff9900',
+    skyBottom: '#ffe259',
+    accentBg: '#b86b11',
+    startX: 160,
+    startY: 520,
+    finishX: 5500,
     finishY: 400,
-    coachHint: '💡 <strong>Moyen — La Table des Géants :</strong> Escaladez les fourchettes 🍴 et les pailles 🥤, dégagez les pommes de pin et utilisez <kbd>ESPACE</kbd> pour vous arracher de la confiture 🍓 !',
+    coachHint: '💡 <strong>Difficile — La Ruche & les Cires :</strong> Le <strong>Miel</strong> vous immobilise ! Bandez votre chenille à fond (>50%) pour vous libérer d’un coup sec. Le conduit de ventilation supérieur est le raccourci des champions.',
     build(world) {
-      // SECTION 1 : Rampe de Canette & Première Fourchette
+      // SECTION 1 : Entrée de la Ruche & Alvéoles Hexagonales
       world.addPolyline([
-        [-200, 260], [-200, 550], [440, 550], [700, 440], [960, 370],
-        [1140, 520], [1560, 520], [1760, 440], [2120, 440]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
+        [-200, 300], [-200, 560], [300, 560], [550, 500], [800, 560],
+        [1100, 560], [1350, 480], [1650, 480]
+      ], 'honeycomb', { thickness: 26, isGroundMass: true });
 
+      // Plafond d'alvéoles
       world.addPolyline([
-        [430, 548], [700, 438], [960, 368]
-      ], 'can', { thickness: 28, isGroundMass: false });
+        [200, 260], [600, 220], [1000, 260], [1400, 220], [1700, 260]
+      ], 'honeycomb', { thickness: 24, isGroundMass: false });
 
-      // Fourchette plantée #1
-      world.addPolyline([
-        [740, 425], [740, 345]
-      ], 'fork', { thickness: 15, isGroundMass: false });
+      // Flaques de miel collant au sol
+      world.addStickyCrumb(680, 545, 32, 'honey');
+      world.addStickyCrumb(950, 545, 32, 'honey');
 
-      // Pont de paille au-dessus du creux de confiture
-      world.addPolyline([
-        [950, 368], [1340, 350], [1760, 440]
-      ], 'straw', { thickness: 24, isGroundMass: false });
-
-      world.addStickyCrumb(1260, 502, 28, 'jam');
-      world.addHedgehog(1440, 500, 28, 1300, 1540);
-      world.addProp('acorn', 1340, 320, 1.0);
-      world.addAphid(480, 515, 22, 360, 580);
+      world.addProp('acorn', 420, 535, 1.0);
+      world.addHedgehog(1220, 535, 28, 1120, 1320);
 
       // CHECKPOINT 1
-      world.addCheckpoint(1960, 440, 'Checkpoint 1');
+      world.addCheckpoint(1550, 470, 'Checkpoint 1');
 
-      // SECTION 2 : Les Emballages Froissés & Ronces sous la Table
+      // SECTION 2 : Mer de Miel & Bascules d'Ambre
       world.addPolyline([
-        [2110, 440], [2360, 580], [3120, 580], [3360, 420], [3860, 420]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
+        [1650, 480], [1800, 640], [2800, 640], [2950, 460]
+      ], 'honeycomb', { thickness: 24, isGroundMass: true });
 
-      world.addPolyline([
-        [2360, 578], [2620, 510], [2860, 578], [3120, 515]
-      ], 'plastic', { thickness: 22, isGroundMass: false });
+      world.addStickyCrumb(2000, 625, 36, 'honey');
+      world.addStickyCrumb(2300, 625, 36, 'honey');
+      world.addStickyCrumb(2600, 625, 36, 'honey');
+      world.addThorn(2150, 625, 26);
+      world.addThorn(2450, 625, 26);
+
+      // Plateformes bascules d'ambre instables
+      world.addDynamicPlatform({
+        type: 'leaf',
+        material: 'honeycomb',
+        pivotX: 2050,
+        pivotY: 460,
+        localPoints: [[-110, 0], [110, 0]],
+        stiffness: 14,
+        damping: 2.2,
+        maxAngle: 0.55,
+        thickness: 22
+      });
 
       world.addDynamicPlatform({
         type: 'leaf',
-        material: 'leaf',
-        pivotX: 2740,
-        pivotY: 380,
-        moveX: 110,
-        moveY: 20,
-        moveSpeed: 1.15,
-        localPoints: [[-130, 6], [-40, -8], [40, -8], [130, 6]],
-        baseAngle: 0,
-        stiffness: 18,
-        damping: 2.7,
+        material: 'honeycomb',
+        pivotX: 2550,
+        pivotY: 460,
+        localPoints: [[-110, 0], [110, 0]],
+        stiffness: 14,
+        damping: 2.2,
+        maxAngle: 0.55,
         thickness: 22
       });
 
-      world.addThorn(2480, 565, 28);
-      world.addMushroom(2620, 480, 40, 390, 0.08);
-      world.addPowerUp(2740, 260, 'strength');
-      world.addProp('pinecone', 3480, 380, 1.05);
-      world.addProp('acorn', 3620, 390, 1.0);
+      // Conduit de gelée royale supérieur (Raccourci ultra-rapide)
+      world.addPolyline([
+        [1650, 200], [2300, 160], [2950, 200]
+      ], 'silk', { thickness: 20, isGroundMass: false });
+
+      world.addPowerUp(2300, 90, 'speed');
+      world.addMushroom(2300, 605, 46, 440, 0.08);
 
       // CHECKPOINT 2
-      world.addCheckpoint(3740, 420, 'Checkpoint 2');
+      world.addCheckpoint(3050, 450, 'Checkpoint 2');
 
-      // SECTION 3 : Les Deux Fourchettes & Le Plateau du Goûter
+      // SECTION 3 : Labyrinthe d'Alvéoles & Ligne d'Arrivée
       world.addPolyline([
-        [3850, 420], [4120, 350], [4440, 350], [4720, 480], [5160, 480],
-        [5420, 400], [6350, 400], [6350, 160]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
+        [2950, 460], [3300, 400], [3650, 480], [4000, 400], [4400, 460],
+        [4800, 400], [5800, 400], [5800, 160]
+      ], 'honeycomb', { thickness: 26, isGroundMass: true });
 
-      world.addPolyline([
-        [3850, 418], [4120, 348], [4440, 348], [4720, 478]
-      ], 'can', { thickness: 28, isGroundMass: false });
+      world.addStickyCrumb(3480, 420, 28, 'honey');
+      world.addHedgehog(3850, 455, 28, 3700, 3980);
+      world.addProp('acorn', 4150, 380, 1.0);
+      world.addPowerUp(4400, 380, 'strength');
+      world.addAphid(4650, 415, 22, 4520, 4780);
 
-      world.addPolyline([
-        [4280, 348], [4280, 265]
-      ], 'fork', { thickness: 15, isGroundMass: false });
-
-      world.addStickyCrumb(4160, 332, 27, 'jam');
-      world.addHedgehog(4940, 460, 28, 4780, 5100);
-      world.addAphid(4380, 325, 22, 4300, 4440);
-
-      // CHECKPOINT 3
-      world.addCheckpoint(5480, 400, 'Checkpoint 3');
-
-      world.addPolyline([
-        [5720, 400], [5720, 320]
-      ], 'fork', { thickness: 15, isGroundMass: false });
-      world.addProp('acorn', 5620, 370, 1.0);
+      world.addDecoration('flower', 5050, 400, 1.2);
+      world.addDecoration('fern', 5300, 400, 1.4);
     }
   },
 
+  // --------------------------------------------------------------------------
+  // NIVEAU 8 : Le Festin des Tempêtes (Grand Finale)
+  // --------------------------------------------------------------------------
   {
     id: 8,
-    cupId: 'pique_nique_royal',
+    cupId: 'coupe_titans',
     difficulty: 'Difficile',
     theme: 'picnic_chaos',
     bgSet: 'game_background_4',
-    name: 'Pique-Nique 3 — Le Festin Ravagé (Difficile)',
-    subtitle: 'Chaos final : grandes ascensions sur fourchettes et pailles, confiture, ronces, pommes de pin & hérissons !',
-    skyTop: '#ff9a8b',
-    skyBottom: '#ff6a88',
-    accentBg: '#6e1423',
-    startX: 150,
-    startY: 520,
-    finishX: 6650,
-    finishY: 340,
-    coachHint: '💡 <strong>Difficile — Le Festin Ravagé :</strong> L’épreuve reine ! Combinez escalade sur fourchettes 🍴, ponts de pailles 🥤, sauts par inertie et lancers de pommes de pin pour triompher !',
+    name: 'Titans 3 — Le Festin des Tempêtes (Grand Finale)',
+    subtitle: 'L’apothéose : Canettes métalliques glissantes, couteau à bascule, lac de confiture et fil céleste à 140px !',
+    skyTop: '#232526',
+    skyBottom: '#414345',
+    accentBg: '#c0392b',
+    startX: 160,
+    startY: 540,
+    finishX: 5800,
+    finishY: 380,
+    coachHint: '💡 <strong>Grand Finale — Le Festin des Tempêtes :</strong> La course reine ! Traversez les canettes glissantes, gardez l’équilibre sur le couteau à bascule, planez au-dessus du gouffre de confiture et osez le câble céleste à 140px d’altitude pour triompher ! 🏆',
     build(world) {
-      // SECTION 1 : L'Assaut des Canettes & Fourchettes Géantes
+      // SECTION 1 : Table de pique-nique & Canettes métalliques
       world.addPolyline([
-        [-200, 260], [-200, 560], [420, 560], [680, 440], [940, 440],
-        [1140, 620], [1820, 620], [2040, 410], [2420, 410]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
+        [-200, 300], [-200, 580], [300, 580], [550, 520], [800, 520]
+      ], 'plastic', { thickness: 26, isGroundMass: true });
 
+      // Canette renversée très glissante
       world.addPolyline([
-        [410, 558], [680, 438], [940, 438]
-      ], 'can', { thickness: 28, isGroundMass: false });
+        [800, 520], [1050, 440], [1300, 440], [1500, 520]
+      ], 'can', { thickness: 28, isGroundMass: true });
 
-      world.addPolyline([
-        [820, 438], [820, 335]
-      ], 'fork', { thickness: 16, isGroundMass: false });
+      world.addProp('acorn', 450, 555, 1.0);
+      world.addAphid(650, 500, 22, 560, 750);
+      world.addStickyCrumb(1180, 425, 28, 'jam');
 
-      // Pont de paille haut perché partant du sommet de la fourchette !
-      world.addPolyline([
-        [840, 335], [1220, 280], [1640, 280], [2020, 405]
-      ], 'straw', { thickness: 24, isGroundMass: false });
-
-      world.addThorn(1320, 605, 32);
-      world.addStickyCrumb(1560, 602, 28, 'jam');
-      world.addMushroom(1720, 585, 42, 420, 0.1);
-      world.addProp('pinecone', 1420, 240, 1.1);
-      world.addProp('acorn', 1180, 250, 1.0);
-      world.addHedgehog(680, 420, 28, 540, 780);
-      world.addAphid(2180, 385, 22, 2060, 2320);
+      // Grand Couteau à bascule (Seesaw)
+      world.addDynamicPlatform({
+        type: 'leaf',
+        material: 'fork',
+        pivotX: 1650,
+        pivotY: 480,
+        localPoints: [[-140, 0], [140, 0]],
+        stiffness: 12,
+        damping: 2.0,
+        maxAngle: 0.60,
+        inertia: 22000,
+        thickness: 24
+      });
 
       // CHECKPOINT 1
-      world.addCheckpoint(2280, 410, 'Checkpoint 1');
+      world.addCheckpoint(1800, 460, 'Checkpoint 1');
 
-      // SECTION 2 : La Nappe Déchirée & Les Balançoires Au-Dessus du Chaos
+      // SECTION 2 : Le Gouffre de Confiture Géant & Câble Céleste
       world.addPolyline([
-        [2410, 410], [2620, 640], [3760, 640], [3980, 380], [4420, 380]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
+        [1800, 480], [1950, 680], [3250, 680], [3400, 460]
+      ], 'plastic', { thickness: 24, isGroundMass: true });
+
+      // Mer de confiture gluante et pointes au fond
+      world.addStickyCrumb(2200, 660, 36, 'jam');
+      world.addStickyCrumb(2600, 660, 36, 'jam');
+      world.addStickyCrumb(3000, 660, 36, 'jam');
+      world.addThorn(2400, 660, 28);
+      world.addThorn(2800, 660, 28);
+
+      // Tremplin et plume au bord du gouffre
+      world.addPowerUp(1880, 420, 'feather');
+
+      // Pailles de boisson flottantes à mi-hauteur
+      world.addPolyline([
+        [2200, 480], [2500, 480]
+      ], 'straw', { thickness: 22, isGroundMass: false });
 
       world.addPolyline([
-        [2620, 638], [2920, 560], [3200, 638], [3480, 560], [3760, 638]
-      ], 'plastic', { thickness: 22, isGroundMass: false });
+        [2700, 480], [3000, 480]
+      ], 'straw', { thickness: 22, isGroundMass: false });
 
-      world.addThorn(2780, 620, 30);
-      world.addThorn(3340, 620, 30);
-      world.addStickyCrumb(3060, 580, 28, 'jam');
+      // Graines piquantes en suspension dans le gouffre
+      world.addThorn(2350, 360, 26);
+      world.addThorn(2850, 360, 26);
 
-      world.addDynamicPlatform({
-        type: 'hose',
-        material: 'hose',
-        pivotX: 2820,
-        pivotY: 360,
-        moveX: 110,
-        moveY: 22,
-        moveSpeed: 1.25,
-        localPoints: [[-135, 6], [-45, -10], [45, -10], [135, 6]],
-        baseAngle: 0,
-        stiffness: 17,
-        damping: 2.5,
-        thickness: 26
-      });
+      // CÂBLE CÉLESTE À 140PX D'ALTITUDE (Raccourci suprême pour speedrunners)
+      world.addPolyline([
+        [1750, 160], [2550, 140], [3450, 160]
+      ], 'silk', { thickness: 12, isGroundMass: false });
 
-      world.addDynamicPlatform({
-        type: 'silk_swing',
-        material: 'silk',
-        pivotX: 3440,
-        pivotY: 330,
-        moveX: -115,
-        moveY: 22,
-        moveSpeed: 1.3,
-        localPoints: [[-115, 8], [-35, -6], [35, -6], [115, 8]],
-        baseAngle: 0,
-        stiffness: 18,
-        damping: 2.6,
-        thickness: 20
-      });
-
-      world.addPowerUp(3130, 210, 'strength');
-      world.addHedgehog(4140, 360, 28, 4000, 4280);
-      world.addProp('acorn', 4040, 350, 1.0);
+      world.addPowerUp(2550, 80, 'speed');
+      world.addMushroom(2600, 645, 46, 450, 0.08);
 
       // CHECKPOINT 2
-      world.addCheckpoint(4300, 380, 'Checkpoint 2');
+      world.addCheckpoint(3500, 440, 'Checkpoint 2');
 
-      // SECTION 3 : L'Ascension du Panier Royal
+      // SECTION 3 : La Grande Boucle du Panier & Arrivée Triomphale
       world.addPolyline([
-        [4410, 380], [4680, 490], [4960, 570]
-      ], 'moss', { thickness: 24, isGroundMass: true });
+        [3400, 460], [3750, 380], [4100, 480], [4450, 380], [4800, 460],
+        [5150, 380], [6100, 380], [6100, 140]
+      ], 'root', { thickness: 28, isGroundMass: true });
 
-      world.addPolyline([
-        [4950, 570], [5480, 570], [5760, 340], [7050, 340], [7050, 140]
-      ], 'dirt', { thickness: 24, isGroundMass: true });
+      world.addProp('pinecone', 3900, 340, 1.25);
+      world.addHedgehog(4250, 455, 28, 4120, 4380);
+      world.addHedgehog(4950, 435, 28, 4820, 5080);
+      world.addPowerUp(4700, 380, 'strength');
+      world.addAphid(5350, 355, 22, 5220, 5480);
 
-      // Double rampe : Branche + Paille + Fourchette
-      world.addPolyline([
-        [4560, 370], [4880, 270], [5240, 270], [5560, 340]
-      ], 'root', { thickness: 26, isGroundMass: false });
-
-      world.addPolyline([
-        [5120, 270], [5120, 185]
-      ], 'fork', { thickness: 15, isGroundMass: false });
-
-      world.addStickyCrumb(4960, 254, 28, 'jam');
-      world.addProp('pinecone', 5240, 230, 1.15);
-      world.addProp('acorn', 4860, 240, 1.0);
-      world.addAphid(5220, 545, 22, 5060, 5380);
-
-      // CHECKPOINT 3
-      world.addCheckpoint(5820, 340, 'Checkpoint 3');
-
-      world.addPolyline([
-        [5920, 338], [6180, 270], [6420, 338]
-      ], 'can', { thickness: 28, isGroundMass: false });
-
-      world.addStickyCrumb(6180, 254, 28, 'jam');
-      world.addHedgehog(6320, 315, 28, 6200, 6480);
-      world.addProp('pinecone', 6080, 235, 1.1);
+      world.addDecoration('flower', 5550, 380, 1.3);
+      world.addDecoration('fern', 5750, 380, 1.5);
     }
   }
 ];

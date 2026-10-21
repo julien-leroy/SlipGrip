@@ -10,10 +10,10 @@ import {
   isCosmeticUnlocked,
   unlockRandomCosmeticGift,
   getUnlockedCosmeticsCount
-} from './gameplayConfig.js?v=97';
-import { COSMETIC_PALETTES, Caterpillar } from './caterpillar.js?v=97';
-import { LEVEL_DEFINITIONS } from './levels.js?v=97';
-import { sound } from './audio.js?v=97';
+} from './gameplayConfig.js?v=98';
+import { COSMETIC_PALETTES, Caterpillar } from './caterpillar.js?v=98';
+import { LEVEL_DEFINITIONS } from './levels.js?v=98';
+import { sound } from './audio.js?v=98';
 
 export class UIManager {
   constructor(game, network) {

@@ -499,45 +499,52 @@ export const RACE_MODIFIERS = {
   }
 };
 
-// ==================== COUPES (COMPÉTITIONS DE 3 COURSES) ====================
+// ==================== COUPES (COMPÉTITIONS DE 3 COURSES PAR DIFFICULTÉ) ====================
 export const CUPS_DEFINITIONS = {
-  potager_geant: {
-    id: 'potager_geant',
-    name: 'Coupe Sous-Bois & Potager',
-    icon: '🌳',
-    desc: 'Univers Sylvestre : 1. L’Orée des Chênes (Facile) • 2. Le Potager Suspendu (Moyen) • 3. La Canopée Géante (Difficile) !',
+  coupe_bourgeons: {
+    id: 'coupe_bourgeons',
+    name: 'Coupe des Bourgeons (Facile)',
+    difficulty: 'Facile',
+    icon: '🌱',
+    desc: 'Initiation douce & sous-bois : 1. L’Orée des Pousses • 2. Les Ponts de Lianes • 3. Le Verger Fleuri !',
     levels: [0, 1, 2],
     cards: [
-      { levelId: 0, title: 'L’ORÉE DES CHÊNES (FACILE)', icon: '🌱', bg: 'linear-gradient(135deg, #2d5a27, #8cf5ab)' },
-      { levelId: 1, title: 'LE POTAGER SUSPENDU (MOYEN)', icon: '🍅', bg: 'linear-gradient(135deg, #236937, #ff6b6b)' },
-      { levelId: 2, title: 'LA CANOPÉE GÉANTE (DIFFICILE)', icon: '🌲', bg: 'linear-gradient(135deg, #1e4620, #ffeaa7)' }
+      { levelId: 0, title: '1. L’ORÉE DES POUSSES', icon: '🌱', bg: 'linear-gradient(135deg, #2d5a27, #8cf5ab)' },
+      { levelId: 1, title: '2. LES PONTS DE LIANES', icon: '🌿', bg: 'linear-gradient(135deg, #236937, #74c668)' },
+      { levelId: 2, title: '3. LE VERGER FLEURI', icon: '🌸', bg: 'linear-gradient(135deg, #1e4620, #ffeaa7)' }
     ]
   },
-  vallee_folle: {
-    id: 'vallee_folle',
-    name: 'Coupe Vallée Féerique',
-    icon: '🍄',
-    desc: 'Univers Magique & Aquatique : 1. Clairière Champignons (Facile) • 2. Marais des Nénuphars (Moyen) • 3. La Ruche Dorée (Difficile) !',
+  coupe_vents: {
+    id: 'coupe_vents',
+    name: 'Coupe des Vents (Moyen)',
+    difficulty: 'Moyen',
+    icon: '🍃',
+    desc: 'Aventure aérienne & caverne : 4. La Grotte aux Spores • 5. Le Gouffre Poids-Plume • 6. La Falaise des Cimes !',
     levels: [3, 4, 5],
     cards: [
-      { levelId: 3, title: 'CLAIRIÈRE CHAMPIGNONS (FACILE)', icon: '🍄', bg: 'linear-gradient(135deg, #6c5ce7, #fd79a8)' },
-      { levelId: 4, title: 'MARAIS DES NÉNUPHARS (MOYEN)', icon: '🪷', bg: 'linear-gradient(135deg, #136f63, #63cdda)' },
-      { levelId: 5, title: 'LA RUCHE DORÉE (DIFFICILE)', icon: '🍯', bg: 'linear-gradient(135deg, #b86b11, #fff3b0)' }
+      { levelId: 3, title: '4. LA GROTTE AUX SPORES', icon: '🍄', bg: 'linear-gradient(135deg, #5f27cd, #fd79a8)' },
+      { levelId: 4, title: '5. LE GOUFFRE POIDS-PLUME', icon: '🪶', bg: 'linear-gradient(135deg, #0984e3, #81ecec)' },
+      { levelId: 5, title: '6. LA FALAISE DES CIMES', icon: '🌲', bg: 'linear-gradient(135deg, #2d3436, #00b894)' }
     ]
   },
-  pique_nique_royal: {
-    id: 'pique_nique_royal',
-    name: 'Coupe Pique-Nique Royal',
-    icon: '🧺',
-    desc: 'Univers Géants & Friandises : 1. La Nappe à Carreaux (Facile) • 2. La Table des Géants (Moyen) • 3. Le Festin Ravagé (Difficile) !',
+  coupe_titans: {
+    id: 'coupe_titans',
+    name: 'Coupe des Titans (Difficile)',
+    difficulty: 'Difficile',
+    icon: '⚡',
+    desc: 'Défi expert & vertige : 7. Le Tronc des Titans • 8. La Ruche des Cires • 9. Le Festin des Tempêtes !',
     levels: [6, 7, 8],
     cards: [
-      { levelId: 6, title: 'LA NAPPE À CARREAUX (FACILE)', icon: '🥤', bg: 'linear-gradient(135deg, #e66767, #ffecd2)' },
-      { levelId: 7, title: 'LA TABLE DES GÉANTS (MOYEN)', icon: '🍴', bg: 'linear-gradient(135deg, #8c2d19, #ffd6ba)' },
-      { levelId: 8, title: 'LE FESTIN RAVAGÉ (DIFFICILE)', icon: '🧺', bg: 'linear-gradient(135deg, #6e1423, #ff9a8b)' }
+      { levelId: 6, title: '7. LE TRONC DES TITANS', icon: '🪵', bg: 'linear-gradient(135deg, #6c5ce7, #d63031)' },
+      { levelId: 7, title: '8. LA RUCHE DES CIRES', icon: '🍯', bg: 'linear-gradient(135deg, #b86b11, #fff3b0)' },
+      { levelId: 8, title: '9. LE FESTIN DES TEMPÊTES', icon: '🌪️', bg: 'linear-gradient(135deg, #c0392b, #2c3e50)' }
     ]
   }
 };
+// Aliases de compatibilité avec les configurations existantes (non-énumérables pour éviter les doublons dans l'UI)
+Object.defineProperty(CUPS_DEFINITIONS, 'potager_geant', { value: CUPS_DEFINITIONS.coupe_bourgeons, enumerable: false, writable: true, configurable: true });
+Object.defineProperty(CUPS_DEFINITIONS, 'vallee_folle', { value: CUPS_DEFINITIONS.coupe_vents, enumerable: false, writable: true, configurable: true });
+Object.defineProperty(CUPS_DEFINITIONS, 'pique_nique_royal', { value: CUPS_DEFINITIONS.coupe_titans, enumerable: false, writable: true, configurable: true });
 
 // ==================== STYLES DE GRIPS / VENTOUSES ====================
 export const GRIP_STYLES = {
