@@ -10,10 +10,10 @@ import {
   isCosmeticUnlocked,
   unlockRandomCosmeticGift,
   getUnlockedCosmeticsCount
-} from './gameplayConfig.js?v=98';
-import { COSMETIC_PALETTES, Caterpillar } from './caterpillar.js?v=98';
-import { LEVEL_DEFINITIONS } from './levels.js?v=98';
-import { sound } from './audio.js?v=98';
+} from './gameplayConfig.js?v=101';
+import { COSMETIC_PALETTES, Caterpillar } from './caterpillar.js?v=101';
+import { LEVEL_DEFINITIONS } from './levels.js?v=101';
+import { sound } from './audio.js?v=101';
 
 export class UIManager {
   constructor(game, network) {
@@ -31,6 +31,7 @@ export class UIManager {
     this.selectedModifierId = null;
     this.hasClaimedCupGift = false;
     this.countdownInterval = null;
+    this.previewRafId = null;
 
     this.initDOM();
     this.bindNetworkEvents();
@@ -391,13 +392,13 @@ export class UIManager {
             </div>
           </div>
 
-          <div class="modal-buttons">
-            <div id="results-auto-launch-msg" class="results-auto-launch-msg">
-              ⏳ La course suivante démarre dès que tous les choix sont faits (ou à la fin des 15s).
+          <div class="modal-buttons results-auto-box">
+            <div id="results-draft-status" class="results-draft-status">
+              ⏳ Choix des bonus en cours...
             </div>
-            <button id="btn-host-next-race" class="cartoon-btn green-btn hidden">
-              ▶ Lancer la Course Suivante (Admin)
-            </button>
+            <div id="results-auto-launch-msg" class="results-auto-launch-msg">
+              ⏱️ La course suivante démarre automatiquement dès que les choix sont faits (ou après 15s).
+            </div>
           </div>
         </div>
       </div>
@@ -412,15 +413,18 @@ export class UIManager {
           <!-- Visual 3-Step Podium -->
           <div id="podium-steps-container" class="podium-steps-container"></div>
 
-          <!-- Mystery Cosmetic Gift Box for Winner -->
+          <!-- Mystery Cosmetic Gift Box for Competition End -->
           <div id="podium-gift-section" class="podium-gift-section">
             <div id="podium-gift-box" class="podium-gift-box">
               <div class="gift-icon-anim" id="gift-icon-anim">🎁</div>
               <div class="gift-info">
-                <h3 id="gift-headline">RÉCOMPENSE DU CHAMPION !</h3>
-                <p id="gift-description">Le grand vainqueur de la compétition remporte un cosmétique mystère à débloquer !</p>
+                <h3 id="gift-headline">RÉCOMPENSE DE LA COMPÉTITION !</h3>
+                <p id="gift-description">Ouvrez votre cadeau mystère pour débloquer un nouveau cosmétique dans votre vestiaire !</p>
               </div>
-              <button id="btn-open-gift" class="cartoon-btn orange-btn">✨ Ouvrir mon Cadeau !</button>
+              <div class="gift-buttons-group">
+                <button id="btn-open-gift" class="cartoon-btn orange-btn">✨ Déverrouiller mon Cadeau !</button>
+                <button id="btn-equip-gift" class="cartoon-btn green-btn hidden">🎨 Équiper immédiatement !</button>
+              </div>
             </div>
           </div>
 
@@ -650,17 +654,13 @@ export class UIManager {
       }
     });
 
-    // Host Next Race button in Results modal
-    document.getElementById('btn-host-next-race')?.addEventListener('click', () => {
-      if (this.network.isHost()) {
-        sound.playGrip(true);
-        this.network.nextCupRace();
-      }
-    });
-
-    // Podium Open Gift button
+    // Podium Open & Equip Gift buttons
     document.getElementById('btn-open-gift')?.addEventListener('click', () => {
       this.claimVictoryCosmeticGift();
+    });
+
+    document.getElementById('btn-equip-gift')?.addEventListener('click', () => {
+      this.equipCurrentCupReward();
     });
 
     // Podium Return to Room button
@@ -849,6 +849,23 @@ export class UIManager {
     coach?.classList.toggle('hidden', !inGame);
     mpHud?.classList.toggle('hidden', !(inGame && this.game.isMultiplayer));
     document.getElementById('solo-level-select')?.classList.toggle('hidden', !(inGame && !this.game.isMultiplayer));
+
+    const gameCanvas = document.getElementById('game-canvas');
+    if (gameCanvas) {
+      gameCanvas.classList.toggle('sleeping', !inGame);
+    }
+
+    if (inGame) {
+      this.stopPreviewLoop();
+      this.game.resumeGameLoop();
+    } else {
+      this.game.pauseGameLoop();
+      if (screenName === 'home' || screenName === 'room') {
+        this.startPreviewLoop();
+      } else {
+        this.stopPreviewLoop();
+      }
+    }
 
     if (screenName === 'home' || screenName === 'room') {
       if (this.game && this.game.caterpillar) {
@@ -1299,6 +1316,26 @@ export class UIManager {
     ctx.restore();
   }
 
+  startPreviewLoop() {
+    if (this.previewRafId) return;
+    const render = (timeMs) => {
+      if (this.activeScreen !== 'home' && this.activeScreen !== 'room') {
+        this.previewRafId = null;
+        return;
+      }
+      this.drawPreviewCanvases(timeMs / 1000);
+      this.previewRafId = requestAnimationFrame(render);
+    };
+    this.previewRafId = requestAnimationFrame(render);
+  }
+
+  stopPreviewLoop() {
+    if (this.previewRafId) {
+      cancelAnimationFrame(this.previewRafId);
+      this.previewRafId = null;
+    }
+  }
+
   // ==================== LIVE RACE MULTIPLAYER HUD ====================
   updateLiveRaceHUD(playersInfo = []) {
     if (!this.game.isMultiplayer) return;
@@ -1387,15 +1424,29 @@ export class UIManager {
 
     let secondsRemaining = msg.draftDuration || 15;
     const timerEl = document.getElementById('results-draft-timer');
+    const autoLaunchMsg = document.getElementById('results-auto-launch-msg');
+    const draftStatusEl = document.getElementById('results-draft-status');
+
     if (timerEl) {
       timerEl.textContent = `⏱️ ${secondsRemaining}s`;
       timerEl.classList.remove('hidden');
+    }
+    if (autoLaunchMsg) {
+      autoLaunchMsg.textContent = `⏱️ La course suivante démarre automatiquement dans ${secondsRemaining}s (ou dès que tous les choix sont faits).`;
+    }
+    if (draftStatusEl) {
+      draftStatusEl.textContent = isFirstPlaceNoDraft
+        ? '🥇 Vous êtes 1er ! Les poursuivants choisissent leurs bonus...'
+        : '⚡ Choisissez votre bonus de rattrapage !';
     }
 
     this.draftTimerInterval = setInterval(() => {
       secondsRemaining--;
       if (timerEl) {
         timerEl.textContent = `⏱️ ${Math.max(0, secondsRemaining)}s`;
+      }
+      if (autoLaunchMsg) {
+        autoLaunchMsg.textContent = `⏱️ La course suivante démarre automatiquement dans ${Math.max(0, secondsRemaining)}s (ou dès que tous les choix sont faits).`;
       }
       if (secondsRemaining <= 0) {
         clearInterval(this.draftTimerInterval);
@@ -1437,11 +1488,6 @@ export class UIManager {
           this.selectModifierChoice(modId, cardsContainer);
         };
       }
-    }
-
-    const btnNext = document.getElementById('btn-host-next-race');
-    if (btnNext) {
-      btnNext.classList.toggle('hidden', !this.network.isHost());
     }
   }
 
@@ -1507,27 +1553,35 @@ export class UIManager {
       `;
     }
 
-    const isCupWinner = msg.championId === this.network.playerId;
+    // Reset gift state completely for each new competition
+    this.hasClaimedCupGift = false;
+    this.currentCupReward = null;
+
     const giftHeadline = document.getElementById('gift-headline');
     const giftDesc = document.getElementById('gift-description');
     const btnOpenGift = document.getElementById('btn-open-gift');
+    const btnEquipGift = document.getElementById('btn-equip-gift');
     const giftIcon = document.getElementById('gift-icon-anim');
 
     if (giftIcon) giftIcon.textContent = '🎁';
+    if (btnOpenGift) {
+      btnOpenGift.classList.remove('hidden');
+      btnOpenGift.disabled = false;
+      btnOpenGift.textContent = '✨ Déverrouiller mon Cadeau !';
+    }
+    if (btnEquipGift) {
+      btnEquipGift.classList.add('hidden');
+      btnEquipGift.disabled = false;
+      btnEquipGift.textContent = '🎨 Équiper immédiatement !';
+    }
 
+    const isCupWinner = msg.championId === this.network.playerId;
     if (isCupWinner) {
-      if (giftHeadline) giftHeadline.textContent = '🎉 FÉLICITATIONS ! VOUS REMPORTEZ LA COUPE !';
-      if (giftDesc) giftDesc.textContent = 'Ouvrez votre Cadeau Mystère pour débloquer un nouveau cosmétique dans votre vestiaire !';
-      if (btnOpenGift) {
-        btnOpenGift.classList.remove('hidden');
-        btnOpenGift.disabled = false;
-        btnOpenGift.textContent = '✨ Ouvrir mon Cadeau Cosmétique !';
-      }
+      if (giftHeadline) giftHeadline.textContent = '👑 FÉLICITATIONS ! GRAND CHAMPION DE LA COUPE !';
+      if (giftDesc) giftDesc.textContent = 'Bravo pour votre victoire sur les 3 courses ! Déverrouillez votre Cadeau Mystère pour enrichir votre vestiaire !';
     } else {
-      const winnerPseudo = msg.championPseudo || 'Le champion';
-      if (giftHeadline) giftHeadline.textContent = `🏆 ${winnerPseudo} remporte la Coupe et le Cadeau Cosmétique !`;
-      if (giftDesc) giftDesc.textContent = 'Terminez 1er au classement général d\'une Coupe (3 courses) pour débloquer un cosmétique exclusif !';
-      if (btnOpenGift) btnOpenGift.classList.add('hidden');
+      if (giftHeadline) giftHeadline.textContent = '🎁 COMPÉTITION TERMINÉE — CADEAU DE FIN DE COUPE !';
+      if (giftDesc) giftDesc.textContent = 'Bien joué ! Vous avez disputé la totalité de la Coupe. Déverrouillez votre Cadeau pour débloquer un nouveau cosmétique !';
     }
   }
 
@@ -1537,12 +1591,14 @@ export class UIManager {
 
     const result = unlockRandomCosmeticGift();
     const reward = result ? result.item : null;
+    this.currentCupReward = reward;
     sound.playVictory();
     this.updateUnlockedCounters();
 
     const giftHeadline = document.getElementById('gift-headline');
     const giftDesc = document.getElementById('gift-description');
     const btnOpenGift = document.getElementById('btn-open-gift');
+    const btnEquipGift = document.getElementById('btn-equip-gift');
     const giftIcon = document.getElementById('gift-icon-anim');
 
     if (reward) {
@@ -1550,24 +1606,37 @@ export class UIManager {
       if (giftHeadline) {
         giftHeadline.textContent = !result.isNew
           ? `🌟 COLLECTION COMPLÈTE ! (${reward.name})`
-          : `🎉 NOUVEAU COSMÉTIQUE DÉBLOQUÉ : ${reward.name.toUpperCase()} !`;
+          : `🎉 NOUVEAU DÉBLOQUÉ : ${reward.name.toUpperCase()} !`;
       }
       if (giftDesc) {
         giftDesc.textContent = `Ce cosmétique est désormais débloqué dans votre Atelier de la Chenille !`;
       }
       if (btnOpenGift) {
-        btnOpenGift.textContent = '🎨 Équiper immédiatement !';
-        btnOpenGift.onclick = () => {
-          if (reward.category === 'palette') this.game.caterpillar.cosmetics.palette = reward.id;
-          if (reward.category === 'hat') this.game.caterpillar.cosmetics.hat = reward.id;
-          if (reward.category === 'grip') this.game.caterpillar.cosmetics.grip = reward.id;
-          if (reward.category === 'face') this.game.caterpillar.cosmetics.face = reward.id;
-          this.game.caterpillar.saveCosmetics();
-          this.onLocalCosmeticChanged();
-          btnOpenGift.textContent = '✅ Équipé !';
-          btnOpenGift.disabled = true;
-        };
+        btnOpenGift.classList.add('hidden');
       }
+      if (btnEquipGift) {
+        btnEquipGift.classList.remove('hidden');
+        btnEquipGift.disabled = false;
+        btnEquipGift.textContent = `🎨 Équiper ${reward.name} !`;
+      }
+    }
+  }
+
+  equipCurrentCupReward() {
+    const reward = this.currentCupReward;
+    if (!reward) return;
+    if (reward.category === 'palette') this.game.caterpillar.cosmetics.palette = reward.id;
+    if (reward.category === 'hat') this.game.caterpillar.cosmetics.hat = reward.id;
+    if (reward.category === 'grip') this.game.caterpillar.cosmetics.grip = reward.id;
+    if (reward.category === 'face') this.game.caterpillar.cosmetics.face = reward.id;
+    this.game.caterpillar.saveCosmetics();
+    this.onLocalCosmeticChanged();
+    sound.playPowerUp();
+
+    const btnEquipGift = document.getElementById('btn-equip-gift');
+    if (btnEquipGift) {
+      btnEquipGift.textContent = '✅ Équipé avec succès !';
+      btnEquipGift.disabled = true;
     }
   }
 

@@ -909,6 +909,454 @@ export const LEVEL_DEFINITIONS = [
       world.addDecoration('flower', 5550, 380, 1.3);
       world.addDecoration('fern', 5750, 380, 1.5);
     }
+  },
+
+  // ============================================================================
+  // COUPE 4 : COUPE DE LA FOURMILIÈRE ROYALE (MAÎTRE) — Verticalité, Multi-Chemins & Mécaniques Concept Art
+  // ============================================================================
+  {
+    id: 9,
+    cupId: 'coupe_fourmiliere',
+    difficulty: 'Maître',
+    name: 'Fourmilière 1 — La Branche aux Gouttes & L’Arbre Creux',
+    subtitle: 'Abri sous les excroissances d’écorce contre les gouttes géantes, puis choix entre Canopée de Soie et Galerie des Fourmis !',
+    theme: 'canopy',
+    bgSet: 'game_background_2',
+    skyTop: '#1a2618',
+    skyBottom: '#2d4c2b',
+    startX: 150,
+    startY: 250,
+    finishX: 4380,
+    finishY: 360,
+    coachHint: '💡 BRANCHE AUX GOUTTES & FOURMIS : Abrite-toi sous l’écorce quand une goutte tombe (2s), et attrape les fourmis dès qu’elles affichent ❗ !',
+    build(world) {
+      // Mur arrière de départ (Haut du tronc)
+      world.addPolyline([[40, 80], [40, 680]], 'root', { thickness: 28 });
+
+      // =========================================================================
+      // ZONE 1 : POINT DE DÉPART HAUT & LA BRANCHE AUX GOUTTES (X=40 -> 1320)
+      // (Inspiré du Concept Art 1 : saut en contrebas, gouttes toutes les 2s, abris d'écorce & zone glissante en bas)
+      // =========================================================================
+      world.addPolyline([[40, 270], [290, 270]], 'root', { thickness: 26, isGroundMass: true });
+      world.addDecoration('fern', 120, 270, 1.3);
+
+      // La Branche aux Gouttes (Palier principal Y=400..420)
+      world.addPolyline([
+        [270, 410], [640, 410], [960, 420], [1280, 410]
+      ], 'root', { thickness: 26 });
+
+      // Excroissances d'écorce (Abris naturels bloquant les gouttes d'eau !)
+      world.addPolyline([[450, 310], [560, 305]], 'root', { thickness: 20 });
+      world.addDecoration('bark_shelter', 505, 310, 1.2);
+      world.addPolyline([[800, 315], [910, 310]], 'root', { thickness: 20 });
+      world.addDecoration('bark_shelter', 855, 315, 1.2);
+
+      // 3 Émetteurs de Gouttes Géantes (tombent toutes les 2 secondes du feuillage supérieur)
+      world.addWaterDropEmitter(380, 90, 680, 2.0, 0.0, 'water');
+      world.addWaterDropEmitter(690, 90, 680, 2.0, 0.65, 'water');
+      world.addWaterDropEmitter(1040, 90, 680, 2.0, 1.30, 'water');
+
+      // Zone de récupération glissante en contrebas (si une goutte fait glisser la chenille)
+      world.addPolyline([
+        [240, 630], [720, 650], [1180, 610], [1340, 540]
+      ], 'moss', { thickness: 28, isGroundMass: true });
+      world.addAnt(620, 615, 25, 420, 820);
+      world.addMushroom(1240, 560, 44, 430, -0.12); // Remontée rapide vers le carrefour
+
+      // Première Fourmi sentinelle à la sortie de la Branche aux Gouttes + Gland
+      world.addProp('acorn', 980, 380, 1.0);
+      world.addAnt(1150, 380, 25, 1020, 1250);
+
+      // =========================================================================
+      // ZONE 2 : GRANDE BIFURCATION MULTI-CHEMINS (X=1320 -> 2520)
+      // - VOIE HAUTE (Y=250..310) : Canopée Suspendue, Ponts de Soie & Plume (3s max)
+      // - VOIE BASSE (Y=740) : Galerie Racinaire des Fourmis & Unique Pomme Verte (+1 Segment)
+      // =========================================================================
+      world.addMushroom(1260, 398, 42, 420, 0.08);
+
+      // --- VOIE HAUTE : Canopée & Soie ---
+      world.addPolyline([[1360, 270], [1680, 250]], 'mushroom_cap', { thickness: 24 });
+      world.addPowerUp(1540, 195, 'feather'); // Plume (3s max de plané précis !)
+      world.addPolyline([[1760, 250], [2080, 230]], 'silk', { thickness: 18 });
+      world.addPolyline([[2140, 260], [2460, 310]], 'root', { thickness: 24 });
+      world.addAphid(2280, 255, 22, 2160, 2420);
+
+      // --- VOIE BASSE : Galerie Racinaire Souterraine ---
+      world.addPolyline([
+        [1340, 540], [1540, 740], [2080, 740], [2440, 620]
+      ], 'dirt', { thickness: 28, isGroundMass: true });
+      // Plafond d'écorce du tunnel bas (permet aussi de marcher au plafond en Ω !)
+      world.addPolyline([[1480, 510], [2140, 510]], 'root', { thickness: 24 });
+      world.addAnt(1680, 710, 25, 1550, 1820);
+      world.addBonusApple(1840, 690, 'segment'); // UNIQUE Pomme Verte (+1 Segment) du Niveau 9 !
+      world.addAnt(2020, 710, 25, 1880, 2150);
+      world.addPowerUp(1750, 680, 'strength');
+      world.addMushroom(2380, 635, 46, 445, -0.14);
+
+      world.addDecoration('glowing_shroom', 1620, 740, 1.3);
+      world.addDecoration('amber_crystal', 1960, 735, 1.25);
+
+      // =========================================================================
+      // ZONE 3 : CHECKPOINT 1 & LE TOURNIQUET DU TRONC CREUX (X=2500 -> 3600)
+      // =========================================================================
+      world.addPolyline([[2480, 480], [2860, 480]], 'dirt', { thickness: 28, isGroundMass: true });
+      world.addCheckpoint(2580, 465, 'Cœur du Tronc');
+      world.addDecoration('ant_arch', 2720, 480, 1.3);
+
+      // Tourniquet de Brindilles à 4 pales au-dessus de la fosse médiane
+      world.addDynamicPlatform({
+        type: 'turnstile',
+        pivotX: 3080,
+        pivotY: 410,
+        localPoints: [[-135, 0], [135, 0], [0, 0], [0, -135], [0, 135]],
+        material: 'root',
+        thickness: 20,
+        spinSpeed: 1.15
+      });
+
+      // Filet de sécurité sous le tourniquet avec ronces et tremplin de secours
+      world.addPolyline([[2860, 660], [3340, 660], [3580, 520]], 'dirt', { thickness: 28, isGroundMass: true });
+      world.addThorn(3080, 650, 30);
+      world.addMushroom(3480, 550, 44, 430, -0.12);
+
+      // Palier haut après le tourniquet
+      world.addPolyline([[3260, 360], [3620, 360]], 'root', { thickness: 24 });
+      world.addAnt(3440, 330, 26, 3290, 3580);
+
+      // =========================================================================
+      // ZONE 4 : SANCTUAIRE FINAL & CHRYSALIDE DORÉE (X=3640 -> 4550)
+      // =========================================================================
+      world.addPolyline([
+        [3640, 360], [4560, 360], [4560, 140]
+      ], 'dirt', { thickness: 28, isGroundMass: true });
+      world.addCheckpoint(3720, 345, 'Cime Royale');
+
+      // Plafond de soie optionnel pour esquiver la dernière fourmi par le haut
+      world.addPolyline([[3860, 195], [4220, 195]], 'silk', { thickness: 18 });
+      world.addAnt(4040, 330, 26, 3880, 4200);
+      world.addBonusApple(4040, 150, 'heal');
+
+      world.addDecoration('golden_chrysalis', 4320, 360, 1.35);
+      world.addDecoration('amber_crystal', 4180, 360, 1.3);
+      world.addDecoration('fern', 4420, 360, 1.4);
+    }
+  },
+  {
+    id: 10,
+    cupId: 'coupe_fourmiliere',
+    difficulty: 'Maître',
+    name: 'Fourmilière 2 — Le Labyrinthe des Sèves et des Ombres',
+    subtitle: 'Branche aux Gouttes, Couloir des Ouvrières en Ω, Tourniquet 360°, Cascade de Sève et Tanière des Feuilles !',
+    theme: 'hive',
+    bgSet: 'game_background_3',
+    skyTop: '#142218',
+    skyBottom: '#d48817',
+    startX: 150,
+    startY: 210,
+    finishX: 4460,
+    finishY: 360,
+    coachHint: '💡 CASCADE DE SÈVE : La sève dorée te tire vers le bas ! Enchaîne vite les sauts muraux (Q/D) sur la paroi d’écorce en évitant les épines !',
+    build(world) {
+      // Mur arrière
+      world.addPolyline([[40, 60], [40, 640]], 'root', { thickness: 28 });
+
+      // =========================================================================
+      // 1. POINT DE DÉPART HAUT & LA BRANCHE AUX GOUTTES (X=40 -> 1220)
+      // =========================================================================
+      world.addPolyline([[40, 230], [280, 230]], 'root', { thickness: 26, isGroundMass: true });
+      world.addDecoration('glowing_shroom', 110, 230, 1.2);
+
+      // Saut en contrebas sur la Branche aux Gouttes (Y=380)
+      world.addPolyline([[260, 380], [720, 380], [1180, 380]], 'root', { thickness: 26 });
+
+      // Excroissances d'écorce (abris contre les gouttes)
+      world.addPolyline([[430, 275], [545, 270]], 'root', { thickness: 20 });
+      world.addDecoration('bark_shelter', 485, 275, 1.2);
+      world.addPolyline([[790, 275], [905, 270]], 'root', { thickness: 20 });
+      world.addDecoration('bark_shelter', 845, 275, 1.2);
+
+      // Gouttes d'eau géantes toutes les 2 secondes
+      world.addWaterDropEmitter(360, 80, 620, 2.0, 0.0, 'water');
+      world.addWaterDropEmitter(660, 80, 620, 2.0, 0.7, 'water');
+      world.addWaterDropEmitter(1020, 80, 620, 2.0, 1.4, 'water');
+
+      // Zone glissante inférieure si touché par une goutte
+      world.addPolyline([[240, 590], [820, 610], [1220, 520]], 'moss', { thickness: 28, isGroundMass: true });
+      world.addMushroom(1140, 535, 42, 420, -0.10);
+
+      // =========================================================================
+      // 2. LE COULOIR DES CHENILLES OUVRIÈRES (X=1220 -> 2120)
+      // Plafond bas d'écorce permettant l'accroche inversée Ω + patrouilles de Fourmis au sol
+      // =========================================================================
+      world.addPolyline([[1200, 480], [1680, 480], [2100, 460]], 'dirt', { thickness: 28, isGroundMass: true });
+      // Plafond du Couloir des Ouvrières (Y=295) : idéal pour passer au plafond ou sur le toit !
+      world.addPolyline([[1240, 295], [1680, 295], [2060, 295]], 'root', { thickness: 24 });
+
+      world.addAnt(1440, 450, 25, 1280, 1600);
+      world.addAnt(1840, 440, 26, 1680, 2020);
+      world.addProp('acorn', 1290, 445, 1.0);
+      world.addBonusApple(1660, 240, 'heal'); // Récompense sur le toit du couloir
+
+      world.addDecoration('hanging_vine', 1380, 295, 1.3);
+      world.addDecoration('hanging_vine', 1760, 295, 1.4);
+      world.addDecoration('glowing_shroom', 1560, 480, 1.25);
+
+      // =========================================================================
+      // 3. LE TOURNIQUET DE BRINDILLES (X=2120 -> 2680)
+      // Structure en croix tournant à 360° au-dessus d'une fosse à épines
+      // =========================================================================
+      world.addCheckpoint(2060, 445, 'Le Tourniquet');
+
+      world.addDynamicPlatform({
+        type: 'turnstile',
+        pivotX: 2390,
+        pivotY: 390,
+        localPoints: [[-155, 0], [155, 0], [0, 0], [0, -155], [0, 155]],
+        material: 'root',
+        thickness: 22,
+        spinSpeed: 1.35
+      });
+
+      // Pomme Verte secrète (+1 Segment) au sommet du Tourniquet !
+      world.addBonusApple(2390, 195, 'segment');
+
+      // Fosse sous le tourniquet avec épines & champignon de sauvetage
+      world.addPolyline([[2100, 680], [2680, 680]], 'dirt', { thickness: 28, isGroundMass: true });
+      world.addThorn(2310, 670, 28);
+      world.addThorn(2470, 670, 28);
+      world.addMushroom(2610, 668, 46, 455, -0.10);
+
+      // =========================================================================
+      // 4. LA CASCADE DE SÈVE & LE MUR D'ESCALADE ÉPINEUX (X=2680 -> 3260)
+      // Cascade verticale de sève dorée qui ralentit et tire vers le bas + cheminée verticale
+      // =========================================================================
+      world.addPolyline([[2660, 470], [2920, 470]], 'honeycomb', { thickness: 26, isGroundMass: true });
+
+      // La Cascade de Sève (X=2965, de Y=150 à Y=660)
+      world.addSapCascade(2965, 150, 660, 72, 230);
+
+      // Paroi gauche (avec quelques ronces à esquiver) & Paroi droite d'écorce pour le Wall-Jump (Q/D)
+      world.addPolyline([[2890, 470], [2890, 190]], 'root', { thickness: 24 });
+      world.addThorn(2908, 350, 22);
+      world.addPolyline([[3045, 560], [3045, 170]], 'root', { thickness: 26 });
+      world.addThorn(3028, 430, 22);
+      world.addThorn(3028, 270, 22);
+
+      // Tremplin d'amorce en bas de la cascade au cas où le joueur est entraîné tout en bas
+      world.addPolyline([[2860, 650], [3120, 650]], 'honeycomb', { thickness: 26, isGroundMass: true });
+      world.addMushroom(2965, 638, 46, 465, 0.04);
+
+      // Palier supérieur au sommet de la Cascade de Sève (Y=170)
+      world.addPolyline([[3045, 170], [3320, 190]], 'honeycomb', { thickness: 26 });
+      world.addCheckpoint(3180, 155, 'Haut des Sèves');
+      world.addPowerUp(3260, 130, 'feather'); // Plume (3s) pour aider sur la Tanière de l'Araignée !
+
+      // =========================================================================
+      // 5. LA TANIÈRE DE L'ARAIGNÉE — LES 3 FEUILLES SUSPENDUES (X=3320 -> 4080)
+      // 3 feuilles oscillantes au-dessus d'un lit d'épines (ou route de soie haute)
+      // =========================================================================
+      world.addDynamicPlatform({
+        type: 'leaf',
+        pivotX: 3480,
+        pivotY: 290,
+        points: [[-105, 0], [0, 8], [105, 0]],
+        material: 'leaf',
+        thickness: 20,
+        stiffness: 18,
+        damping: 1.8,
+        maxAngle: 0.48
+      });
+      world.addDynamicPlatform({
+        type: 'leaf',
+        pivotX: 3740,
+        pivotY: 320,
+        points: [[-105, 0], [0, 8], [105, 0]],
+        material: 'leaf',
+        thickness: 20,
+        stiffness: 18,
+        damping: 1.8,
+        maxAngle: 0.48
+      });
+      world.addDynamicPlatform({
+        type: 'leaf',
+        pivotX: 4000,
+        pivotY: 340,
+        points: [[-105, 0], [0, 8], [105, 0]],
+        material: 'leaf',
+        thickness: 20,
+        stiffness: 18,
+        damping: 1.8,
+        maxAngle: 0.48
+      });
+
+      // Lit d'épines au fond de la Tanière + Champignon de sauvetage
+      world.addPolyline([[3300, 620], [4120, 620]], 'dirt', { thickness: 28, isGroundMass: true });
+      world.addThorn(3480, 610, 30);
+      world.addThorn(3680, 610, 30);
+      world.addThorn(3880, 610, 30);
+      world.addMushroom(4040, 608, 48, 465, -0.10);
+
+      // =========================================================================
+      // 6. L'ARRIVÉE — LE TRONC CREUX & LA CHRYSALIDE DORÉE (X=4120 -> 4650)
+      // =========================================================================
+      world.addPolyline([
+        [4120, 360], [4680, 360], [4680, 120]
+      ], 'root', { thickness: 28, isGroundMass: true });
+      // Arche supérieure de la racine creuse (exactement comme sur le plan Niveau 2 !)
+      world.addPolyline([[4260, 180], [4520, 160], [4680, 220]], 'root', { thickness: 26 });
+
+      world.addAnt(4260, 330, 26, 4150, 4360);
+      world.addBonusApple(4390, 310, 'heal');
+      world.addDecoration('golden_chrysalis', 4420, 360, 1.45);
+      world.addDecoration('amber_crystal', 4200, 360, 1.3);
+      world.addDecoration('glowing_shroom', 4510, 360, 1.35);
+    }
+  },
+  {
+    id: 11,
+    cupId: 'coupe_fourmiliere',
+    difficulty: 'Maître',
+    name: 'Fourmilière 3 — L’Éveil de l’Effroyeur & Le Toboggan de Sève',
+    subtitle: 'Fuis l’Effroyeur de feu, esquive les braises tombantes, freine sur le Toboggan de Sève et franchis les Feuilles !',
+    theme: 'picnic_chaos',
+    bgSet: 'game_background_4',
+    skyTop: '#24080b',
+    skyBottom: '#d35400',
+    startX: 160,
+    startY: 260,
+    finishX: 4560,
+    finishY: 320,
+    coachHint: '💡 TOBOGGAN DE SÈVE : Utilise ton ancre arrière (Q) pour freiner dans la grande descente avant les ronces, puis saute en Ω au bout du tremplin !',
+    build(world) {
+      // Mur arrière
+      world.addPolyline([[40, 80], [40, 620]], 'root', { thickness: 28 });
+
+      // =========================================================================
+      // ZONE 1 : L'ÉVEIL DE L'EFFROYEUR & LA FUITE SUR LES BRANCHES (X=40 -> 1080)
+      // Silhouette géante de l'oiseau de feu "L'Effroyeur" + branches escarpées
+      // =========================================================================
+      world.addDecoration('effroyeur_boss', 110, 250, 1.45);
+
+      world.addPolyline([
+        [40, 280], [340, 280], [640, 360], [980, 380]
+      ], 'root', { thickness: 26, isGroundMass: true });
+
+      // Braises ardentes de l'Effroyeur qui tombent du ciel !
+      world.addWaterDropEmitter(460, 70, 620, 1.85, 0.2, 'ember');
+      world.addWaterDropEmitter(780, 70, 620, 1.85, 1.1, 'ember');
+
+      world.addAnt(820, 350, 25, 680, 950);
+
+      // =========================================================================
+      // ZONE 2 : LES OBSTACLES TOMBANTS & DOUBLE ROUTE (X=1020 -> 2020)
+      // Pommes de pin enflammées tombantes + Route Haute (Soie) vs Route Basse (Fourmis)
+      // =========================================================================
+      // Route Médiane / Basse : Ponts d'écorce bombardés par les braises
+      world.addPolyline([
+        [980, 380], [1340, 440], [1720, 440], [2020, 360]
+      ], 'root', { thickness: 26, isGroundMass: true });
+      world.addWaterDropEmitter(1220, 80, 650, 1.9, 0.0, 'ember');
+      world.addWaterDropEmitter(1540, 80, 650, 1.9, 0.95, 'ember');
+      world.addWaterDropEmitter(1820, 80, 650, 1.9, 0.45, 'ember');
+
+      // Pommes de pin physiques et Fourmis Guerrières
+      world.addProp('pinecone', 1120, 390, 1.15);
+      world.addAnt(1420, 410, 26, 1280, 1580);
+      world.addAnt(1760, 410, 26, 1620, 1900);
+
+      // Abri d'écorce au milieu de la zone de bombardement + Route Haute en Soie
+      world.addPolyline([[1380, 290], [1560, 285]], 'root', { thickness: 20 });
+      world.addDecoration('bark_shelter', 1470, 290, 1.25);
+      world.addPolyline([[1140, 210], [1520, 190], [1880, 210]], 'silk', { thickness: 18 });
+      world.addBonusApple(1520, 145, 'segment'); // UNIQUE Pomme Verte (+1 Segment) sur la route haute périlleuse !
+
+      // =========================================================================
+      // ZONE 3 : LE TOBOGGAN DE SÈVE GLISSANTE (X=2020 -> 3120)
+      // Grande descente ultra-rapide avec épines à esquiver, freinage d'ancre Q et saut Ω au bout !
+      // =========================================================================
+      world.addCheckpoint(2000, 345, 'Le Toboggan');
+      world.addPowerUp(2080, 300, 'speed');
+
+      // La grande rampe descendante en mousse & sève glissante (Y=360 -> Y=700 -> Tremplin Y=630)
+      world.addPolyline([
+        [2020, 360], [2320, 490], [2620, 640], [2840, 700], [3020, 630]
+      ], 'moss', { thickness: 30, isGroundMass: true });
+
+      // Cascade de sève au milieu du toboggan + Ronces à sauter ou freiner avant !
+      world.addSapCascade(2480, 160, 610, 64, 210);
+      world.addThorn(2640, 630, 28);
+      world.addThorn(2850, 690, 28);
+
+      // Tremplin d'éjection au bout du Toboggan de Sève
+      world.addMushroom(2995, 618, 48, 470, 0.16);
+
+      // Branche haute alternative (au-dessus du toboggan) pour ceux qui grimpent à la sève
+      world.addPolyline([[2520, 260], [2920, 280]], 'root', { thickness: 22 });
+      world.addBonusApple(2720, 220, 'heal');
+
+      // =========================================================================
+      // ZONE 4 : LA TRAVERSÉE DES FEUILLES TOMBANTES & TOURNIQUET (X=3120 -> 4040)
+      // =========================================================================
+      world.addDynamicPlatform({
+        type: 'leaf',
+        pivotX: 3240,
+        pivotY: 420,
+        points: [[-115, 0], [0, 8], [115, 0]],
+        material: 'leaf',
+        thickness: 20,
+        stiffness: 17,
+        damping: 1.7,
+        maxAngle: 0.52
+      });
+
+      world.addDynamicPlatform({
+        type: 'turnstile',
+        pivotX: 3540,
+        pivotY: 380,
+        localPoints: [[-140, 0], [140, 0], [0, 0], [0, -140], [0, 140]],
+        material: 'root',
+        thickness: 20,
+        spinSpeed: -1.30
+      });
+
+      world.addDynamicPlatform({
+        type: 'leaf',
+        pivotX: 3840,
+        pivotY: 350,
+        points: [[-115, 0], [0, 8], [115, 0]],
+        material: 'leaf',
+        thickness: 20,
+        stiffness: 17,
+        damping: 1.7,
+        maxAngle: 0.52
+      });
+      world.addPowerUp(3540, 200, 'feather'); // Plume (3s max) au-dessus du tourniquet
+
+      // Filet de sécurité inférieur avec fourmi et grand champignon de remontée
+      world.addPolyline([[3120, 720], [3980, 720]], 'dirt', { thickness: 28, isGroundMass: true });
+      world.addAnt(3540, 690, 26, 3320, 3760);
+      world.addMushroom(3920, 708, 48, 475, -0.10);
+
+      // =========================================================================
+      // ZONE 5 : LE TRONC CREUX SÉCURISÉ & LA CHRYSALIDE DORÉE (X=4020 -> 4750)
+      // =========================================================================
+      world.addPolyline([
+        [4020, 320], [4760, 320], [4760, 90]
+      ], 'honeycomb', { thickness: 28, isGroundMass: true });
+      world.addCheckpoint(4080, 305, 'Tronc Sécurisé');
+
+      // Barricade de branches protectrices & Toit du Tronc Creux (comme sur le Concept Art 3)
+      world.addPolyline([[4180, 150], [4580, 140], [4760, 200]], 'root', { thickness: 28 });
+      world.addDecoration('ant_arch', 4180, 320, 1.4);
+
+      // Ultime Garde Royale devant la Chrysalide Dorée
+      world.addAnt(4340, 290, 27, 4200, 4460);
+      world.addProp('acorn', 4140, 285, 1.0);
+
+      world.addDecoration('golden_chrysalis', 4480, 320, 1.5);
+      world.addDecoration('amber_crystal', 4400, 320, 1.35);
+      world.addDecoration('flower', 4620, 320, 1.4);
+    }
   }
 ];
 
@@ -1211,9 +1659,9 @@ export class LevelRenderer {
       }
     }
 
-    // 2. Draw Background Scenic Decorations
+    // 2. Draw Background Scenic & Interactive Decorations
     for (const dec of world.decorations) {
-      this.drawDecoration(ctx, dec, time);
+      this.drawDecoration(ctx, dec, time, world);
     }
 
     // 3. Draw Elevated Structures (Branches, Tomato vines, Silk bridges, Mushroom caps, Reeds, Honeycombs, Straws, Cans, Forks)
@@ -1223,7 +1671,12 @@ export class LevelRenderer {
       }
     }
 
-    // 4. Draw Dynamic Platforms (Leaves, Hoses, Lilypads, Silk Swings)
+    // 3b. Draw Golden Sap Cascades (Cascades de Sève)
+    if (world.sapCascades && world.sapCascades.length > 0) {
+      this.drawSapCascades(ctx, world, time);
+    }
+
+    // 4. Draw Dynamic Platforms (Leaves, Hoses, Lilypads, Silk Swings, Turnstiles)
     for (const plat of world.dynamicPlatforms) {
       this.drawDynamicPlatform(ctx, plat, time);
     }
@@ -1245,6 +1698,11 @@ export class LevelRenderer {
       }
     }
 
+    // 6c. Draw Periodic Water Drops & Falling Burning Embers
+    if (world.waterDrops && world.waterDrops.length > 0) {
+      this.drawWaterDrops(ctx, world, time);
+    }
+
     // 7. Draw Bouncy Mushrooms
     for (const m of world.mushrooms) {
       this.drawMushroom(ctx, m, time);
@@ -1262,7 +1720,15 @@ export class LevelRenderer {
       this.drawEnemyHealthBar(ctx, h);
     }
 
-    // 8c. Draw Power-Up Collectibles
+    // 8c. Draw Warrior Ants (Fourmis Guerrières)
+    if (world.ants) {
+      for (const ant of world.ants) {
+        this.drawAnt(ctx, ant, time);
+        this.drawEnemyHealthBar(ctx, ant);
+      }
+    }
+
+    // 8d. Draw Power-Up Collectibles
     if (world.powerUps) {
       for (const p of world.powerUps) {
         this.drawPowerUp(ctx, p, time);
@@ -1336,7 +1802,20 @@ export class LevelRenderer {
     ctx.save();
     ctx.clip();
 
-    ctx.strokeStyle = 'rgba(35, 18, 6, 0.32)';
+    // Rich organic sub-soil shadow band right under the crust
+    ctx.strokeStyle = 'rgba(28, 14, 4, 0.42)';
+    ctx.lineWidth = 34;
+    ctx.beginPath();
+    for (let i = 0; i < pts.length; i++) {
+      const px = pts[i][0];
+      const py = pts[i][1] + 20;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Geological strata waves
+    ctx.strokeStyle = 'rgba(35, 18, 6, 0.30)';
     ctx.lineWidth = 18;
     for (let band = 1; band <= 4; band++) {
       ctx.beginPath();
@@ -1367,24 +1846,43 @@ export class LevelRenderer {
       const pebbleY = surfY + 42 + hash * 140;
       const pebbleR = 8 + hash2 * 13;
 
-      ctx.fillStyle = hash > 0.5 ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.22)';
+      ctx.fillStyle = hash > 0.5 ? 'rgba(255,235,205,0.14)' : 'rgba(0,0,0,0.24)';
       ctx.strokeStyle = 'rgba(0,0,0,0.35)';
       ctx.lineWidth = 2.2;
       ctx.beginPath();
       ctx.ellipse(x, pebbleY, pebbleR * 1.25, pebbleR * 0.85, (hash - 0.5) * 0.8, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+
+      // Subterranean root tendrils woven into the soil
+      if (hash > 0.62) {
+        ctx.strokeStyle = 'rgba(92, 52, 22, 0.45)';
+        ctx.lineWidth = 3.2;
+        ctx.beginPath();
+        ctx.moveTo(x - 14, surfY + 14);
+        ctx.quadraticCurveTo(x + (hash2 - 0.5) * 30, surfY + 48, x + (hash - 0.5) * 40, surfY + 85);
+        ctx.stroke();
+      }
     }
 
     ctx.restore();
 
-    // 2. Top Surface Crust
+    // 2. Top Surface Crust (Distinct texture per material: moss, honeycomb/amber, root, dirt)
     const isMoss = chain.material === 'moss';
+    const isAmber = chain.material === 'honeycomb';
+    const isBark = chain.material === 'root';
+
     let crustMain = '#4ec932';
-    let crustRim = '#80ed58';
+    let crustRim = '#8cf562';
     if (isMoss) {
-      crustMain = '#20cf9f';
+      crustMain = '#1dd1a1';
       crustRim = '#a8fff0';
+    } else if (isAmber) {
+      crustMain = '#f39c12';
+      crustRim = '#ffeaa7';
+    } else if (isBark) {
+      crustMain = '#8c5223';
+      crustRim = '#c98850';
     } else if (theme === 'mushroom') {
       crustMain = '#68d391';
       crustRim = '#b2f5ea';
@@ -1414,6 +1912,7 @@ export class LevelRenderer {
     for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1] - 4);
     ctx.stroke();
 
+    // 3. Detailed Surface Micro-Vegetation & Material Markings
     for (let i = 0; i < pts.length - 1; i++) {
       const p1 = pts[i];
       const p2 = pts[i + 1];
@@ -1422,26 +1921,55 @@ export class LevelRenderer {
       const segLen = Math.hypot(segDx, segDy);
       if (segLen < 20 || Math.abs(segDx) < 20) continue;
 
-      const steps = Math.floor(segLen / 45);
+      const steps = Math.floor(segLen / 42);
       for (let s = 1; s < steps; s++) {
         const t = s / steps;
         const gx = p1[0] + segDx * t;
         const gy = p1[1] + segDy * t - 10;
+        const sway = Math.sin(time * 2.8 + gx * 0.04) * 3.2;
 
         if (isMoss) {
-          ctx.fillStyle = 'rgba(200, 255, 250, 0.85)';
+          // Fluffy moss cushion & shimmering dew drop
+          ctx.fillStyle = '#10ac84';
           ctx.beginPath();
-          ctx.arc(gx, gy - 2, 4, 0, Math.PI * 2);
+          ctx.arc(gx - 5, gy + 3, 6, Math.PI, 0);
+          ctx.arc(gx + 4, gy + 3, 5, Math.PI, 0);
           ctx.fill();
-        } else {
-          ctx.strokeStyle = '#33991e';
-          ctx.lineWidth = 3;
+          ctx.fillStyle = 'rgba(215, 255, 252, 0.90)';
           ctx.beginPath();
-          ctx.moveTo(gx, gy + 2);
-          ctx.lineTo(gx - 5, gy - 7);
-          ctx.moveTo(gx, gy + 2);
-          ctx.lineTo(gx + 4, gy - 8);
+          ctx.arc(gx + sway * 0.4, gy - 3, 3.5, 0, Math.PI * 2);
+          ctx.fill();
+        } else if (isAmber) {
+          // Golden resin facets & honeyed shine
+          ctx.fillStyle = 'rgba(255, 242, 175, 0.78)';
+          ctx.beginPath();
+          ctx.roundRect(gx - 8, gy + 1, 16, 5, 2.5);
+          ctx.fill();
+        } else if (isBark) {
+          // Wood grain notches along the bark ridge
+          ctx.strokeStyle = '#3d200a';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(gx - 8, gy + 4);
+          ctx.quadraticCurveTo(gx, gy + 1, gx + 8, gy + 5);
           ctx.stroke();
+        } else {
+          // Animated swaying grass blades & occasional mini clover
+          ctx.strokeStyle = '#2d8a18';
+          ctx.lineWidth = 2.8;
+          ctx.beginPath();
+          ctx.moveTo(gx, gy + 3);
+          ctx.quadraticCurveTo(gx - 3, gy - 4, gx - 6 + sway, gy - 9);
+          ctx.moveTo(gx, gy + 3);
+          ctx.quadraticCurveTo(gx + 2, gy - 5, gx + 5 + sway, gy - 10);
+          ctx.stroke();
+
+          if ((s % 3) === 0) {
+            ctx.fillStyle = '#7bed9f';
+            ctx.beginPath();
+            ctx.arc(gx + sway, gy - 11, 2.6, 0, Math.PI * 2);
+            ctx.fill();
+          }
         }
       }
     }
@@ -1460,19 +1988,32 @@ export class LevelRenderer {
     ctx.lineJoin = 'round';
 
     if (chain.material === 'root') {
-      const midIdx = Math.floor(pts.length / 2);
-      const supportPt = pts[midIdx];
-      ctx.fillStyle = '#523015';
-      ctx.strokeStyle = '#261507';
-      ctx.lineWidth = 4;
-      ctx.beginPath();
-      ctx.moveTo(supportPt[0] - 18, supportPt[1]);
-      ctx.lineTo(supportPt[0] + 18, supportPt[1]);
-      ctx.lineTo(supportPt[0] + 28, supportPt[1] + 260);
-      ctx.lineTo(supportPt[0] - 28, supportPt[1] + 260);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
+      const isMostlyHorizontal = Math.abs(pts[pts.length - 1][0] - pts[0][0]) > Math.abs(pts[pts.length - 1][1] - pts[0][1]);
+      if (isMostlyHorizontal) {
+        const midIdx = Math.floor(pts.length / 2);
+        const supportPt = pts[midIdx];
+        ctx.fillStyle = '#523015';
+        ctx.strokeStyle = '#261507';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(supportPt[0] - 18, supportPt[1]);
+        ctx.lineTo(supportPt[0] + 18, supportPt[1]);
+        ctx.lineTo(supportPt[0] + 28, supportPt[1] + 240);
+        ctx.lineTo(supportPt[0] - 28, supportPt[1] + 240);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Bark vertical striations on support trunk
+        ctx.strokeStyle = 'rgba(38, 21, 7, 0.45)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(supportPt[0] - 6, supportPt[1] + 12);
+        ctx.lineTo(supportPt[0] - 10, supportPt[1] + 220);
+        ctx.moveTo(supportPt[0] + 7, supportPt[1] + 24);
+        ctx.lineTo(supportPt[0] + 11, supportPt[1] + 210);
+        ctx.stroke();
+      }
 
       ctx.strokeStyle = '#261507';
       ctx.lineWidth = thick + 8;
@@ -1494,6 +2035,24 @@ export class LevelRenderer {
       ctx.moveTo(pts[0][0], pts[0][1] - 5);
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1] - 5);
       ctx.stroke();
+
+      // Detailed bark rings, knots & tiny sprouting leaves along the branch!
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const segLen = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
+        const steps = Math.max(1, Math.floor(segLen / 75));
+        for (let s = 1; s <= steps; s++) {
+          const t = s / (steps + 1);
+          const bx = p1[0] + (p2[0] - p1[0]) * t;
+          const by = p1[1] + (p2[1] - p1[1]) * t;
+          ctx.strokeStyle = '#4a260b';
+          ctx.lineWidth = 2.4;
+          ctx.beginPath();
+          ctx.arc(bx, by + 2, thick * 0.24, 0, Math.PI);
+          ctx.stroke();
+        }
+      }
     } else if (chain.material === 'stem') {
       ctx.strokeStyle = '#143814';
       ctx.lineWidth = thick + 8;
@@ -1515,8 +2074,26 @@ export class LevelRenderer {
       ctx.moveTo(pts[0][0], pts[0][1] - 4);
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1] - 4);
       ctx.stroke();
+
+      // Botanical nodes & mini leaflets along the vine
+      for (let i = 0; i < pts.length - 1; i++) {
+        const mx = (pts[i][0] + pts[i + 1][0]) * 0.5;
+        const my = (pts[i][1] + pts[i + 1][1]) * 0.5;
+        const sway = Math.sin(time * 3 + mx * 0.05) * 0.12;
+        ctx.save();
+        ctx.translate(mx, my - thick * 0.45);
+        ctx.rotate(-0.4 + sway);
+        ctx.fillStyle = '#58d64c';
+        ctx.strokeStyle = '#143814';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.ellipse(6, -4, 9, 4.5, -0.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      }
     } else if (chain.material === 'silk') {
-      // Caterpillar Silk Bridge (Fil de soie lumineux)
+      // Caterpillar Silk Bridge (Fil de soie lumineux avec gouttes de rosée perlées)
       ctx.strokeStyle = '#4a5568';
       ctx.lineWidth = thick + 6;
       ctx.beginPath();
@@ -1539,8 +2116,29 @@ export class LevelRenderer {
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1] - 2);
       ctx.stroke();
       ctx.setLineDash([]);
+
+      // Pearly dew droplets glistening under the silk strand
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p1 = pts[i];
+        const p2 = pts[i + 1];
+        const segLen = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
+        const count = Math.max(1, Math.floor(segLen / 65));
+        for (let k = 1; k <= count; k++) {
+          const t = k / (count + 1);
+          const dx = p1[0] + (p2[0] - p1[0]) * t;
+          const dy = p1[1] + (p2[1] - p1[1]) * t + thick * 0.55;
+          const pulse = 1 + Math.sin(time * 4 + dx * 0.1) * 0.18;
+          ctx.fillStyle = 'rgba(178, 245, 234, 0.88)';
+          ctx.strokeStyle = '#319795';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(dx, dy, 3.8 * pulse, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
+      }
     } else if (chain.material === 'mushroom_cap') {
-      // Giant Mushroom Terrace with sturdy stalk
+      // Giant Mushroom Terrace with gills & sturdy stalk
       const midX = (pts[0][0] + pts[pts.length - 1][0]) * 0.5;
       const midY = (pts[0][1] + pts[pts.length - 1][1]) * 0.5;
       ctx.fillStyle = '#fff5e4';
@@ -1550,6 +2148,16 @@ export class LevelRenderer {
       ctx.roundRect(midX - 24, midY, 48, 220, 12);
       ctx.fill();
       ctx.stroke();
+
+      // Mushroom gill lines on stalk top
+      ctx.strokeStyle = 'rgba(180, 140, 110, 0.45)';
+      ctx.lineWidth = 2;
+      for (let gx = -14; gx <= 14; gx += 7) {
+        ctx.beginPath();
+        ctx.moveTo(midX + gx, midY + 6);
+        ctx.lineTo(midX + gx, midY + 42);
+        ctx.stroke();
+      }
 
       ctx.strokeStyle = '#2d1b36';
       ctx.lineWidth = thick + 10;
@@ -1589,8 +2197,6 @@ export class LevelRenderer {
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
       ctx.stroke();
 
-      // Bamboo / reed rings
-      ctx.fillStyle = '#eb3b5a';
       for (const p of pts) {
         ctx.fillStyle = '#145a32';
         ctx.beginPath();
@@ -1598,7 +2204,7 @@ export class LevelRenderer {
         ctx.fill();
       }
     } else if (chain.material === 'honeycomb') {
-      // Golden Honeycomb Wax Ramp
+      // Golden Honeycomb & Royal Amber Resin Ramp
       ctx.strokeStyle = '#5c3306';
       ctx.lineWidth = thick + 10;
       ctx.beginPath();
@@ -1615,7 +2221,7 @@ export class LevelRenderer {
 
       ctx.strokeStyle = '#ffeaa7';
       ctx.lineWidth = 7;
-      ctx.setLineDash([10, 10]);
+      ctx.setLineDash([12, 10]);
       ctx.beginPath();
       ctx.moveTo(pts[0][0], pts[0][1] - 4);
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1] - 4);
@@ -1944,19 +2550,44 @@ export class LevelRenderer {
     ctx.restore();
   }
 
-  drawDecoration(ctx, dec, time) {
+  drawDecoration(ctx, dec, time, world) {
     ctx.save();
     ctx.translate(dec.x, dec.y);
     ctx.scale(dec.scale, dec.scale);
 
+    // Interactive bending when a caterpillar passes nearby!
+    let catBend = 0;
+    if (world && world.caterpillars && world.caterpillars.length > 0) {
+      for (const cat of world.caterpillars) {
+        if (!cat || !cat.head) continue;
+        const dx = cat.head.x - dec.x;
+        const dy = cat.head.y - dec.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 75) {
+          const factor = 1 - (dist / 75);
+          catBend += (dx >= 0 ? -0.35 : 0.35) * factor;
+        }
+      }
+    }
+
     if (dec.type === 'flower') {
-      const sway = Math.sin(time * 2 + dec.x) * 0.08;
+      const sway = Math.sin(time * 2.2 + dec.x * 0.05) * 0.09 + catBend;
       ctx.rotate(sway);
       ctx.strokeStyle = '#2d7a22';
       ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.moveTo(0, 0);
       ctx.quadraticCurveTo(6, -32, 0, -64);
+      ctx.stroke();
+
+      // Stem leaflets
+      ctx.fillStyle = '#4ec932';
+      ctx.strokeStyle = '#1b4332';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(-8, -28, 8, 4, -0.4, 0, Math.PI * 2);
+      ctx.ellipse(9, -38, 8, 4, 0.4, 0, Math.PI * 2);
+      ctx.fill();
       ctx.stroke();
 
       ctx.fillStyle = '#ffffff';
@@ -1974,6 +2605,8 @@ export class LevelRenderer {
       ctx.fill();
       ctx.stroke();
     } else if (dec.type === 'fern') {
+      const sway = Math.sin(time * 2.4 + dec.x * 0.04) * 0.07 + catBend * 0.8;
+      ctx.rotate(sway);
       ctx.strokeStyle = '#24691c';
       ctx.lineWidth = 5;
       for (const dir of [-1, 1]) {
@@ -1981,7 +2614,292 @@ export class LevelRenderer {
         ctx.moveTo(0, 0);
         ctx.quadraticCurveTo(dir * 25, -45, dir * 52, -30);
         ctx.stroke();
+
+        // Frond leaflets along the fern curve
+        ctx.fillStyle = '#4ec932';
+        for (let f = 1; f <= 4; f++) {
+          const ft = f / 5;
+          const fx = dir * (25 * ft + 27 * ft * ft);
+          const fy = -45 * ft * (1 - ft * 0.35);
+          ctx.beginPath();
+          ctx.arc(fx, fy - 3, 4.5 - f * 0.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
+    } else if (dec.type === 'amber_crystal') {
+      // Glowing Golden Amber Resin Cluster
+      const pulse = 1 + Math.sin(time * 3.5 + dec.x) * 0.08;
+      ctx.fillStyle = 'rgba(243, 156, 18, 0.28)';
+      ctx.beginPath();
+      ctx.arc(0, -24, 34 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      const drawShard = (ox, oy, w, h, rot, col) => {
+        ctx.save();
+        ctx.translate(ox, oy);
+        ctx.rotate(rot);
+        ctx.fillStyle = col;
+        ctx.strokeStyle = '#4a2306';
+        ctx.lineWidth = 2.8;
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.5, 0);
+        ctx.lineTo(-w * 0.65, -h * 0.65);
+        ctx.lineTo(0, -h);
+        ctx.lineTo(w * 0.65, -h * 0.65);
+        ctx.lineTo(w * 0.5, 0);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = 'rgba(255, 248, 210, 0.55)';
+        ctx.beginPath();
+        ctx.moveTo(-w * 0.25, -h * 0.2);
+        ctx.lineTo(0, -h * 0.88);
+        ctx.lineTo(w * 0.15, -h * 0.55);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      };
+
+      drawShard(-12, 0, 14, 34, -0.28, '#e67e22');
+      drawShard(12, 0, 13, 30, 0.32, '#d35400');
+      drawShard(0, 2, 18, 46, 0.02, '#f39c12');
+    } else if (dec.type === 'glowing_shroom') {
+      // Bioluminescent Forest / Cavern Mushroom with floating spores
+      const sway = Math.sin(time * 2.0 + dec.x * 0.03) * 0.05 + catBend * 0.6;
+      ctx.rotate(sway);
+
+      const glow = 1 + Math.sin(time * 4 + dec.x) * 0.12;
+      ctx.fillStyle = 'rgba(0, 210, 211, 0.26)';
+      ctx.beginPath();
+      ctx.arc(0, -34, 30 * glow, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#f7f1e3';
+      ctx.strokeStyle = '#1e272e';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.roundRect(-6, -34, 12, 34, 5);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#00d2d3';
+      ctx.beginPath();
+      ctx.arc(0, -32, 22, Math.PI, 0);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#c8d6e5';
+      ctx.beginPath();
+      ctx.arc(-8, -40, 3.5, 0, Math.PI * 2);
+      ctx.arc(5, -43, 4.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Floating luminescent spore motes
+      ctx.fillStyle = 'rgba(129, 236, 236, 0.85)';
+      for (let s = 0; s < 3; s++) {
+        const sy = -48 - ((time * 18 + s * 14) % 32);
+        const sx = Math.sin(time * 3 + s * 2) * 14;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (dec.type === 'hanging_vine') {
+      // Animated hanging vine with alternating leaves
+      const sway = Math.sin(time * 1.8 + dec.x * 0.03) * 0.08 + catBend * 0.5;
+      ctx.rotate(sway);
+      ctx.strokeStyle = '#1e5631';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(8, 45, -4, 95);
+      ctx.stroke();
+
+      ctx.fillStyle = '#4ec932';
+      ctx.strokeStyle = '#143814';
+      ctx.lineWidth = 1.8;
+      for (let v = 1; v <= 4; v++) {
+        const vy = v * 20;
+        const side = (v % 2 === 0) ? 1 : -1;
+        ctx.beginPath();
+        ctx.ellipse(side * 9, vy, 8, 4.5, side * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    } else if (dec.type === 'bracket_fungus') {
+      // Layered bark shelf mushroom (Amadouvier)
+      ctx.fillStyle = '#e58e26';
+      ctx.strokeStyle = '#3d1e05';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(-6, -8, 22, 9, -0.1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#fa983a';
+      ctx.beginPath();
+      ctx.ellipse(8, -2, 18, 7.5, 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    } else if (dec.type === 'clover_patch') {
+      const sway = Math.sin(time * 2.5 + dec.x) * 0.07 + catBend;
+      ctx.rotate(sway);
+      ctx.strokeStyle = '#218c74';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, -24);
+      ctx.stroke();
+
+      ctx.fillStyle = '#33d9b2';
+      ctx.strokeStyle = '#143814';
+      ctx.lineWidth = 2;
+      for (let a = 0; a < 3; a++) {
+        const ang = (a * Math.PI * 2) / 3 - Math.PI * 0.5;
+        ctx.beginPath();
+        ctx.arc(Math.cos(ang) * 7, -26 + Math.sin(ang) * 7, 6.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+    } else if (dec.type === 'ant_arch') {
+      // Sculpted wooden & amber colony totem arch marking royal zones
+      ctx.strokeStyle = '#2d1404';
+      ctx.fillStyle = '#6e3b14';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.roundRect(-28, -68, 12, 68, 5);
+      ctx.roundRect(16, -68, 12, 68, 5);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#d35400';
+      ctx.beginPath();
+      ctx.roundRect(-34, -78, 68, 16, 6);
+      ctx.fill();
+      ctx.stroke();
+
+      // Golden amber emblem in the center of the arch
+      ctx.fillStyle = '#ffd32a';
+      ctx.beginPath();
+      ctx.arc(0, -70, 6.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    } else if (dec.type === 'bark_shelter') {
+      // Mossy curved bark canopy shelter ("Excroissance d'écorce" from Concept Art 1 & 2)
+      ctx.fillStyle = '#4a2c11';
+      ctx.strokeStyle = '#1e0f04';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(-58, 8);
+      ctx.quadraticCurveTo(0, -26, 58, 8);
+      ctx.quadraticCurveTo(0, -6, -58, 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Thick lush green moss cap on top of the shelter
+      ctx.fillStyle = '#4cd137';
+      ctx.beginPath();
+      ctx.moveTo(-52, 2);
+      ctx.quadraticCurveTo(0, -28, 52, 2);
+      ctx.quadraticCurveTo(0, -14, -52, 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else if (dec.type === 'golden_chrysalis') {
+      // Radiant Golden Chrysalis suspended inside the Finish Hollow ("Chrysalide Dorée" from Concept Art 2 & 3)
+      const pulse = 1 + Math.sin(time * 3.5) * 0.06;
+      const sway = Math.sin(time * 1.8) * 0.08;
+      ctx.rotate(sway);
+
+      const aura = ctx.createRadialGradient(0, -42, 4, 0, -42, 46 * pulse);
+      aura.addColorStop(0, 'rgba(255, 234, 167, 0.85)');
+      aura.addColorStop(0.5, 'rgba(253, 203, 110, 0.35)');
+      aura.addColorStop(1, 'rgba(253, 203, 110, 0)');
+      ctx.fillStyle = aura;
+      ctx.beginPath();
+      ctx.arc(0, -42, 46 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Golden silk suspension cord
+      ctx.strokeStyle = '#fff5d6';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, -88);
+      ctx.lineTo(0, -66);
+      ctx.stroke();
+
+      // Sculpted golden chrysalis shell
+      const chrysalisGrad = ctx.createLinearGradient(-16, -66, 16, -18);
+      chrysalisGrad.addColorStop(0, '#fff2a3');
+      chrysalisGrad.addColorStop(0.5, '#f1c40f');
+      chrysalisGrad.addColorStop(1, '#d35400');
+      ctx.fillStyle = chrysalisGrad;
+      ctx.strokeStyle = '#4a2504';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, -68);
+      ctx.bezierCurveTo(20, -58, 18, -28, 0, -14);
+      ctx.bezierCurveTo(-18, -28, -20, -58, 0, -68);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Ribbed segments on the chrysalis
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+      ctx.lineWidth = 2;
+      for (const ry of [-52, -42, -32]) {
+        ctx.beginPath();
+        ctx.arc(0, ry, 11, 0.2, Math.PI - 0.2);
+        ctx.stroke();
+      }
+    } else if (dec.type === 'effroyeur_boss') {
+      // Giant menacing Fire-Bird predator silhouette ("L'Effroyeur" from Concept Art 3 Zone 1)
+      const flap = Math.sin(time * 4.2) * 14;
+      const fireAura = ctx.createRadialGradient(0, -55, 10, 0, -55, 95);
+      fireAura.addColorStop(0, 'rgba(255, 121, 63, 0.55)');
+      fireAura.addColorStop(0.6, 'rgba(211, 84, 0, 0.22)');
+      fireAura.addColorStop(1, 'rgba(192, 57, 43, 0)');
+      ctx.fillStyle = fireAura;
+      ctx.beginPath();
+      ctx.arc(0, -55, 95, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Great fiery wings
+      ctx.fillStyle = '#2c0b0e';
+      ctx.strokeStyle = '#ff5252';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.moveTo(0, -50);
+      ctx.quadraticCurveTo(-55, -110 + flap, -95, -75 + flap);
+      ctx.quadraticCurveTo(-50, -35, 0, -30);
+      ctx.moveTo(0, -50);
+      ctx.quadraticCurveTo(55, -115 - flap, 95, -70 - flap);
+      ctx.quadraticCurveTo(50, -35, 0, -30);
+      ctx.fill();
+      ctx.stroke();
+
+      // Head & hooked predator beak
+      ctx.beginPath();
+      ctx.arc(8, -58, 22, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ff9f1a';
+      ctx.beginPath();
+      ctx.moveTo(26, -64);
+      ctx.lineTo(48, -52);
+      ctx.lineTo(24, -46);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+
+      // Glowing yellow predator eye
+      ctx.fillStyle = '#fff200';
+      ctx.beginPath();
+      ctx.arc(16, -62, 5.5, 0, Math.PI * 2);
+      ctx.fill();
     } else if (dec.type === 'rock') {
       ctx.fillStyle = '#8d99ae';
       ctx.strokeStyle = '#2b2d42';
@@ -2110,6 +3028,48 @@ export class LevelRenderer {
         ctx.fill();
         ctx.stroke();
       }
+    } else if (plat.type === 'turnstile') {
+      // 360° Rotating Twig Turnstile ("Le Tourniquet de Brindilles" from Concept Art 2)
+      for (const s of segs) {
+        ctx.strokeStyle = '#241205';
+        ctx.lineWidth = plat.thickness + 7;
+        ctx.beginPath();
+        ctx.moveTo(s.x1, s.y1);
+        ctx.lineTo(s.x2, s.y2);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#78441c';
+        ctx.lineWidth = plat.thickness;
+        ctx.beginPath();
+        ctx.moveTo(s.x1, s.y1);
+        ctx.lineTo(s.x2, s.y2);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#a86832';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(s.x1, s.y1);
+        ctx.lineTo(s.x2, s.y2);
+        ctx.stroke();
+      }
+
+      // Liana vine knot at the central axle + subtle rotational wind arcs
+      ctx.fillStyle = '#4cd137';
+      ctx.strokeStyle = '#183d16';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(plat.pivotX, plat.pivotY, 16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.32)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(plat.pivotX, plat.pivotY, 95, plat.angle, plat.angle + 0.65);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(plat.pivotX, plat.pivotY, 95, plat.angle + Math.PI, plat.angle + Math.PI + 0.65);
+      ctx.stroke();
     } else if (plat.type === 'silk_swing') {
       // Hanging caterpillar silk swing with suspension threads
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
@@ -2160,6 +3120,105 @@ export class LevelRenderer {
     }
 
     ctx.restore();
+  }
+
+  drawSapCascades(ctx, world, time) {
+    for (const sap of world.sapCascades) {
+      ctx.save();
+      const halfW = sap.width * 0.5;
+      const h = sap.bottomY - sap.topY;
+
+      // Translucent golden amber waterfall column
+      const grad = ctx.createLinearGradient(sap.x - halfW, sap.topY, sap.x + halfW, sap.topY);
+      grad.addColorStop(0, 'rgba(211, 84, 0, 0.45)');
+      grad.addColorStop(0.3, 'rgba(243, 156, 18, 0.72)');
+      grad.addColorStop(0.55, 'rgba(255, 234, 167, 0.85)');
+      grad.addColorStop(0.8, 'rgba(243, 156, 18, 0.72)');
+      grad.addColorStop(1, 'rgba(211, 84, 0, 0.45)');
+
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.roundRect(sap.x - halfW, sap.topY, sap.width, h, 16);
+      ctx.fill();
+
+      // Animated downward viscous sap streaks
+      ctx.strokeStyle = 'rgba(255, 250, 210, 0.65)';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      const streakOffset = (time * sap.flowSpeed) % 70;
+      for (let y = sap.topY + streakOffset; y < sap.bottomY - 25; y += 70) {
+        ctx.beginPath();
+        ctx.moveTo(sap.x - halfW * 0.4, y);
+        ctx.lineTo(sap.x - halfW * 0.4, y + 28);
+        ctx.moveTo(sap.x + halfW * 0.35, y + 22);
+        ctx.lineTo(sap.x + halfW * 0.35, y + 52);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  }
+
+  drawWaterDrops(ctx, world, time) {
+    for (const drop of world.waterDrops) {
+      ctx.save();
+      // Draw source leaf drip / warning condensation at emitter top
+      ctx.fillStyle = drop.kind === 'ember' ? 'rgba(255, 107, 53, 0.75)' : 'rgba(72, 219, 251, 0.75)';
+      ctx.beginPath();
+      ctx.arc(drop.x, drop.startY, 8 + Math.sin(time * 6) * 2, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (!drop.active) {
+        ctx.restore();
+        continue;
+      }
+
+      ctx.translate(drop.x, drop.y);
+      const r = drop.radius || 22;
+
+      if (drop.kind === 'ember') {
+        // Falling burning pinecone / fire ember ("Obstacles Tombants" from Concept Art 3)
+        const glow = ctx.createRadialGradient(0, 0, r * 0.2, 0, 0, r * 1.45);
+        glow.addColorStop(0, '#fff200');
+        glow.addColorStop(0.5, '#ff6b35');
+        glow.addColorStop(1, 'rgba(235, 59, 90, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 1.45, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#5c2308';
+        ctx.strokeStyle = '#ff9f1a';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 0.78, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      } else {
+        // Giant Heavy Water Drop ("La Branche aux Gouttes" from Concept Art 1 & 2)
+        const waterGrad = ctx.createRadialGradient(-r * 0.25, -r * 0.1, r * 0.1, 0, 0, r);
+        waterGrad.addColorStop(0, '#ffffff');
+        waterGrad.addColorStop(0.35, '#70d6ff');
+        waterGrad.addColorStop(1, '#0984e3');
+
+        ctx.fillStyle = waterGrad;
+        ctx.strokeStyle = '#0652dd';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(0, -r * 1.35);
+        ctx.bezierCurveTo(r * 1.05, -r * 0.2, r * 0.95, r * 0.95, 0, r);
+        ctx.bezierCurveTo(-r * 0.95, r * 0.95, -r * 1.05, -r * 0.2, 0, -r * 1.35);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Glossy cartoon reflection highlight
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.78)';
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.3, -r * 0.1, r * 0.18, r * 0.38, -0.25, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
   }
 
   drawThorn(ctx, thorn, time) {
@@ -2611,6 +3670,231 @@ export class LevelRenderer {
     ctx.arc(-r * 0.3 - pawSwing, r * 0.75, 4.5, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
+
+    ctx.restore();
+  }
+
+  // Draw Warrior Ant (Fourmi Rouge Guerrière) with animated 6 legs, mandibles, and counter-grab alert!
+  drawAnt(ctx, ant, time) {
+    ctx.save();
+    let alpha = 1.0;
+    let floatY = 0;
+    if (ant.isDefeated && ant.deathTimer !== undefined) {
+      alpha = Math.max(0, Math.min(1, ant.deathTimer / 0.8));
+      floatY = -Math.sin(((0.8 - ant.deathTimer) / 0.8) * Math.PI) * 12;
+    }
+    ctx.globalAlpha = alpha;
+    ctx.translate(ant.x, ant.y + floatY);
+
+    const isWindup = ant.aiState === 'windup' && !ant.isHeld && !ant.isDefeated;
+    const isPanicking = ant.isHeld || ant.isFlying;
+    const r = ant.radius || 25;
+
+    // Draw Alert Badge & Counter-Grab Ring BEFORE flipping horizontally so text is never mirrored!
+    if (isWindup) {
+      const windupRatio = Math.min(1, (ant.windupTimer || 0) / 0.68);
+      const pulse = 1 + Math.sin(time * 24) * 0.14;
+
+      // Counter-grab target ring around the ant
+      ctx.save();
+      ctx.strokeStyle = windupRatio > 0.65 ? '#ff4757' : '#ffa502';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([7, 5]);
+      ctx.beginPath();
+      ctx.arc(0, 0, (r + 11) * pulse, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Exclamation mark bubble above head
+      const alertY = -r - 22 - Math.abs(Math.sin(time * 18)) * 5;
+      ctx.fillStyle = windupRatio > 0.65 ? '#ff4757' : '#ff9f43';
+      ctx.strokeStyle = '#2d0c09';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, alertY, 12 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 15px "Fredoka", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('!', 0, alertY + 1);
+      ctx.restore();
+    } else if (ant.isHeld) {
+      // Neutralized indicator while held by the player's suction cup
+      ctx.save();
+      ctx.fillStyle = 'rgba(46, 213, 115, 0.9)';
+      ctx.font = '900 11px "Fredoka", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('TENUE ✓', 0, -r - 16);
+      ctx.restore();
+    }
+
+    if (ant.isDefeated) {
+      ctx.rotate(Math.sin(time * 6) * 0.18);
+    } else if (isWindup) {
+      // Rear up slightly while preparing the suplex grab!
+      ctx.rotate(-0.18 * (ant.facing || 1));
+    }
+    ctx.scale(ant.squashX * (ant.facing || 1), ant.squashY);
+
+    // 1. Six Articulated Chitinous Legs
+    const legPhase = ant.legPhase !== undefined ? ant.legPhase : time * 14;
+    const legAmp = isPanicking ? 7.5 : (isWindup ? 5.5 : 4.2);
+    ctx.strokeStyle = '#38100a';
+    ctx.lineWidth = 3.2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    const legAnchors = [-r * 0.35, 0, r * 0.32];
+    for (let i = 0; i < 3; i++) {
+      const lx = legAnchors[i];
+      const swing = Math.sin(legPhase + i * 2.1) * legAmp;
+      const lift = Math.max(0, Math.cos(legPhase + i * 2.1)) * (isPanicking ? 6 : 3);
+      ctx.beginPath();
+      ctx.moveTo(lx, r * 0.18);
+      ctx.lineTo(lx + swing * 0.5, r * 0.58 - lift * 0.5);
+      ctx.lineTo(lx + swing, r * 0.96 - lift);
+      ctx.stroke();
+    }
+
+    // 2. Segmented Body: Gaster (Rear Abdomen), Thorax (Middle), Head (Front)
+    // 2a. Gaster (Abdomen with dark stripes & glossy highlight)
+    const abdGrad = ctx.createRadialGradient(-r * 0.65, -r * 0.25, r * 0.1, -r * 0.58, -r * 0.08, r * 0.72);
+    abdGrad.addColorStop(0, '#ff6b4a');
+    abdGrad.addColorStop(0.55, '#c0392b');
+    abdGrad.addColorStop(1, '#58110a');
+
+    ctx.fillStyle = abdGrad;
+    ctx.strokeStyle = '#2b0905';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.62, -r * 0.10, r * 0.56, r * 0.44, -0.22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Chitin stripes on abdomen
+    ctx.strokeStyle = 'rgba(43, 9, 5, 0.55)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(-r * 0.62, -r * 0.10, r * 0.36, -1.1, 0.9);
+    ctx.stroke();
+
+    // Glossy specular shine on abdomen
+    ctx.fillStyle = 'rgba(255, 235, 220, 0.45)';
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.72, -r * 0.28, r * 0.22, r * 0.10, -0.25, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2b. Thorax (Slender middle segment)
+    ctx.fillStyle = '#a93226';
+    ctx.strokeStyle = '#2b0905';
+    ctx.lineWidth = 3.2;
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.02, r * 0.04, r * 0.36, r * 0.26, 0.08, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 2c. Head (Front segment)
+    const headGrad = ctx.createRadialGradient(r * 0.45, -r * 0.18, r * 0.08, r * 0.48, -r * 0.05, r * 0.52);
+    headGrad.addColorStop(0, '#e74c3c');
+    headGrad.addColorStop(0.7, '#922b21');
+    headGrad.addColorStop(1, '#4a120c');
+
+    ctx.fillStyle = headGrad;
+    ctx.beginPath();
+    ctx.ellipse(r * 0.50, -r * 0.06, r * 0.42, r * 0.36, 0.12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // 3. Expressive Antennae
+    const antWiggle = Math.sin(time * (isWindup ? 28 : 10)) * 0.22;
+    ctx.strokeStyle = '#2b0905';
+    ctx.lineWidth = 2.6;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.62, -r * 0.34);
+    ctx.lineTo(r * 0.78, -r * 0.72);
+    ctx.lineTo(r * (1.05 + antWiggle), -r * 0.82);
+    ctx.moveTo(r * 0.48, -r * 0.36);
+    ctx.lineTo(r * 0.55, -r * 0.76);
+    ctx.lineTo(r * (0.78 - antWiggle), -r * 0.90);
+    ctx.stroke();
+
+    // 4. Giant Pincer Mandibles (Open wide & vibrate during windup!)
+    const jawOpen = isWindup ? (0.42 + Math.sin(time * 32) * 0.15) : (isPanicking ? 0.30 : 0.12);
+    ctx.fillStyle = '#f39c12';
+    ctx.strokeStyle = '#2b0905';
+    ctx.lineWidth = 2.6;
+
+    // Upper mandible
+    ctx.save();
+    ctx.translate(r * 0.82, -r * 0.10);
+    ctx.rotate(-jawOpen);
+    ctx.beginPath();
+    ctx.moveTo(0, -3);
+    ctx.quadraticCurveTo(r * 0.36, -r * 0.24, r * 0.46, -2);
+    ctx.quadraticCurveTo(r * 0.24, 3, 0, 2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // Lower mandible
+    ctx.save();
+    ctx.translate(r * 0.82, r * 0.06);
+    ctx.rotate(jawOpen);
+    ctx.beginPath();
+    ctx.moveTo(0, -2);
+    ctx.quadraticCurveTo(r * 0.24, -3, r * 0.46, 2);
+    ctx.quadraticCurveTo(r * 0.36, r * 0.24, 0, 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    // 5. Eyes (Fierce yellow/white during windup, dizzy X when defeated, wide when held)
+    const eyeX = r * 0.58;
+    const eyeY = -r * 0.14;
+    if (ant.isDefeated) {
+      ctx.strokeStyle = '#1e1108';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(eyeX - 4, eyeY - 4);
+      ctx.lineTo(eyeX + 4, eyeY + 4);
+      ctx.moveTo(eyeX + 4, eyeY - 4);
+      ctx.lineTo(eyeX - 4, eyeY + 4);
+      ctx.stroke();
+    } else if (isPanicking) {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(eyeX, eyeY, 6.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#1e1108';
+      ctx.beginPath();
+      ctx.arc(eyeX, eyeY, 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = isWindup ? '#fff200' : '#ffffff';
+      ctx.beginPath();
+      ctx.arc(eyeX, eyeY, 5.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#1e1108';
+      ctx.beginPath();
+      ctx.arc(eyeX + 1.5, eyeY, 2.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Angry brow line
+      ctx.strokeStyle = '#2b0905';
+      ctx.lineWidth = 2.4;
+      ctx.beginPath();
+      ctx.moveTo(eyeX - 5, eyeY - 6);
+      ctx.lineTo(eyeX + 5, eyeY - 3);
+      ctx.stroke();
+    }
 
     ctx.restore();
   }

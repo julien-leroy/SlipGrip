@@ -1,10 +1,10 @@
 // js/main.js — Main Game Loop, Hold-to-Grip Input Controller, Multiplayer Sync, Checkpoints, Camera & HUD Manager
 
-import { PhysicsWorld } from './physics.js?v=98';
-import { Caterpillar } from './caterpillar.js?v=98';
-import { ParticleSystem } from './particles.js?v=98';
-import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=98';
-import { sound } from './audio.js?v=98';
+import { PhysicsWorld } from './physics.js?v=101';
+import { Caterpillar } from './caterpillar.js?v=101';
+import { ParticleSystem } from './particles.js?v=101';
+import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=101';
+import { sound } from './audio.js?v=101';
 import {
   GAMEPLAY_CONFIG,
   GAMEPLAY_PRESETS,
@@ -13,9 +13,9 @@ import {
   resetGameplayConfig,
   saveAsDefaultGameplayConfig,
   GRIP_STYLES
-} from './gameplayConfig.js?v=98';
-import { NetworkManager } from './network.js?v=98';
-import { UIManager } from './uiManager.js?v=98';
+} from './gameplayConfig.js?v=101';
+import { NetworkManager } from './network.js?v=101';
+import { UIManager } from './uiManager.js?v=101';
 
 class SlipGripGame {
   constructor() {
@@ -81,15 +81,16 @@ class SlipGripGame {
     this.ui = new UIManager(this, this.network);
     this.network.connect(this.caterpillar.cosmetics);
 
+    this.isGameRunning = false;
+    this.rafId = null;
+    this.currentLevelIndex = 0;
+
     this.syncCosmeticsUI();
     this.syncTuningUI();
     this.resize();
-    this.loadLevel(0);
 
-    // Show Home screen on launch
+    // Show Home screen on launch — game engine stays asleep until a race is launched
     this.ui.showScreen('home');
-
-    requestAnimationFrame((t) => this.loop(t));
   }
 
   bindMultiplayerWorldCallbacks() {
@@ -218,6 +219,21 @@ class SlipGripGame {
       facing: h.facing
     }));
 
+    const ants = (this.world.ants || []).map(ant => ({
+      id: ant.id,
+      x: Math.round(ant.x),
+      y: Math.round(ant.y),
+      vx: Math.round(ant.vx),
+      vy: Math.round(ant.vy),
+      hp: ant.hp,
+      isDefeated: !!ant.isDefeated,
+      isHeld: !!ant.isHeld,
+      isFlying: !!ant.isFlying,
+      facing: ant.facing,
+      aiState: ant.aiState,
+      windupTimer: +(ant.windupTimer || 0).toFixed(2)
+    }));
+
     const props = (this.world.props || []).map(p => ({
       id: p.id,
       x: Math.round(p.x),
@@ -247,7 +263,7 @@ class SlipGripGame {
       pivotY: Math.round(plat.pivotY)
     }));
 
-    return { aphids, hedgehogs, props, apples, platforms };
+    return { aphids, hedgehogs, ants, props, apples, platforms };
   }
 
   applyRemoteWorldSync(worldState) {
@@ -309,6 +325,38 @@ class SlipGripGame {
           }
           h.hp = sHedgehog.hp;
           h.isDefeated = sHedgehog.isDefeated;
+        }
+      }
+    }
+
+    // 2b. Synchronize Ants
+    if (Array.isArray(worldState.ants) && this.world.ants) {
+      for (const sAnt of worldState.ants) {
+        let ant = this.world.ants.find(x => x.id === sAnt.id);
+        if (!ant && this.world.ants.length > 0) {
+          ant = this.world.ants.find(x => Math.hypot(x.x - sAnt.x, x.y - sAnt.y) < 220);
+        }
+        if (ant) {
+          const isHeldLocally = (this.caterpillar.rearAnchor.antRef === ant || this.caterpillar.frontAnchor.antRef === ant);
+          if (!isHeldLocally) {
+            const d = Math.hypot(ant.x - sAnt.x, ant.y - sAnt.y);
+            if (d > 160) {
+              ant.x = sAnt.x;
+              ant.y = sAnt.y;
+            } else {
+              ant.x += (sAnt.x - ant.x) * 0.45;
+              ant.y += (sAnt.y - ant.y) * 0.45;
+            }
+            ant.vx = sAnt.vx;
+            ant.vy = sAnt.vy;
+            ant.isHeld = sAnt.isHeld;
+            ant.isFlying = sAnt.isFlying;
+            if (sAnt.facing !== undefined) ant.facing = sAnt.facing;
+            if (sAnt.aiState !== undefined) ant.aiState = sAnt.aiState;
+            if (sAnt.windupTimer !== undefined) ant.windupTimer = sAnt.windupTimer;
+          }
+          ant.hp = sAnt.hp;
+          ant.isDefeated = sAnt.isDefeated;
         }
       }
     }
@@ -376,6 +424,7 @@ class SlipGripGame {
     if (entityType === 'prop') list = this.world.props;
     else if (entityType === 'aphid') list = this.world.aphids;
     else if (entityType === 'hedgehog') list = this.world.hedgehogs;
+    else if (entityType === 'ant') list = this.world.ants || [];
 
     let closest = null;
     let bestD = 320;
@@ -412,8 +461,9 @@ class SlipGripGame {
     if (this.ui && this.ui.elMultiMarkers) {
       this.ui.elMultiMarkers.innerHTML = '';
     }
-    this.loadLevel(this.currentLevelIndex);
+    this.loadLevel(this.currentLevelIndex !== undefined ? this.currentLevelIndex : 0);
     this.startIntroCinematic(this.level.name);
+    this.resumeGameLoop();
   }
 
   startMultiplayerRace(msg) {
@@ -476,6 +526,7 @@ class SlipGripGame {
           roomStartScale: startScale,
           roomStartSegments: startSegments
         });
+        rCat.extraAppleSegments = p.extraAppleSegments || 0;
         rCat.reset(spawnX, spawnY);
         this.remoteCaterpillars.set(p.id, rCat);
       }
@@ -505,6 +556,7 @@ class SlipGripGame {
     }
 
     this.startIntroCinematic(this.level.name);
+    this.resumeGameLoop();
   }
 
   startIntroCinematic(mapName) {
@@ -1362,11 +1414,6 @@ class SlipGripGame {
   update(dt) {
     this.globalTime += dt;
 
-    // Animate preview caterpillars on Home and Room Lobby screens
-    if (this.ui) {
-      this.ui.drawPreviewCanvases(this.globalTime);
-    }
-
     if (this.raceStarted && !this.raceFinished) {
       this.raceTime += dt;
     }
@@ -1586,14 +1633,36 @@ class SlipGripGame {
     ctx.restore();
   }
 
+  pauseGameLoop() {
+    this.isGameRunning = false;
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
+    if (this.ctx && this.canvas) {
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+  }
+
+  resumeGameLoop() {
+    if (this.isGameRunning) return;
+    this.isGameRunning = true;
+    this.lastFrameTime = performance.now();
+    this.rafId = requestAnimationFrame((t) => this.loop(t));
+  }
+
   loop(now) {
+    if (!this.isGameRunning) {
+      this.rafId = null;
+      return;
+    }
     const dt = Math.min(0.05, (now - this.lastFrameTime) / 1000);
     this.lastFrameTime = now;
 
     this.update(dt);
     this.draw();
 
-    requestAnimationFrame((t) => this.loop(t));
+    this.rafId = requestAnimationFrame((t) => this.loop(t));
   }
 }
 

@@ -27,8 +27,11 @@ export class PhysicsWorld {
     this.mushrooms = [];
     this.aphids = [];
     this.hedgehogs = [];
+    this.ants = [];
     this.powerUps = [];
     this.stickyCrumbs = [];
+    this.waterDrops = [];
+    this.sapCascades = [];
     this.props = [];
     this.apples = [];
     this.checkpoints = [];
@@ -55,8 +58,11 @@ export class PhysicsWorld {
     this.mushrooms = [];
     this.aphids = [];
     this.hedgehogs = [];
+    this.ants = [];
     this.powerUps = [];
     this.stickyCrumbs = [];
+    this.waterDrops = [];
+    this.sapCascades = [];
     this.thorns = [];
     this.props = [];
     this.apples = [];
@@ -224,15 +230,16 @@ export class PhysicsWorld {
       pivotVy: 0,
       baseAngle: config.baseAngle || 0,
       angle: config.baseAngle || 0,
-      angVel: 0,
-      stiffness: config.stiffness || 16,
-      damping: config.damping || 2.8,
+      angVel: config.spinSpeed || 0,
+      spinSpeed: config.spinSpeed || 0,
+      stiffness: config.stiffness !== undefined ? config.stiffness : 16,
+      damping: config.damping !== undefined ? config.damping : 2.8,
       maxAngle: config.maxAngle || 0.48,
       inertia: config.inertia || 18000,
       wobbleFreq: config.wobbleFreq || 0,
       wobbleAmp: config.wobbleAmp || 0,
       time: Math.random() * 10,
-      localPoints: config.localPoints || [[-90, 0], [90, 0]],
+      localPoints: config.localPoints || config.points || [[-90, 0], [90, 0]],
       thickness: config.thickness || 20,
       worldSegments: []
     };
@@ -356,6 +363,37 @@ export class PhysicsWorld {
     return hedgehog;
   }
 
+  addAnt(x, y, radius = 25, patrolMinX = x - 130, patrolMaxX = x + 130) {
+    const ant = {
+      id: this.nextSegId++,
+      x,
+      y,
+      vx: 36 * (Math.random() > 0.5 ? 1 : -1),
+      vy: 0,
+      radius,
+      patrolMinX,
+      patrolMaxX,
+      facing: 1,
+      squashX: 1,
+      squashY: 1,
+      isHeld: false,
+      isFlying: false,
+      mass: 4.2,
+      maxHp: 55,
+      hp: 55,
+      isDefeated: false,
+      damageCooldown: 0,
+      hpBarTimer: 0,
+      aiState: 'patrol', // 'patrol' | 'windup' | 'cooldown'
+      windupTimer: 0,
+      grabCooldown: 0,
+      targetCat: null,
+      legPhase: Math.random() * Math.PI * 2
+    };
+    this.ants.push(ant);
+    return ant;
+  }
+
   damageEnemy(enemy, amount, impactX, impactY, particles, reason = '') {
     if (!enemy || enemy.isDefeated || enemy.damageCooldown > 0) return;
     const dmg = Math.round(Math.max(1, amount));
@@ -380,10 +418,10 @@ export class PhysicsWorld {
       enemy.vy = 0;
       if (!enemy._appleSpawned) {
         enemy._appleSpawned = true;
-        this.addBonusApple(enemy.x, enemy.y - 10, 'segment');
+        this.addBonusApple(enemy.x, enemy.y - 10, 'heal');
       }
       if (particles) {
-        particles.spawnPopup(impactX, impactY - 32, 'K.O. ! 🍏 +1 SEGMENT', '#38d84e');
+        particles.spawnPopup(impactX, impactY - 32, 'K.O. ! 🍎 +25 PV', '#ff6b81');
         particles.spawnConfetti(impactX, impactY, 16);
       }
     }
@@ -404,7 +442,7 @@ export class PhysicsWorld {
     if (prop.hp <= 0) {
       prop.isBroken = true;
       if (particles) {
-        particles.spawnPopup(impactX, impactY - 24, 'GLAND CASSÉ ! 🍎 +20 PV', '#ff6b81');
+        particles.spawnPopup(impactX, impactY - 24, 'GLAND CASSÉ ! 🍎 +25 PV', '#ff6b81');
         particles.spawnConfetti(impactX, impactY, 14);
       }
       this.addBonusApple(prop.x, prop.y, 'heal');
@@ -421,8 +459,39 @@ export class PhysicsWorld {
     });
   }
 
+  // Periodic Falling Hazard Emitter (La Branche aux Gouttes / Pluie de Pommes de Pin Enflammées)
+  addWaterDropEmitter(x, y, maxY = y + 360, interval = 2.0, phase = 0, kind = 'water') {
+    if (!this.waterDrops) this.waterDrops = [];
+    this.waterDrops.push({
+      id: this.nextSegId++,
+      x,
+      startY: y,
+      y: y + ((phase % interval) / interval) * (maxY - y),
+      vy: 140,
+      maxY,
+      interval: Math.max(0.8, interval),
+      timer: phase % interval,
+      radius: kind === 'ember' ? 20 : 15,
+      kind // 'water' (slip/detach drop) | 'ember' (falling burning pinecone)
+    });
+  }
+
+  // Vertical Viscous Sap Waterfall (La Cascade de Sève)
+  addSapCascade(x, topY, bottomY, width = 44, flowSpeed = 95) {
+    if (!this.sapCascades) this.sapCascades = [];
+    this.sapCascades.push({
+      id: this.nextSegId++,
+      x,
+      topY,
+      bottomY,
+      width,
+      flowSpeed,
+      time: Math.random() * 10
+    });
+  }
+
   update(dt, particles = null) {
-    // 1. Dynamic platforms (including moving translation)
+    // 1. Dynamic platforms (including moving translation & continuous turnstile rotation)
     for (const plat of this.dynamicPlatforms) {
       plat.time += dt;
 
@@ -436,22 +505,28 @@ export class PhysicsWorld {
         plat.pivotVy = (plat.pivotY - prevY) / Math.max(0.0001, dt);
       }
 
-      let targetAngle = plat.baseAngle;
-      if (plat.wobbleFreq > 0) {
-        targetAngle += Math.sin(plat.time * plat.wobbleFreq * 0.65) * plat.wobbleAmp;
-      }
-      const angleDiff = targetAngle - plat.angle;
-      const springAccel = angleDiff * plat.stiffness - plat.angVel * plat.damping;
-      plat.angVel += springAccel * dt;
-      plat.angle += plat.angVel * dt;
+      if (plat.spinSpeed && plat.spinSpeed !== 0) {
+        // Continuous 360° rotating turnstile (Le Tourniquet de Brindilles)
+        plat.angVel = plat.spinSpeed;
+        plat.angle += plat.spinSpeed * dt;
+      } else {
+        let targetAngle = plat.baseAngle;
+        if (plat.wobbleFreq > 0) {
+          targetAngle += Math.sin(plat.time * plat.wobbleFreq * 0.65) * plat.wobbleAmp;
+        }
+        const angleDiff = targetAngle - plat.angle;
+        const springAccel = angleDiff * plat.stiffness - plat.angVel * plat.damping;
+        plat.angVel += springAccel * dt;
+        plat.angle += plat.angVel * dt;
 
-      const rel = plat.angle - plat.baseAngle;
-      if (rel > plat.maxAngle) {
-        plat.angle = plat.baseAngle + plat.maxAngle;
-        plat.angVel *= -0.25;
-      } else if (rel < -plat.maxAngle) {
-        plat.angle = plat.baseAngle - plat.maxAngle;
-        plat.angVel *= -0.25;
+        const rel = plat.angle - plat.baseAngle;
+        if (rel > plat.maxAngle) {
+          plat.angle = plat.baseAngle + plat.maxAngle;
+          plat.angVel *= -0.25;
+        } else if (rel < -plat.maxAngle) {
+          plat.angle = plat.baseAngle - plat.maxAngle;
+          plat.angVel *= -0.25;
+        }
       }
 
       this.updatePlatformWorldSegments(plat);
@@ -491,7 +566,7 @@ export class PhysicsWorld {
             a._remove = true;
             if (!a._appleSpawned) {
               a._appleSpawned = true;
-              this.addBonusApple(a.x, a.y, 'segment');
+              this.addBonusApple(a.x, a.y, 'heal');
             }
           }
         } else {
@@ -538,10 +613,10 @@ export class PhysicsWorld {
             a.squashX = 1.35;
             a.squashY = 0.65;
 
-            // Damage from high impact / throw proportional to inertia (raised threshold so small falls don't kill)
-            if (vn < -110) {
+            // High threshold so normal gravity falls or weak tosses never kill enemies! Requires a real charged throw.
+            if (vn < -230) {
               const impactSpeed = -vn;
-              const dmg = Math.pow((impactSpeed - 75) / 34, 1.35) * (a.mass || 3.5);
+              const dmg = Math.min(34, Math.pow((impactSpeed - 190) / 52, 1.25) * 12);
               this.damageEnemy(a, dmg, a.x, a.y, particles, 'impact');
             }
           }
@@ -641,7 +716,7 @@ export class PhysicsWorld {
             h._remove = true;
             if (!h._appleSpawned) {
               h._appleSpawned = true;
-              this.addBonusApple(h.x, h.y, 'segment');
+              this.addBonusApple(h.x, h.y, 'heal');
             }
           }
         } else {
@@ -686,10 +761,10 @@ export class PhysicsWorld {
             h.squashX = 1.35;
             h.squashY = 0.65;
 
-            // Damage from high impact / throw proportional to inertia (raised threshold so small falls don't kill)
-            if (vn < -110) {
+            // High threshold so normal gravity falls or weak tosses never kill enemies!
+            if (vn < -240) {
               const impactSpeed = -vn;
-              const dmg = Math.pow((impactSpeed - 75) / 34, 1.35) * (h.mass || 5.0);
+              const dmg = Math.min(42, Math.pow((impactSpeed - 195) / 52, 1.25) * 14);
               this.damageEnemy(h, dmg, h.x, h.y, particles, 'impact');
             }
           }
@@ -775,8 +850,324 @@ export class PhysicsWorld {
       }
     }
 
+    // 3c. Ants (Fourmis Guerrières) — Detect caterpillar, windup (0.68s counter-grab window), and suplex throw backward!
+    for (const ant of this.ants) {
+      if (ant.isDefeated || ant.hp <= 0) {
+        ant.isDefeated = true;
+        ant.isFlying = false;
+        ant.isHeld = false;
+        ant.aiState = 'patrol';
+        ant.windupTimer = 0;
+        ant.vx = 0;
+        ant.vy = 0;
+        if (ant.deathTimer !== undefined) {
+          ant.deathTimer -= dt;
+          if (ant.deathTimer <= 0) {
+            ant._remove = true;
+            if (!ant._appleSpawned) {
+              ant._appleSpawned = true;
+              this.addBonusApple(ant.x, ant.y, 'heal');
+            }
+          }
+        } else {
+          ant.deathTimer = 0.8;
+        }
+        continue;
+      }
+
+      ant.damageCooldown = Math.max(0, (ant.damageCooldown || 0) - dt);
+      ant.hpBarTimer = Math.max(0, (ant.hpBarTimer || 0) - dt);
+      ant.grabCooldown = Math.max(0, (ant.grabCooldown || 0) - dt);
+      ant.legPhase = (ant.legPhase || 0) + dt * (ant.aiState === 'windup' ? 22 : 12);
+
+      // Crucial rule: An ant CANNOT grab you if you are holding it!
+      if (ant.isHeld) {
+        ant.aiState = 'patrol';
+        ant.windupTimer = 0;
+        ant.targetCat = null;
+        ant.squashX += (0.88 - ant.squashX) * Math.min(1, dt * 8);
+        ant.squashY += (1.16 - ant.squashY) * Math.min(1, dt * 8);
+        continue;
+      }
+
+      ant.squashX += (1 - ant.squashX) * Math.min(1, dt * 8);
+      ant.squashY += (1 - ant.squashY) * Math.min(1, dt * 8);
+
+      const speed = Math.hypot(ant.vx, ant.vy);
+      if (speed > 55) {
+        ant.isFlying = true;
+      }
+
+      if (ant.isFlying) {
+        ant.aiState = 'patrol';
+        ant.windupTimer = 0;
+        ant.vy += this.gravity * dt;
+        ant.x += ant.vx * dt;
+        ant.y += ant.vy * dt;
+        ant.vx *= 0.992;
+        if (Math.abs(ant.vx) > 10) ant.facing = ant.vx >= 0 ? 1 : -1;
+
+        const hit = this.findClosestSurface(ant.x, ant.y, ant.radius + 6);
+        if (hit && hit.dist < ant.radius) {
+          const overlap = ant.radius - hit.dist;
+          ant.x += hit.nx * overlap;
+          ant.y += hit.ny * overlap;
+          const vn = ant.vx * hit.nx + ant.vy * hit.ny;
+          if (vn < 0) {
+            ant.vx -= hit.nx * vn * 1.32;
+            ant.vy -= hit.ny * vn * 1.32;
+            ant.squashX = 1.35;
+            ant.squashY = 0.65;
+
+            if (vn < -235) {
+              const impactSpeed = -vn;
+              const dmg = Math.min(38, Math.pow((impactSpeed - 190) / 50, 1.25) * 13);
+              this.damageEnemy(ant, dmg, ant.x, ant.y, particles, 'impact');
+            }
+          }
+          if (Math.hypot(ant.vx, ant.vy) < 48) {
+            ant.isFlying = false;
+            ant.grabCooldown = Math.max(ant.grabCooldown, 0.8);
+            ant.patrolMinX = ant.x - 120;
+            ant.patrolMaxX = ant.x + 120;
+          }
+        }
+      } else {
+        // Check for nearby caterpillar to stalk & grab!
+        let spottedCat = null;
+        let spottedNode = null;
+        let bestCatDist = 175;
+
+        if (ant.grabCooldown <= 0 && this.caterpillars && this.caterpillars.length > 0) {
+          for (const cat of this.caterpillars) {
+            if (!cat || !cat.nodes || cat.hp <= 0) continue;
+            // Skip if this caterpillar is holding this ant
+            if ((cat.frontAnchor && cat.frontAnchor.antRef === ant) ||
+                (cat.rearAnchor && cat.rearAnchor.antRef === ant)) {
+              continue;
+            }
+            for (let ni = 0; ni < cat.nodes.length; ni++) {
+              const n = cat.nodes[ni];
+              const dx = n.x - ant.x;
+              const dy = n.y - ant.y;
+              const d = Math.hypot(dx, dy);
+              if (d < bestCatDist && Math.abs(dy) < 95) {
+                if (this.hasLineOfSight(ant.x, ant.y, n.x, n.y)) {
+                  bestCatDist = d;
+                  spottedCat = cat;
+                  spottedNode = n;
+                }
+              }
+            }
+          }
+        }
+
+        if (spottedCat && spottedNode) {
+          ant.facing = spottedNode.x >= ant.x ? 1 : -1;
+          if (ant.aiState !== 'windup') {
+            ant.aiState = 'windup';
+            ant.windupTimer = 0;
+            ant.squashX = 0.82;
+            ant.squashY = 1.24;
+            if (sound && sound.playSticky) sound.playSticky(true);
+            if (particles) {
+              particles.spawnPopup(ant.x, ant.y - 34, '❗ MANDIBULES ! (ATTRAPE-LA !)', '#ff6b6b');
+            }
+          }
+
+          ant.windupTimer += dt;
+          // Subtle stalking lunge toward the caterpillar during the 0.68s windup window
+          const chaseSpeed = bestCatDist > (ant.radius + 24) ? 52 : 12;
+
+          // If windup finishes (0.68s) and caterpillar is within grab reach (~68px), SUPLEX THROW BACKWARD!
+          if (ant.windupTimer >= 0.68 && bestCatDist <= ant.radius + 46) {
+            ant.aiState = 'cooldown';
+            ant.windupTimer = 0;
+            ant.grabCooldown = 2.4;
+            ant.facing = -1; // Turns toward the start of the race to hurl the caterpillar back!
+            ant.squashX = 1.42;
+            ant.squashY = 0.62;
+
+            if (!spottedCat.isRemote) {
+              // Hurl the caterpillar backward (-X toward start) and upward (-Y arc)
+              const throwBackVx = -680;
+              const throwBackVy = -340;
+              spottedCat.takeDamage(12, throwBackVx, throwBackVy, particles, sound, true);
+              // Brief grip lock so the player feels the suplex arc
+              spottedCat.spamPenaltyTimer = Math.max(spottedCat.spamPenaltyTimer || 0, 0.32);
+              if (particles) {
+                particles.spawnPopup(
+                  spottedCat.head.x,
+                  spottedCat.head.y - 46,
+                  '🐜 PROJETÉ EN ARRIÈRE !',
+                  '#ff4757'
+                );
+                particles.spawnConfetti(ant.x, ant.y - 10, 10);
+              }
+              if (sound && sound.playLaunch) {
+                sound.playLaunch(0.85);
+              }
+            }
+          }
+
+          // Ground movement while winding up
+          const hit = this.findClosestSurface(ant.x, ant.y, ant.radius + 6);
+          const isOnGround = hit && (hit.dist < ant.radius + 3) && (hit.ny < -0.35);
+          if (isOnGround) {
+            if (hit.dist < ant.radius) {
+              const overlap = ant.radius - hit.dist;
+              ant.x += hit.nx * overlap;
+              ant.y += hit.ny * overlap;
+            }
+            let tx = hit.tx;
+            let ty = hit.ty;
+            if (tx < 0) { tx = -tx; ty = -ty; }
+            ant.vx += (ant.facing * tx * chaseSpeed - ant.vx) * Math.min(1, dt * 16);
+            ant.vy += (ant.facing * ty * chaseSpeed - ant.vy) * Math.min(1, dt * 16);
+            ant.x += ant.vx * dt;
+            ant.y += ant.vy * dt;
+          }
+        } else {
+          // Lost sight or on cooldown -> reset windup and patrol briskly
+          if (ant.aiState === 'windup') {
+            ant.aiState = 'patrol';
+            ant.windupTimer = 0;
+          } else if (ant.aiState === 'cooldown' && ant.grabCooldown <= 0) {
+            ant.aiState = 'patrol';
+          }
+
+          ant.turnCooldown = Math.max(0, (ant.turnCooldown || 0) - dt);
+          if (ant.facing === undefined) ant.facing = (ant.vx >= 0 ? 1 : -1);
+
+          if (ant.turnCooldown <= 0) {
+            if (ant.facing > 0 && ant.x >= ant.patrolMaxX) {
+              ant.facing = -1;
+              ant.turnCooldown = 0.45;
+            } else if (ant.facing < 0 && ant.x <= ant.patrolMinX) {
+              ant.facing = 1;
+              ant.turnCooldown = 0.45;
+            }
+          }
+
+          const patrolSpeed = 38;
+          const hit = this.findClosestSurface(ant.x, ant.y, ant.radius + 6);
+          const isOnGround = hit && (hit.dist < ant.radius + 3) && (hit.ny < -0.35);
+
+          if (isOnGround) {
+            if (hit.dist < ant.radius) {
+              const overlap = ant.radius - hit.dist;
+              ant.x += hit.nx * overlap;
+              ant.y += hit.ny * overlap;
+            }
+            const vn = ant.vx * hit.nx + ant.vy * hit.ny;
+            if (vn < 0) {
+              ant.vx -= hit.nx * vn;
+              ant.vy -= hit.ny * vn;
+            }
+            if (ant.turnCooldown <= 0 && Math.abs(hit.nx) > 0.65 && hit.ny > -0.35 && (hit.nx * ant.facing < -0.2)) {
+              ant.facing = -ant.facing;
+              ant.turnCooldown = 0.5;
+            }
+            let tx = hit.tx;
+            let ty = hit.ty;
+            if (tx < 0) { tx = -tx; ty = -ty; }
+            const targetVx = ant.facing * tx * patrolSpeed;
+            const targetVy = ant.facing * ty * patrolSpeed;
+            ant.vx += (targetVx - ant.vx) * Math.min(1, dt * 14);
+            ant.vy += (targetVy - ant.vy) * Math.min(1, dt * 14);
+            ant.x += ant.vx * dt;
+            ant.y += ant.vy * dt;
+          } else {
+            ant.vy += this.gravity * dt;
+            ant.vx += (ant.facing * patrolSpeed * 0.8 - ant.vx) * Math.min(1, dt * 6);
+            ant.x += ant.vx * dt;
+            ant.y += ant.vy * dt;
+            if (hit && hit.dist < ant.radius) {
+              const overlap = ant.radius - hit.dist;
+              ant.x += hit.nx * overlap;
+              ant.y += hit.ny * overlap;
+              const vn = ant.vx * hit.nx + ant.vy * hit.ny;
+              if (vn < 0) {
+                ant.vx -= hit.nx * vn;
+                ant.vy -= hit.ny * vn;
+              }
+            }
+          }
+        }
+      }
+    }
+
     this.aphids = this.aphids.filter(a => !a._remove);
     this.hedgehogs = this.hedgehogs.filter(h => !h._remove);
+    this.ants = this.ants.filter(ant => !ant._remove);
+
+    // 3d. Falling Water Drops & Burning Pinecones (La Branche aux Gouttes & L'Effroyeur)
+    if (this.waterDrops && this.waterDrops.length > 0) {
+      for (const drop of this.waterDrops) {
+        drop.vy += this.gravity * 0.65 * dt;
+        drop.y += drop.vy * dt;
+
+        // Check collision with local & remote caterpillars
+        if (this.caterpillars && this.caterpillars.length > 0) {
+          for (const cat of this.caterpillars) {
+            if (!cat || !cat.nodes || cat.hp <= 0) continue;
+            for (let ni = 0; ni < cat.nodes.length; ni++) {
+              const n = cat.nodes[ni];
+              const d = Math.hypot(n.x - drop.x, n.y - drop.y);
+              if (d < (n.r || 15) + drop.radius) {
+                if (!cat.isRemote) {
+                  if (drop.kind === 'ember') {
+                    cat.takeDamage(18, -220, -180, particles, sound, true);
+                  } else {
+                    // Water Drop ("Slip Zone if hit"): detaches anchors & pushes down into the slip zone!
+                    cat.takeDamage(8, -140, 220, particles, sound, true);
+                    if (particles) {
+                      particles.spawnDewBubbles(drop.x, drop.y, 6);
+                      particles.spawnPopup(cat.head.x, cat.head.y - 38, '💧 GOUTTE GLISSANTE !', '#48dbfb');
+                    }
+                  }
+                }
+                // Respawn drop from top of branch
+                drop.y = drop.startY;
+                drop.vy = 110;
+                break;
+              }
+            }
+          }
+        }
+
+        if (drop.y >= drop.maxY) {
+          if (particles && Math.random() < 0.5) {
+            particles.spawnDewBubbles(drop.x, drop.maxY - 6, 3);
+          }
+          drop.y = drop.startY;
+          drop.vy = 110;
+        }
+      }
+    }
+
+    // 3e. Vertical Sap Cascades (La Cascade de Sève : stops movement & drags down if not anchored!)
+    if (this.sapCascades && this.sapCascades.length > 0) {
+      for (const sap of this.sapCascades) {
+        sap.time += dt;
+        if (this.caterpillars && this.caterpillars.length > 0) {
+          for (const cat of this.caterpillars) {
+            if (!cat || !cat.nodes || cat.hp <= 0) continue;
+            const halfW = sap.width * 0.5 + 14;
+            for (let ni = 0; ni < cat.nodes.length; ni++) {
+              const n = cat.nodes[ni];
+              if (Math.abs(n.x - sap.x) < halfW && n.y >= sap.topY && n.y <= sap.bottomY) {
+                // Heavy viscous sap damping + downward flow drag
+                n.vx *= Math.pow(0.25, dt * 10);
+                if (n.vy < sap.flowSpeed) {
+                  n.vy += (sap.flowSpeed - n.vy) * Math.min(1, dt * 8);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
 
     // 4. Heavy Boulder Pinecones & Acorns
     for (let i = 0; i < this.props.length; i++) {
@@ -913,7 +1304,7 @@ export class PhysicsWorld {
       // Prop-to-Enemy collisions: heavy objects (pinecone) inflict crushing damage!
       const propSpeed = Math.hypot(p.vx, p.vy);
       if (propSpeed > 30) {
-        const allEnemies = [...this.aphids, ...this.hedgehogs];
+        const allEnemies = [...this.aphids, ...this.hedgehogs, ...this.ants];
         for (const e of allEnemies) {
           if (e.isHeld || e.isDefeated) continue;
           const edx = e.x - p.x;
@@ -981,20 +1372,23 @@ export class PhysicsWorld {
     }
 
     // Flying enemy-to-enemy bowling collisions:
-    for (let i = 0; i < this.aphids.length; i++) {
-      const a = this.aphids[i];
+    const allEnemiesBowling = [...this.aphids, ...this.hedgehogs, ...this.ants];
+    for (let i = 0; i < allEnemiesBowling.length; i++) {
+      const a = allEnemiesBowling[i];
       if (a.isDefeated || !a.isFlying) continue;
-      for (const h of this.hedgehogs) {
+      for (let j = 0; j < allEnemiesBowling.length; j++) {
+        if (i === j) continue;
+        const h = allEnemiesBowling[j];
         if (h.isHeld || h.isDefeated) continue;
         const dx = h.x - a.x;
         const dy = h.y - a.y;
         const dist = Math.hypot(dx, dy) || 0.0001;
         if (dist < a.radius + h.radius) {
           const relSpeed = Math.hypot(a.vx - h.vx, a.vy - h.vy);
-          if (relSpeed > 45) {
-            const dmg = Math.pow(relSpeed / 36, 1.35) * 14;
-            this.damageEnemy(h, dmg, (a.x + h.x) * 0.5, (a.y + h.y) * 0.5, particles, 'aphid_bowling');
-            this.damageEnemy(a, dmg * 0.65, a.x, a.y, particles, 'impact');
+          if (relSpeed > 135) {
+            const dmg = Math.min(36, Math.pow((relSpeed - 90) / 48, 1.25) * 14);
+            this.damageEnemy(h, dmg, (a.x + h.x) * 0.5, (a.y + h.y) * 0.5, particles, 'enemy_bowling');
+            this.damageEnemy(a, dmg * 0.55, a.x, a.y, particles, 'impact');
           }
         }
       }
@@ -1009,7 +1403,8 @@ export class PhysicsWorld {
       const projectiles = [
         ...this.props.map((p, idx) => ({ ent: p, kind: 'prop', idx, baseDmg: p.type === 'pinecone' ? 38 : 24 })),
         ...this.aphids.map((a, idx) => ({ ent: a, kind: 'aphid', idx, baseDmg: 22 })),
-        ...this.hedgehogs.map((h, idx) => ({ ent: h, kind: 'hedgehog', idx, baseDmg: 34 }))
+        ...this.hedgehogs.map((h, idx) => ({ ent: h, kind: 'hedgehog', idx, baseDmg: 34 })),
+        ...this.ants.map((ant, idx) => ({ ent: ant, kind: 'ant', idx, baseDmg: 28 }))
       ];
 
       for (const proj of projectiles) {
@@ -1254,6 +1649,42 @@ export class PhysicsWorld {
           cy,
           isFrontHead,
           isSpiky
+        };
+      }
+    }
+    return best;
+  }
+
+  // Find closest enemy Ant for counter-grabbing/carrying/projecting!
+  findClosestAnt(px, py, maxSurfaceDist) {
+    const safeMax = (Number.isFinite(maxSurfaceDist) && maxSurfaceDist > 0) ? maxSurfaceDist : 40;
+    let best = null;
+    let bestDist = safeMax;
+    if (!this.ants) return null;
+    for (const ant of this.ants) {
+      if (ant.isHeld || ant.isDefeated) continue;
+      const dx = px - ant.x;
+      const dy = py - ant.y;
+      const centerDist = Math.hypot(dx, dy) || 0.0001;
+      const surfDist = Math.max(0, centerDist - ant.radius);
+      if (surfDist < bestDist) {
+        const nx = dx / centerDist;
+        const ny = dy / centerDist;
+        const cx = ant.x + nx * ant.radius;
+        const cy = ant.y + ny * ant.radius;
+
+        if (!this.hasLineOfSight(px, py, cx, cy)) continue;
+
+        bestDist = surfDist;
+        best = {
+          ant,
+          dist: surfDist,
+          nx,
+          ny,
+          tx: -ny,
+          ty: nx,
+          cx,
+          cy
         };
       }
     }

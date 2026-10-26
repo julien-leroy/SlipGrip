@@ -539,12 +539,26 @@ export const CUPS_DEFINITIONS = {
       { levelId: 7, title: '8. LA RUCHE DES CIRES', icon: '🍯', bg: 'linear-gradient(135deg, #b86b11, #fff3b0)' },
       { levelId: 8, title: '9. LE FESTIN DES TEMPÊTES', icon: '🌪️', bg: 'linear-gradient(135deg, #c0392b, #2c3e50)' }
     ]
+  },
+  coupe_fourmiliere: {
+    id: 'coupe_fourmiliere',
+    name: 'Coupe de la Fourmilière Royale (Maître)',
+    difficulty: 'Maître',
+    icon: '🐜',
+    desc: 'Verticalité extrême, embranchements tactiques & fourmis guerrières : 10. L’Arbre Creux • 11. Jardins d’Ambre • 12. Citadelle des Mandibules !',
+    levels: [9, 10, 11],
+    cards: [
+      { levelId: 9, title: '10. L’ARBRE CREUX MILLÉNAIRE', icon: '🌳', bg: 'linear-gradient(135deg, #4a2511, #d35400)' },
+      { levelId: 10, title: '11. JARDINS SUSPENDUS D’AMBRE', icon: '🔶', bg: 'linear-gradient(135deg, #b7410e, #f39c12)' },
+      { levelId: 11, title: '12. CITADELLE DES MANDIBULES', icon: '🐜', bg: 'linear-gradient(135deg, #641e16, #e74c3c)' }
+    ]
   }
 };
 // Aliases de compatibilité avec les configurations existantes (non-énumérables pour éviter les doublons dans l'UI)
 Object.defineProperty(CUPS_DEFINITIONS, 'potager_geant', { value: CUPS_DEFINITIONS.coupe_bourgeons, enumerable: false, writable: true, configurable: true });
 Object.defineProperty(CUPS_DEFINITIONS, 'vallee_folle', { value: CUPS_DEFINITIONS.coupe_vents, enumerable: false, writable: true, configurable: true });
 Object.defineProperty(CUPS_DEFINITIONS, 'pique_nique_royal', { value: CUPS_DEFINITIONS.coupe_titans, enumerable: false, writable: true, configurable: true });
+Object.defineProperty(CUPS_DEFINITIONS, 'fourmiliere_royale', { value: CUPS_DEFINITIONS.coupe_fourmiliere, enumerable: false, writable: true, configurable: true });
 
 // ==================== STYLES DE GRIPS / VENTOUSES ====================
 export const GRIP_STYLES = {

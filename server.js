@@ -38,26 +38,61 @@ function getLocalIpAddress() {
 
 // ==================== CUPS & DEFAULT ROOM SETTINGS ====================
 const CUPS_CATALOG = {
+  coupe_bourgeons: {
+    id: 'coupe_bourgeons',
+    name: 'Coupe des Bourgeons (Facile)',
+    icon: '🌱',
+    levels: [0, 1, 2],
+    levelNames: ['1. L’Orée des Pousses', '2. Les Ponts de Lianes', '3. Le Verger Fleuri']
+  },
+  coupe_vents: {
+    id: 'coupe_vents',
+    name: 'Coupe des Vents (Moyen)',
+    icon: '🍃',
+    levels: [3, 4, 5],
+    levelNames: ['4. La Grotte aux Spores', '5. Le Gouffre Poids-Plume', '6. La Falaise des Cimes']
+  },
+  coupe_titans: {
+    id: 'coupe_titans',
+    name: 'Coupe des Titans (Difficile)',
+    icon: '⚡',
+    levels: [6, 7, 8],
+    levelNames: ['7. Le Tronc des Titans', '8. La Ruche des Cires', '9. Le Festin des Tempêtes']
+  },
+  coupe_fourmiliere: {
+    id: 'coupe_fourmiliere',
+    name: 'Coupe de la Fourmilière Royale (Maître)',
+    icon: '🐜',
+    levels: [9, 10, 11],
+    levelNames: ['10. L’Arbre Creux Millénaire', '11. Jardins Suspendus d’Ambre', '12. Citadelle des Mandibules']
+  },
   potager_geant: {
     id: 'potager_geant',
-    name: 'Coupe Sous-Bois & Potager',
-    icon: '🌳',
+    name: 'Coupe des Bourgeons (Facile)',
+    icon: '🌱',
     levels: [0, 1, 2],
-    levelNames: ['L’Orée des Chênes (Facile)', 'Le Potager Suspendu (Moyen)', 'La Canopée Géante (Difficile)']
+    levelNames: ['1. L’Orée des Pousses', '2. Les Ponts de Lianes', '3. Le Verger Fleuri']
   },
   vallee_folle: {
     id: 'vallee_folle',
-    name: 'Coupe Vallée Féerique',
-    icon: '🍄',
+    name: 'Coupe des Vents (Moyen)',
+    icon: '🍃',
     levels: [3, 4, 5],
-    levelNames: ['Clairière aux Champignons (Facile)', 'Marais des Nénuphars (Moyen)', 'La Ruche Dorée (Difficile)']
+    levelNames: ['4. La Grotte aux Spores', '5. Le Gouffre Poids-Plume', '6. La Falaise des Cimes']
   },
   pique_nique_royal: {
     id: 'pique_nique_royal',
-    name: 'Coupe Pique-Nique Royal',
-    icon: '🧺',
+    name: 'Coupe des Titans (Difficile)',
+    icon: '⚡',
     levels: [6, 7, 8],
-    levelNames: ['La Nappe à Carreaux (Facile)', 'La Table des Géants (Moyen)', 'Le Festin Ravagé (Difficile)']
+    levelNames: ['7. Le Tronc des Titans', '8. La Ruche des Cires', '9. Le Festin des Tempêtes']
+  },
+  fourmiliere_royale: {
+    id: 'fourmiliere_royale',
+    name: 'Coupe de la Fourmilière Royale (Maître)',
+    icon: '🐜',
+    levels: [9, 10, 11],
+    levelNames: ['10. L’Arbre Creux Millénaire', '11. Jardins Suspendus d’Ambre', '12. Citadelle des Mandibules']
   }
 };
 
@@ -119,6 +154,7 @@ function serializeRoom(room) {
       score: p.score || 0,
       totalTime: p.totalTime || 0,
       modifiers: p.modifiers || [],
+      extraAppleSegments: p.extraAppleSegments || 0,
       draftChoice: p.draftChoice || null,
       draftOptions: p.draftOptions || [],
       lastRank: p.lastRank || null,
@@ -542,6 +578,7 @@ function handleWsMessage(client, msg) {
         score: 0,
         totalTime: 0,
         modifiers: [],
+        extraAppleSegments: 0,
         progress: 0
       });
 
@@ -580,6 +617,7 @@ function handleWsMessage(client, msg) {
         score: 0,
         totalTime: 0,
         modifiers: [],
+        extraAppleSegments: 0,
         progress: 0
       });
       client.roomCode = code;
@@ -661,11 +699,12 @@ function handleWsMessage(client, msg) {
         return;
       }
 
-      // Reset cup scores, times, and modifiers for all players in the room
+      // Reset cup scores, times, extra segments, and modifiers for all players in the room
       for (const p of room.players.values()) {
         p.score = 0;
         p.totalTime = 0;
         p.modifiers = [];
+        p.extraAppleSegments = 0;
         p.lastRank = null;
         p.draftChoice = null;
         p.draftOptions = [];
@@ -683,6 +722,9 @@ function handleWsMessage(client, msg) {
       if (p && msg.state) {
         if (typeof msg.state.progress === 'number') {
           p.progress = msg.state.progress;
+        }
+        if (typeof msg.state.extraAppleSegments === 'number') {
+          p.extraAppleSegments = Math.max(p.extraAppleSegments || 0, msg.state.extraAppleSegments);
         }
       }
       broadcastRoom(room, 'remote_player_state', {
@@ -908,6 +950,7 @@ function handleWsMessage(client, msg) {
         p.score = 0;
         p.totalTime = 0;
         p.modifiers = [];
+        p.extraAppleSegments = 0;
         p.lastRank = null;
         p.draftChoice = null;
         p.draftOptions = [];
