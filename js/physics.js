@@ -32,6 +32,7 @@ export class PhysicsWorld {
     this.stickyCrumbs = [];
     this.waterDrops = [];
     this.sapCascades = [];
+    this.waterZones = [];
     this.props = [];
     this.apples = [];
     this.checkpoints = [];
@@ -63,12 +64,27 @@ export class PhysicsWorld {
     this.stickyCrumbs = [];
     this.waterDrops = [];
     this.sapCascades = [];
+    this.waterZones = [];
     this.thorns = [];
     this.props = [];
     this.apples = [];
     this.checkpoints = [];
     this.decorations = [];
     this.nextSegId = 1;
+  }
+
+  addWaterZone(x, y, width, height) {
+    if (!this.waterZones) this.waterZones = [];
+    const zone = {
+      id: this.nextSegId++,
+      x,
+      y,
+      width,
+      height,
+      time: 0
+    };
+    this.waterZones.push(zone);
+    return zone;
   }
 
   addBonusApple(x, y, kind = 'heal') {
@@ -989,12 +1005,12 @@ export class PhysicsWorld {
             ant.squashY = 0.62;
 
             if (!spottedCat.isRemote) {
-              // Hurl the caterpillar backward (-X toward start) and upward (-Y arc)
-              const throwBackVx = -680;
-              const throwBackVy = -340;
-              spottedCat.takeDamage(12, throwBackVx, throwBackVy, particles, sound, true);
+              // Hurl the caterpillar backward (-X toward start) and upward (-Y arc) with softened damage
+              const throwBackVx = -540;
+              const throwBackVy = -300;
+              spottedCat.takeDamage(6, throwBackVx, throwBackVy, particles, sound, true);
               // Brief grip lock so the player feels the suplex arc
-              spottedCat.spamPenaltyTimer = Math.max(spottedCat.spamPenaltyTimer || 0, 0.32);
+              spottedCat.spamPenaltyTimer = Math.max(spottedCat.spamPenaltyTimer || 0, 0.26);
               if (particles) {
                 particles.spawnPopup(
                   spottedCat.head.x,
@@ -1101,10 +1117,10 @@ export class PhysicsWorld {
     this.hedgehogs = this.hedgehogs.filter(h => !h._remove);
     this.ants = this.ants.filter(ant => !ant._remove);
 
-    // 3d. Falling Water Drops & Burning Pinecones (La Branche aux Gouttes & L'Effroyeur)
+    // 3d. Falling Water Drops & Burning Pinecones (Softened damage so caterpillars survive much better!)
     if (this.waterDrops && this.waterDrops.length > 0) {
       for (const drop of this.waterDrops) {
-        drop.vy += this.gravity * 0.65 * dt;
+        drop.vy += this.gravity * 0.58 * dt;
         drop.y += drop.vy * dt;
 
         // Check collision with local & remote caterpillars
@@ -1117,10 +1133,10 @@ export class PhysicsWorld {
               if (d < (n.r || 15) + drop.radius) {
                 if (!cat.isRemote) {
                   if (drop.kind === 'ember') {
-                    cat.takeDamage(18, -220, -180, particles, sound, true);
+                    cat.takeDamage(8, -150, -140, particles, sound, true);
                   } else {
-                    // Water Drop ("Slip Zone if hit"): detaches anchors & pushes down into the slip zone!
-                    cat.takeDamage(8, -140, 220, particles, sound, true);
+                    // Water Drop ("Slip Zone if hit"): detaches anchors & pushes down into the slip zone with tiny damage (3 HP)!
+                    cat.takeDamage(3, -100, 175, particles, sound, true);
                     if (particles) {
                       particles.spawnDewBubbles(drop.x, drop.y, 6);
                       particles.spawnPopup(cat.head.x, cat.head.y - 38, '💧 GOUTTE GLISSANTE !', '#48dbfb');
@@ -1129,7 +1145,7 @@ export class PhysicsWorld {
                 }
                 // Respawn drop from top of branch
                 drop.y = drop.startY;
-                drop.vy = 110;
+                drop.vy = 95;
                 break;
               }
             }
@@ -1141,7 +1157,7 @@ export class PhysicsWorld {
             particles.spawnDewBubbles(drop.x, drop.maxY - 6, 3);
           }
           drop.y = drop.startY;
-          drop.vy = 110;
+          drop.vy = 95;
         }
       }
     }
@@ -1157,10 +1173,47 @@ export class PhysicsWorld {
             for (let ni = 0; ni < cat.nodes.length; ni++) {
               const n = cat.nodes[ni];
               if (Math.abs(n.x - sap.x) < halfW && n.y >= sap.topY && n.y <= sap.bottomY) {
-                // Heavy viscous sap damping + downward flow drag
-                n.vx *= Math.pow(0.25, dt * 10);
-                if (n.vy < sap.flowSpeed) {
-                  n.vy += (sap.flowSpeed - n.vy) * Math.min(1, dt * 8);
+                // Viscous sap damping + gentle downward flow drag
+                n.vx *= Math.pow(0.45, dt * 10);
+                const targetSapVy = Math.min(sap.flowSpeed || 150, 150);
+                if (n.vy < targetSapVy) {
+                  n.vy += (targetSapVy - n.vy) * Math.min(1, dt * 6);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 3f. Buoyant Water Zones (Bassins d'eau avec bonne flottabilité : amortit les grands sauts, fait flotter à la surface et permet de nager/sauter !)
+    if (this.waterZones && this.waterZones.length > 0) {
+      for (const wz of this.waterZones) {
+        wz.time = (wz.time || 0) + dt;
+        if (this.caterpillars && this.caterpillars.length > 0) {
+          for (const cat of this.caterpillars) {
+            if (!cat || !cat.nodes || cat.hp <= 0) continue;
+            for (let ni = 0; ni < cat.nodes.length; ni++) {
+              const n = cat.nodes[ni];
+              if (n.x >= wz.x && n.x <= wz.x + wz.width && n.y >= wz.y - 6 && n.y <= wz.y + wz.height) {
+                const submergeDepth = Math.max(0, n.y - wz.y);
+                const depthRatio = Math.min(2.2, submergeDepth / 34);
+                // Strong upward Archimedes buoyancy force so the caterpillar floats near the water surface (wz.y)
+                const buoyancyAccel = this.gravity * (1.25 + depthRatio * 1.65);
+                n.vy -= buoyancyAccel * dt;
+                // Gentle surface bobbing wave
+                n.vy += Math.sin(wz.time * 3.2 + n.x * 0.04) * 45 * dt;
+                // Water drag cushions high-altitude dives and stabilizes floating
+                n.vy *= Math.pow(0.22, dt * 8);
+                n.vx *= Math.pow(0.68, dt * 6);
+                // Mark as supported so the player can steer/swim and charge a jump from the water surface!
+                n.onGround = true;
+                n.groundNx = 0;
+                n.groundNy = -1;
+                n.groundSlopeGrade = 0;
+                n.groundMaterial = 'dirt';
+                if (particles && Math.random() < 0.04 && Math.abs(n.vy) > 40) {
+                  particles.spawnDewBubbles(n.x, wz.y + 4, 2);
                 }
               }
             }

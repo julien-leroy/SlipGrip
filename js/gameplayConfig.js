@@ -147,15 +147,15 @@ export const GAMEPLAY_PRESETS = {
     desc: 'Tête agile et réactive, corps suivant naturellement, contraction douce et zéro tremblement.',
     gravity: 740,
     groundSnapping: 1.5,
-    orientationUpForce: 1650,
-    orientationResponsiveness: 1.45,
+    orientationUpForce: 2200,
+    orientationResponsiveness: 2.25,
     orientationHeadSpan: 2,
     orientationRearSpan: 2,
     jumpBoost: 1.00,
     maxJumpSpeed: 300,
     jumpUpAngleBonus: 1.25,
     jumpChargeTime: 3.0,
-    gripDistance: 22,
+    gripDistance: 24,
     gripAngleTolerance: -0.15,
     omegaArchVisual: 0.75,
     wigglePhysicsAmount: 4,
@@ -183,7 +183,7 @@ export const GAMEPLAY_PRESETS = {
     orientationRearSpan: 3,
     jumpBoost: 0.85,
     jumpUpAngleBonus: 1.05,
-    jumpChargeTime: 4.5,
+    jumpChargeTime: 3.0,
     gripDistance: 18,
     gripAngleTolerance: -0.22,
     omegaArchVisual: 0.25,
@@ -210,7 +210,7 @@ export const GAMEPLAY_PRESETS = {
     orientationRearSpan: 4,
     jumpBoost: 1.75,
     jumpUpAngleBonus: 1.9,
-    jumpChargeTime: 4.5,
+    jumpChargeTime: 3.0,
     gripDistance: 24,
     gripAngleTolerance: -0.15,
     omegaArchVisual: 1.6,
@@ -237,7 +237,7 @@ export const GAMEPLAY_PRESETS = {
     orientationRearSpan: 4,
     jumpBoost: 1.2,
     jumpUpAngleBonus: 1.4,
-    jumpChargeTime: 4.5,
+    jumpChargeTime: 3.0,
     gripDistance: 28,
     gripAngleTolerance: -0.10,
     omegaArchVisual: 0.9,
@@ -264,10 +264,10 @@ export const GAMEPLAY_CONFIG = {
   groundSnapping: 1.5,
 
   // Force d'orientation vers le haut (permet de dresser la tête facilement)
-  orientationUpForce: 2100,
+  orientationUpForce: 2200,
 
   // Vitesse de réaction à l'orientation des flèches (orientation vive et rapide)
-  orientationResponsiveness: 2.2,
+  orientationResponsiveness: 2.25,
 
   // Nombre de segments avant mobilisés pour lever la tête (1 à 3)
   orientationHeadSpan: 2,
@@ -288,7 +288,7 @@ export const GAMEPLAY_CONFIG = {
   jumpChargeTime: 3.0,
 
   // Distance maximale d'accroche des ventouses/griffes aux surfaces (en px)
-  gripDistance: 22,
+  gripDistance: 24,
 
   // Seuil angulaire (produit scalaire) déclenchant le retournement automatique sur saisie inversée
   gripAngleTolerance: -0.15,
@@ -342,8 +342,8 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
-const STORAGE_KEY = 'slipgrip_gameplay_config_v71';
-const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v71';
+const STORAGE_KEY = 'slipgrip_gameplay_config_v72';
+const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v72';
 
 export function loadSavedGameplayConfig() {
   try {

@@ -1,10 +1,10 @@
 // js/main.js — Main Game Loop, Hold-to-Grip Input Controller, Multiplayer Sync, Checkpoints, Camera & HUD Manager
 
-import { PhysicsWorld } from './physics.js?v=101';
-import { Caterpillar } from './caterpillar.js?v=101';
-import { ParticleSystem } from './particles.js?v=101';
-import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=101';
-import { sound } from './audio.js?v=101';
+import { PhysicsWorld } from './physics.js?v=106';
+import { Caterpillar } from './caterpillar.js?v=106';
+import { ParticleSystem } from './particles.js?v=106';
+import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=106';
+import { sound } from './audio.js?v=106';
 import {
   GAMEPLAY_CONFIG,
   GAMEPLAY_PRESETS,
@@ -13,9 +13,9 @@ import {
   resetGameplayConfig,
   saveAsDefaultGameplayConfig,
   GRIP_STYLES
-} from './gameplayConfig.js?v=101';
-import { NetworkManager } from './network.js?v=101';
-import { UIManager } from './uiManager.js?v=101';
+} from './gameplayConfig.js?v=106';
+import { NetworkManager } from './network.js?v=106';
+import { UIManager } from './uiManager.js?v=106';
 
 class SlipGripGame {
   constructor() {
@@ -1554,7 +1554,7 @@ class SlipGripGame {
       return;
     }
 
-    if (com.y > 1020) {
+    if (com.y > 1280) {
       sound.playBoing();
       this.particles.spawnPopup(com.x, com.y - 30, 'CHUTE DANS LE VIDE ! 🕳️', '#ff4757');
       this.respawnAtCheckpoint('RÉAPPARITION ! ❤️');
@@ -1601,7 +1601,7 @@ class SlipGripGame {
 
     this.camera.x += (targetCamX - this.camera.x) * Math.min(1, dt * 2.2);
     this.camera.y += (targetCamY - this.camera.y) * Math.min(1, dt * 2.0);
-    this.camera.y = Math.max(-360, Math.min(200, this.camera.y));
+    this.camera.y = Math.max(-680, Math.min(480, this.camera.y));
 
     this.updateHUD(dt);
   }
