@@ -1,132 +1,187 @@
-🐛 SLIPGRIP — BIBLE DE DESIGN & FICHE TECHNIQUE GLOBALE
+# 🐛 SLIPGRIP — Bible de design
 
-Pitch rapide : SlipGrip est un *jeu de course et de plateforme multijoueur basé sur une physique molle (soft-body) où les joueurs incarnent des chenilles expressives. C'est un hybride nerveux et hilarant entre un jeu de plateforme physique d'escalade (façon Getting Over It / Heave Ho) et un party-game de course frénétique avec rattrapage et objets (façon Mario Kart).
+> **Comment lire ce document.** Les sections 1 à 4 décrivent la **vision** (ce que le jeu doit être).
+> La section 5 décrit **l'état réel du code**, vérifié en exécutant le jeu (navigateur headless, partie solo et partie à 2 joueurs) et en lisant l'intégralité des sources le 30/10/2026.
+> Chaque affirmation de la section 5 est vérifiable. Quand la vision et le code divergent, c'est le code qui fait foi pour l'état actuel.
+> L'ancienne version de ce document présentait comme « fonctionnant très bien » plusieurs systèmes qui sont cassés ou absents. Ces écarts sont listés en 5.3.
 
-🎯 1. CONCEPT & BUT DU JEU
-Objectif principal : Dans des championnats en Coupes de 3 courses consécutives, les chenilles doivent franchir des parcours d'obstacles truffés de verticalité, d'ennemis patrouilleurs et de pièges naturels pour franchir la ligne d'arrivée en tête.
-Ambiance : Cartoon, organique, forestier et potager géant (sous-bois, canopée, branchages colossaux, miel, rosée, pique-nique abandonné).
-Format de compétition :
-Points par course : Chaque arrivée attribue des points selon le classement (ex. 10 pts, 6 pts, 4 pts, 2 pts).
-Catch-up / Draft de modificateurs : Entre chaque course, les joueurs ayant perdu ou fini en retard choisissent en priorité des cartes de modificateurs (ex. Super Forte, Voltigeuse Aérienne, Sauteuse, Allonge) pour équilibrer la compétition.
-Persistance en coupe : Les segments supplémentaires gagnés en mangeant des Pommes Vertes et les bonus de draft restent d'une course à l'autre pendant toute la coupe. À la fin des 3 courses, les scores sont scellés, le podium final sacre le champion, et les récompenses cosmétiques sont débloquées. Seuls les cosmétiques et préférences sont conservés dans le profil ; les bonus de jeu sont réinitialisés pour la coupe suivante.
-👥 2. JOUEURS & MULTIJOUEUR
-Nombre de joueurs :
-Mode Solo : Entraînement libre chronométré sur n'importe quel circuit des 4 Coupes.
-Mode Multijoueur : De 1 à 4 joueurs (extensible jusqu'à 8) par salon.
-Salons de jeu (Lobbies) :
-Salons créés par un code à 4 chiffres (ou liste publique des salons disponibles).
-Gestion d'un Hôte qui choisit la Coupe et lance la compétition.
-Atelier cosmétique intégré pour choisir son pseudo, sa couleur, son chapeau, sa forme de corps et son style de ventouses.
-Architecture Réseau :
-Pur Node.js natif + WebSocket (ws RFC 6455), aucun framework lourd (ni Socket.io, ni bundler type Vite/Webpack).
-Taux de rafraîchissement réseau à 20-30 Hz avec interpolation côté client.
-Synchronisation temps réel des positions de tous les nœuds de la chenille, des objets projetés, des ennemis frappés, des dégâts PvP et des franchissements de ligne.
-⚙️ 3. LE MOTEUR PHYSIQUE & LES INTERACTIONS (VERLET)
+---
 
-Le jeu ne repose pas sur une boîte de collision rigide standard : la chenille est une chaîne molle articulée (Verlet Integration) de 
-𝑁
-N nœuds (5 nœuds de base) reliés par des contraintes de distance élastiques, un maintien de colonne dorsale et des ventouses à adhérence dynamique.
+## 1. Pitch
 
-A. La Locomotion & Les Commandes
-Double Ventouse (Prises Avant / Arrière) :
-Touche Q (ou A) : Verrouille la ventouse arrière (queue) sur la surface la plus proche.
-Touche D : Verrouille la ventouse avant (tête / mâchoire) sur la surface la plus proche.
-En relâchant la touche, la ventouse lâche prise.
-Reptation & Déplacement :
-Les flèches directionnelles permettent de faire avancer la tête, de hisser le corps et d'orienter le squelette.
-Tension de la queue : Quand la tête avance librement, la queue ne flotte pas en l'air ; elle se laisse traîner naturellement et retombe au sol sous l'effet de la gravité.
-Charge du Saut (Barre d'Espace) :
-Maintenir Espace comprime le corps en accordéon (stockage d'énergie potentielle).
-Charge progressive : Jusqu'à 3.0 secondes pour atteindre la détente maximale.
-Anti-Spam Espace : Un appui furtif (< 0.20s) n'accorde aucun saut et inflige une légère pénalité de recul et de friction, empêchant d'avancer plus vite en spammant qu'en marchant.
-Le Coup de Fouet (L'Arme de Mêlée Ultime) :
-Si la chenille est ancrée par la tête (D maintenu) et qu'elle charge puis relâche Espace, elle ne se détache pas : la queue est catapultée en ligne droite dans la direction visée à plus de 2000 px/s.
-C'est l'attaque la plus puissante du jeu : elle inflige 65 à 100+ dégâts, one-shot les pucerons, pulvérise les hérissons sans prendre de dégâts d'épines, interrompt les fourmis et hache les rivaux en multijoueur.
-Détente vers la Queue & Correction Anti-Téléportation :
-Si le joueur détend son corps vers l'arrière, la queue est projetée vers l'extérieur et vers le bas en pivotant sur la tête, sans jamais faire passer la tête par-dessus la queue ni provoquer de croisement ou téléportation de segments.
-Orientation des Griffes & Verrouillage d'Adhérence :
-Dès qu'une ventouse s'agrippe à une paroi (sol, tronc vertical, plafond sous une branche), le corps oriente instantanément son ventre et ses pattes face à la surface.
-Règle absolue : Tant que la prise est maintenue, la chenille ne se retourne plus de manière intempestive ; elle reste verrouillée à la paroi jusqu'au lâcher-prise.
-B. Les Surfaces & Matériaux du Monde
+Course-plateforme multijoueur en physique molle (Verlet) : chaque joueur incarne une chenille qui avance par **reptation et ventouses**, saute en se comprimant comme un ressort, et peut **fouetter, attraper et lancer** ennemis, objets et rivaux.
 
-Chaque polyline ou branche du monde possède une friction et une adhérence spécifiques :
+- **Références de ressenti** : *Getting Over It* / *Heave Ho* (contrôle physique exigeant, chutes drôles) × party-game de course (rattrapage, objets, chaos entre amis).
+- **Ambiance** : sous-bois cartoon à hauteur d'insecte (écorce, miel, rosée, mousse, champignons).
 
-Terre & Herbe (dirt) : Sol standard, adhérence normale (friction: 0.90).
-Écorce & Grosses Branches (root) : Branches épaisses (50–64px à l'échelle de la chenille), idéales pour grimper à 360°, à la verticale ou la tête en bas.
-Branche Mielleuse / Sève Ambrée (honeycomb) : Surface dorée luisante avec gouttes de miel animées. Adhérence maximale (effet Velcro) : empêche totalement de glisser, même sur des pentes verticales ou des bascules instables.
-Mousse Humide Glissante (moss) : Surface turquoise brillante avec gouttelettes d'eau. Piège savonneux (friction: 0.08) : même avec les touches Q/D enfoncées, les ventouses glissent le long de la pente !
-Ponts de Soie & Lianes (silk) : Lianes tressées souples, légère restitution élastique, adhérence parfaite.
-Tiges Botaniques (stem / straw) : Rampes végétales lisses et rapides menant vers les hauteurs.
-Plateformes Dynamiques & Bascules (leaf, turnstile, seesaw) : Feuilles oscillantes, tourniquets de brindilles rotatifs et bascules à couteau qui penchent sous le poids des chenilles.
-Champignons Tremplins (mushroom) : Dômes rouges rebondissants catapultant la chenille en hauteur.
-Eau du Marais : Zones aquatiques à forte flottabilité permettant de nager et rebondir à la surface.
-Cascades de Sève : Colonnes ambrées descendantes qui ralentissent la progression sans infliger de dégâts.
-C. Interactions Objets, Ennemis & PvP
-Joueurs 
-↔
-↔ Objets :
-Glands (légers) : Peuvent être saisis par la tête ou la queue, soulevés avec aisance et projetés avec l'inertie du corps pour briser des obstacles ou frapper des rivaux.
-Pommes de pin géantes (lourdes) : Masses imposantes qui roulent sur les pentes sous l'effet du poids des chenilles et peuvent écraser les ennemis sur leur passage.
-Pommes Vertes Bonus : Récupérables sur les ennemis vaincus ou cachées sur le parcours : soignent la chenille et ajoutent un segment corporel permanent pour toute la coupe.
-Joueurs 
-↔
-↔ Ennemis :
-Pucerons (Aphids) : Petites créatures inoffensives et molles. Peuvent être attrapées, transportées et lancées comme projectiles.
-Hérissons (Hedgehogs) : Dangereux de dos (pointes qui infligent 25 dégâts et repoussent), mais saisissables par leur museau inoffensif pour être projetés.
-Fourmis (Ants) : Ennemis chasseurs territoriaux. Si une fourmi repère une chenille, elle charge et arme ses mandibules pendant 0,68s pour tenter une projection suplex en arrière (faisant perdre du temps précieux). Le joueur peut la contrer en l'attrapant avant qu'elle n'attaque pour la projeter à son tour.
-Récompense de mort : Vaincre un ennemi fait apparaître une pomme verte de soin/croissance.
-Joueurs 
-↔
-↔ Joueurs (PvP) :
-En multijoueur, les chenilles peuvent s'agripper entre elles pour s'entraider (former un pont suspendu pour aider un ami) ou se gêner (tirer un adversaire en arrière, lui asséner un coup de fouet, ou lui lancer des ennemis à la figure).
-Objets 
-↔
-↔ Ennemis ("Enemy Bowling") :
-Lancer un gland ou une pomme de pin sur un ennemi lui inflige des dégâts d'impact.
-Lancer un ennemi sur un autre ennemi déclenche une collision de quilles de bowling avec dégâts mutuels.
-🏆 4. CIRCUITS & PROGRESSION (4 COUPES / 12 NIVEAUX)
-Coupe des Bourgeons (Facile) : Découverte de l'écorce, ponts de soie, verger fleuri et premiers pucerons.
-Coupe des Vents (Moyen) : Lianes suspendues, champignons tremplins, crevasses et hérissons.
-Coupe des Titans (Difficile) : Troncs verticaux massifs, ruches de cire mielleuse, cascades de sève, bascules et fourmis agressives.
-Coupe de la Canopée (Challenge Extrême) : Niveaux verticaux colossaux (jusqu'à 4500px de hauteur), passages étroits, mousses glissantes au-dessus d'abîmes, tourniquets de brindilles et chemins multiples.
-✅ 5. CE QUI FONCTIONNE TRÈS BIEN AUJOURD'HUI
-Architecture Pure Vanilla ultra-performante : Zéro bundler, zéro lag de build, pure ES Modules client + Node.js HTTP/WS.
-Cycle de Vie & Performance : Le moteur physique et le rendu canvas se mettent automatiquement en veille (isGameRunning = false, CPU < 1%) sur l'accueil, les salons et l'atelier, et ne se réveillent que pendant la course.
-Physique Molle & Locomotion : La reptation, la double accroche Q/D, la tension naturelle de la queue, la charge de saut 3s et l'anti-spam sont calibrés et robustes.
-Le Coup de Fouet : Fonctionne à merveille comme attaque de mêlée dévastatrice en restant ancré par la tête.
-Rendu Visuel Procédural Canvas : Branches épaisses à l'échelle des chenilles (50–64px), textures dynamiques de miel qui dégouline, mousse bleutée avec reflets, yeux expressifs animés, dégradés d'écorce et particules.
-Netcode & Compétition : Salons multijoueurs, synchronisation WS, système de score, draft de modificateurs et podium final.
-⚠️ 6. CE QUI EST INCOMPLET / CE QUI NE FONCTIONNE PAS ENCORE BIEN
-Fonctionnalité des Espèces / Classes de Chenilles :
-Dans le code (gameplayConfig.js), des classes existent (Classique, Arpenteuse Géante à 6 segments, Mastodonte Sumo incapable de sauter, Voltigeuse, Monarque).
-Problème actuel : En jeu, le système de sélection de classe dans l'Atelier / Lobby n'applique pas de manière assez claire et équilibrée les mécaniques spécifiques (certains joueurs peuvent se retrouver bloqués avec une classe qui ne saute pas sur des maps verticales, et le retour visuel/UI de l'espèce choisie manque de netteté en multijoueur). Le système de classes mérite une refonte ou une intégration plus claire (ex. traits passifs clairs plutôt que pénalités bloquantes).
-Sprites vs Rendu Canvas :
-Des tentatives d'importation de sprites externes ont été faites, mais leur intégration découpée jurait avec le style fluide du jeu. Les sprites externes sont actuellement désactivés au profit du rendu procédural HTML5 Canvas (hormis les icônes d'items/pommes).
-Équilibrage de la difficulté verticale :
-Certains niveaux très hauts peuvent être punitifs si une chenille rate une prise et retombe tout en bas sans plateforme de rattrapage intermédiaire.
-🚀 7. ROADMAP & CE QU'ON AIMERAIT AJOUTER PAR LA SUITE
-Textures "Rubans" Réutilisables :
-Remplacer les dégradés procéduraux par des textures illustrées transparentes et répétables horizontalement (format seamless 512x128) pour habiller l'écorce de chêne, la mousse givrée et les ponts de liane.
-Mode Spectateur / Caméra Dynamique :
-Quand un joueur termine la course en premier, sa caméra bascule automatiquement sur les joueurs encore en lice pour suivre la bataille pour la 2e et 3e place.
-Refonte Claire des Espèces :
-Rendre les espèces sélectionnables sous forme de compétences actives équilibrées (ex. une capacité spéciale utilisable une fois par course avec temps de recharge, plutôt que des malus bloquants).
-Nouveaux Ennemis & Éléments Interactifs :
-Des toiles d'araignées élastiques qui ralentissent, des gouttes de pluie/rosée lourdes qui tombent des feuilles, ou des courants d'air ascendants dans la canopée.
-🛠️ 8. RAPPEL D'ARCHITECTURE TECHNIQUE
-SlipGrip/
-├── index.html             # Structure DOM unique (SPA : Accueil, Lobbies, Salon, Jeu, HUD)
-├── styles.css             # Feuilles de style (Thème bois/forêt, boutons cartoon, overlays)
-├── server.js              # Serveur HTTP + WebSocket natif (RFC 6455), gestion des rooms et coupes
-└── js/
-    ├── main.js            # Orchestrateur client (Boucle principale, entrées Q/D/Espace, caméra)
-    ├── caterpillar.js     # Moteur physique Verlet de la chenille, locomotion, coup de fouet, lancers
-    ├── physics.js         # Moteur physique 2D du monde, polylines, ennemis (fourmis, hérissons), items
-    ├── levels.js          # Définitions des 4 Coupes (12 circuits) et moteur de rendu LevelRenderer
-    ├── gameplayConfig.js  # Constantes physiques, presets, définitions des Coupes & cosmétiques
-    ├── uiManager.js       # Gestionnaire d'écrans, atelier cosmétique, podiums et draft
-    ├── network.js         # Client WebSocket, sérialisation et interpolation des paquets réseau
-    ├── particles.js       # Système de particules 2D (bulles de sève, confettis, terre, étoiles)
-    └── audio.js           # Moteur audio synthétique procédural (Web Audio API sans assets audio)
+## 2. Format de compétition
 
-Règle absolue pour tout assistant IA intervenant sur le code : Travailler exclusivement sur la branche main, ne jamais réveiller le canvas du jeu hors d'une partie active, respecter le cache-busting des scripts (?v=XX) et toujours valider avec node -c server.js js/*.js.
+- **Coupe = 3 courses consécutives.** Points par course : 10 / 6 / 4 / 3 / 2 / 1. Égalité départagée au temps cumulé.
+- **Fin de course** : quand le premier joueur franchit l'arrivée, un compte à rebours de 20 s démarre pour les autres. Les non-arrivés sont classés par progression.
+- **Draft de rattrapage** entre deux courses : tous les joueurs sauf le vainqueur choisissent 1 carte parmi 3 (15 s, choix automatique sinon).
+- **Persistance pendant la coupe** : cartes draftées + segments gagnés via pommes « segment ». Tout est réinitialisé à la coupe suivante ; seuls les cosmétiques sont conservés dans le profil.
+- **Modes** : Solo (entraînement chronométré, record local par niveau) et Multijoueur (salon à code 4 chiffres, hôte qui choisit la coupe et les réglages, 2 à 8 joueurs).
+
+## 3. Contrôles & mécaniques de la chenille
+
+| Entrée | Effet |
+|---|---|
+| **Q** (ou A) maintenu | Ventouse **arrière** (queue) s'accroche à la surface la plus proche ; relâcher = lâcher prise |
+| **D** maintenu | Ventouse **avant** (tête) s'accroche |
+| **Flèches** | Orientent / avancent la tête, hissent le corps |
+| **Espace** maintenu puis relâché | Compression en accordéon puis détente (saut). Charge pleine en ~3 s. Un relâchement < 0,5 s ne déclenche pas de saut |
+| **Espace** pendant que **D** tient la tête | **Coup de fouet** : la queue est projetée dans la direction visée (attaque de mêlée) |
+| C / R | Retour au dernier checkpoint (R = recommencer le niveau en solo) |
+| T / Tab | Labo de réglages physiques (outil de développement) |
+
+- **Anti-spam** : taper Espace rapidement est plus lent que marcher (vérifié : ~16 px/s contre ~28 px/s).
+- **Verrou d'orientation** : tant qu'une ventouse tient, la chenille ne se retourne pas.
+- **Points de vie** : 100 PV ; à 0 PV ou en tombant dans le vide → retour au checkpoint (perte de temps, pas d'élimination).
+
+## 4. Monde, ennemis, objets (vision)
+
+- **Surfaces** : terre, écorce/racine, miel (adhérence maximale), mousse (glissante même en s'agrippant), soie/lianes, tiges ; plateformes dynamiques (feuilles oscillantes, bascules, tourniquets) ; champignons tremplins ; eau (flottaison) ; cascades de sève (ralentissent).
+- **Ennemis** : pucerons (inoffensifs, projectiles), hérissons (piquants de dos, saisissables par le museau), fourmis (chargent puis tentent une projection après 0,68 s d'armement ; contrable en les attrapant d'abord).
+- **Objets** : glands (légers, cassables, projectiles), pommes de pin (lourdes, roulent, écrasent), bonus temporaires (vitesse, force, plume, bouclier), pommes de soin et pommes « segment ».
+- **Interactions** : lancer un ennemi ou un objet sur un ennemi ou un rival (« bowling »), s'agripper à un rival pour l'aider ou le gêner.
+- **Coupes** (4 × 3 niveaux, 12 au total) :
+  1. **Bourgeons** (facile) : L'Orée des Pousses, Les Ponts de Lianes, Le Verger Fleuri
+  2. **Vents** (moyen) : La Grotte aux Spores, Le Gouffre Poids-Plume, La Falaise des Cimes
+  3. **Titans** (difficile) : Le Tronc des Titans, La Ruche & les Cires, Le Festin des Tempêtes
+  4. **Fourmilière Royale** (maître) : L'Ascension du Grand Chêne Creux, L'Arbre Brisé & le Grand Plongeon, La Citadelle des Racines
+
+---
+
+## 5. État réel du projet (audit du 30/10/2026)
+
+Légende : ✅ fonctionne · ⚠️ partiel / fragile · ❌ cassé ou absent
+
+### 5.1 Tableau de bord
+
+| Domaine | Statut | Constat |
+|---|---|---|
+| Boucle course → résultats → draft → course → podium | ✅ | Testé à 2 joueurs de bout en bout |
+| Salons, code à 4 chiffres, liste publique | ✅ | Pas de vérification des données reçues côté serveur |
+| Anti-spam Espace | ✅ | Spammer est plus lent que marcher |
+| Mise en veille du moteur hors course | ✅ | Boucle arrêtée sur l'accueil |
+| Réglages de room de l'hôte (saut, accroche) | ❌ | Jamais appliqués à la chenille (copie de module en double, voir 5.2-1) |
+| Labo de réglages (T) | ❌ | Les curseurs ne modifient pas la chenille en direct (même cause) |
+| Bouton muet | ⚠️ | Ne coupe qu'un des deux moteurs audio (même cause) |
+| Reconnexion réseau | ❌ | Une micro-coupure exclut silencieusement le joueur de la room |
+| Ennemis / objets en multijoueur | ❌ | Un ennemi tué par un non-hôte est ressuscité par l'hôte ; les pommes peuvent être ramassées par tous ; les plateformes ne sont pas réellement synchronisées |
+| Dégâts PvP par projectile | ❌ | L'envoi réseau n'est jamais déclenché (mauvais argument passé au callback) |
+| Coup de fouet | ⚠️ | Fonctionne mais dure ~6× trop longtemps (bug de minuteur) ; la queue est téléportée et peut traverser les murs ; ne protège pas des piquants de hérisson ; dégâts PvP 12–34, pas « hachoir » |
+| Matériaux de surface | ❌ | Les valeurs de friction ne sont pas utilisées par la physique : terre, soie et miel se comportent pareil. Seule la mousse est un cas spécial, et elle ne glisse pas à plat |
+| Champignons tremplins | ⚠️ | Rebond d'environ 35 à 65 px : petit saut, pas une catapulte |
+| Fourmis | ⚠️ | Le minuteur d'armement tourne pendant l'approche, donc pas de fenêtre de contre réelle |
+| Ennemis vaincus → pomme | ⚠️ | Toujours une pomme de **soin** ; les pommes **segment** ne sont que 3 secrets placés à la main |
+| Classes de chenilles | ❌ | Le Mastodonte ne peut pas sauter ; les stats vitesse/allonge des classes ne sont lues nulle part ; l'icône de classe affiche « undefined » dans le salon ; la classe peut être changée en pleine course |
+| Draft de bonus | ⚠️ | La même carte peut être prise plusieurs fois et les multiplicateurs se composent (ex. 2× « Petite & Ultra-Rapide » ≈ 2,8× la vitesse de saut) |
+| Cadeau cosmétique du champion | ❌ | Tous les joueurs reçoivent un cadeau aléatoire, pas seulement le champion ; l'ancien modal permet d'équiper des cosmétiques verrouillés |
+| Performance | ❌ | Le fond parallaxe coûte ~30 ms par image (redimensionnement de 10 à 14 images 1920×1080 à chaque frame), contre < 1 ms pour le monde et la chenille |
+| Mobile / tactile | ❌ | Seules les ventouses Q/D sont cliquables ; jeu jouable au clavier uniquement |
+| Rendu procédural | ✅ | Le jeu dessine tout en Canvas ; les sprites ne servent qu'aux bonus et aux pommes |
+
+### 5.2 Bugs prioritaires (par gravité)
+
+1. **Modules chargés en double.** `main.js` et `uiManager.js` importent avec `?v=106`, `caterpillar.js` et `physics.js` avec `?v=73`. Le navigateur charge alors deux instances distinctes de `gameplayConfig.js`, `physics.js` et `audio.js`. Conséquences : réglages de room ignorés, labo T inopérant, deux moteurs audio. Le serveur envoie déjà `Cache-Control: no-store`, donc ces suffixes ne servent à rien et doivent disparaître.
+2. **Reconnexion** : à la reconnexion le serveur attribue un nouvel identifiant et a déjà retiré l'ancien de la room, alors que le client se croit toujours en partie.
+3. **Autorité multijoueur des entités** : chaque client simule son propre monde. L'hôte écrase PV et position des ennemis, mais n'apprend jamais les dégâts infligés par les autres joueurs. Les objets lancés sont retrouvés « au plus proche » au lieu d'un identifiant.
+4. **Projectiles PvP** : `physics.js` passe `proj.kind` (une chaîne) là où `main.js` attend l'objet projectile, donc `sendPvpAction` n'est jamais appelé.
+5. **Coup de fouet** : `whipCrackTimer` est décrémenté du pas de sous-étape une seule fois par frame, ce qui fait durer le fouet ~6× trop longtemps.
+6. **Arrivée et checkpoints basés sur X seulement** : un checkpoint s'active dès que la tête dépasse sa position horizontale, quelle que soit la hauteur. Sur les niveaux 10 et 12, marcher sur le « toit » permet probablement d'atteindre l'arrivée sans faire le parcours (à confirmer en jeu). La barre de progression stagne pendant les montées.
+7. **Popup d'arrivée d'un rival** : affiche « termine undefinede » (le serveur envoie `finishOrder`, le client lit `rank`).
+8. **Physique dépendante du framerate** : nombreux coefficients appliqués « par sous-étape » sans tenir compte de `dt` ; le monde n'a pas de sous-étapes, donc les objets rapides traversent les branches fines.
+9. **Ennemis tombés dans le vide** : ils ne sont jamais supprimés ni réinitialisés.
+10. **Serveur** : aucune limite de taille de trame WebSocket, pas de ping/heartbeat, cosmétiques et temps d'arrivée acceptés sans vérification. C'est acceptable entre amis en LAN, pas sur Internet.
+
+### 5.3 Écarts entre l'ancienne version de ce document et le code
+
+- « Niveaux verticaux colossaux jusqu'à 4500 px de hauteur » : faux. Les niveaux 1 à 9 font 4 300 à 6 000 px de **large** pour ~450 px de haut ; les niveaux 10 à 12 font ~1 100 px de haut.
+- « Coupe de la Canopée » : la 4ᵉ coupe s'appelle Fourmilière Royale dans le code. Les troncs verticaux, cascades de sève et tourniquets attribués aux Titans n'existent que dans cette 4ᵉ coupe.
+- « Bascules à couteau » : il n'existe pas de bascule. Ce sont des feuilles oscillantes avec un angle plus grand.
+- « Mousses glissantes au-dessus d'abîmes » : la mousse n'est utilisée que sur 2 segments dans tout le jeu.
+- « Le coup de fouet pulvérise les hérissons sans prendre de dégâts d'épines » : faux, voir 5.1.
+- « Vaincre un ennemi fait apparaître une pomme verte de croissance » : la pomme ne fait que soigner.
+- « Synchronisation des ennemis frappés et des dégâts PvP » : voir 5.2-3 et 5.2-4.
+- « Interpolation côté client » : c'est un lissage vers la dernière position reçue, sans tampon d'interpolation.
+- « Architecture vanilla ultra-performante » : le code est léger, mais le rendu du fond est le goulot d'étranglement principal.
+- `GEMINI.md` décrit un format de niveaux déclaratif (`extractDeclarativeMap` / `buildFromDeclarative`) qui n'existe pas, 3 coupes au lieu de 4, et des numéros de ligne périmés. Ce fichier est remplacé par `CLAUDE.md`.
+
+### 5.4 Dette technique (constat chiffré)
+
+- `caterpillar.js` : 5 600 lignes, dont `stepPhysics` = 1 400 lignes. Environ la moitié est constituée de cas particuliers empilés (une douzaine de drapeaux comme `launchedFromHead`, `isTailDetente`, `isSteeredTowardTail`… qui expriment des variantes de la même chose) et de forces qui se contredisent.
+- `levels.js` : 4 500 lignes ; le moteur de rendu (3 100 lignes) est mélangé aux données des niveaux.
+- `physics.js` : logique pucerons / hérissons / fourmis copiée-collée à ~85 %.
+- **Assets** : ~41 Mo dans le dépôt, dont ~36 Mo jamais chargés (`assets/Raw`, `assets/sprites/hires`, la plupart des sprites `game/`, `maquettes/`, textures en double, `.DS_Store`). `collectibles/red_apple.png` est référencé mais absent.
+
+---
+
+## 6. Critique de design (au-delà des bugs)
+
+Ces points ne sont pas des erreurs de code mais des choix à trancher :
+
+1. **Le rythme est trop lent pour un party-game.** À ~28 px/s de reptation, un niveau de 4 300 à 5 800 px représente 2 à 3 minutes pour un joueur moyen. Pendant ce temps, le compte à rebours de 20 s après le premier arrivé coupe la plupart des joueurs. Viser des courses de 60 à 90 s : niveaux plus courts ou locomotion plus rapide, et compte à rebours proportionnel à la durée de la course.
+2. **Le draft ne rattrape pas vraiment.** Tous les joueurs sauf le premier reçoivent des cartes de même puissance, et ces cartes se cumulent sans limite. Proposition : une carte au plus par type, et une puissance de carte qui dépend de l'écart de points (le dernier reçoit le meilleur choix).
+3. **Les classes punissent au lieu de différencier.** Une classe qui ne saute pas dans un jeu de saut est un piège. Proposition :
+   - un trait passif clair par classe, plus une compétence active unique sur une touche dédiée, avec recharge ;
+   - classe verrouillée pendant la course et validée par le serveur ;
+   - exemples :
+     - Mastodonte : résistance au recul + « Choc » au sol ;
+     - Voltigeuse : charge plus rapide + « Détente » aérienne ;
+     - Arpenteuse : portée d'accroche + « Étirement » ;
+     - Monarque : adhérence sur mousse + « Ventouse » universelle 2 s.
+4. **Le multijoueur a besoin d'un modèle d'autorité simple et explicite.** Proposition : chaque entité appartient à l'hôte par défaut. Un joueur qui la saisit en devient propriétaire jusqu'à ce qu'elle se pose. Tous les événements (dégâts, ramassage, lancer) circulent par identifiant, jamais « au plus proche ». Les dégâts PvP sont appliqués par la victime.
+5. **La difficulté de prise en main est élevée** (2 ventouses + flèches + charge + fouet). C'est cohérent avec la référence *Getting Over It*, mais il faut un niveau tutoriel guidé avant la première coupe.
+6. **Le classement des non-arrivés par position X** est injuste sur les niveaux verticaux. Il faut une progression le long d'un tracé (suite de points de passage) plutôt que la coordonnée X.
+
+## 7. Feuille de route proposée
+
+**Phase 1 — Réparer les fondations** (aucun changement de ressenti voulu) :
+
+- imports uniques sans `?v=` ;
+- reconnexion avec reprise de session ;
+- popup d'arrivée ;
+- minuteur du fouet ;
+- envoi des projectiles PvP ;
+- checkpoints et arrivée avec contrôle de hauteur ;
+- cache du fond parallaxe (objectif < 2 ms par image) ;
+- `.gitignore` et nettoyage des assets inutilisés.
+
+**Phase 2 — Multijoueur fiable** :
+
+- identifiants d'entités partagés ;
+- propriété des entités et événements de dégâts et de ramassage ;
+- dégâts PvP côté victime ;
+- interpolation à tampon ;
+- validation et limites côté serveur ;
+- ping/heartbeat.
+
+**Phase 3 — Design** :
+
+- rythme des courses ;
+- refonte des classes (section 6.3) ;
+- draft de rattrapage (6.2) ;
+- matériaux réellement différenciés (friction utilisée par la physique) ;
+- progression le long d'un tracé ;
+- niveau tutoriel.
+
+**Phase 4 — Contenu et finition** :
+
+- mode spectateur après l'arrivée ;
+- contrôles tactiles ;
+- nouveaux éléments (toiles élastiques, gouttes de rosée, courants ascendants) ;
+- textures « rubans » pour les branches ;
+- cadeau cosmétique réservé au champion.
+
+**Refactor en continu**, à faire au fil des phases plutôt qu'en une fois :
+
+- découper `caterpillar.js` (ancrages, locomotion, saut, fouet, collisions, réseau, rendu) ;
+- remplacer les drapeaux par une machine à états unique ;
+- un seul tableau de définition pour les ennemis ;
+- séparer données de niveaux et rendu.
+
+## 8. Architecture
+
+Voir **`CLAUDE.md`** pour la carte détaillée des fichiers, les points d'entrée et les pièges connus.
+Stack : Node.js natif (HTTP + WebSocket RFC 6455 maison), modules ES côté client, Canvas 2D, Web Audio procédural. Aucune dépendance, aucun bundler.
