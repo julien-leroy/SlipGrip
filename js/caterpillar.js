@@ -97,6 +97,9 @@ export const COSMETIC_PALETTES = {
   }
 };
 
+// After a jump, feet can't re-grip for this long (s) even if Q/D are still held
+const JUMP_NO_GRIP_TIME = 0.25;
+
 export class Caterpillar {
   constructor(startX, startY, options = {}) {
     this.playerId = options.playerId || null;
@@ -204,6 +207,100 @@ export class Caterpillar {
 
   saveAppleSegments() {
     // Session only: do not persist extra segments to localStorage
+  }
+
+  // Geometridae (inchworm) contraction: the body keeps its length while its two ends
+  // come together, so the spine is laid on a circular arc whose chord shrinks with
+  // the contraction. Past a half circle the arc bulges wider than its base: the Ω.
+  // Gait: grip the head (D), hold Space (the tail is drawn up under the loop), grip
+  // the tail (Q), let go of the head and Space: the body unrolls far ahead.
+  applyOmegaLoop(segLen, locks) {
+    const N = this.nodes.length;
+    const rear = this.nodes[0];
+    const head = this.nodes[N - 1];
+    const L = segLen * (N - 1);
+    const OMEGA_CLOSE = 0.8; // at full contraction the feet are 20% of the body length apart
+    const targetChord = L * (1 - OMEGA_CLOSE * this.contraction);
+
+    let ux = head.x - rear.x;
+    let uy = head.y - rear.y;
+    const cur = Math.hypot(ux, uy) || 1;
+    ux /= cur;
+    uy /= cur;
+
+    // 1. Draw the free foot (or both) toward the target chord length
+    const END_PULL = 0.35;
+    const delta = (cur - targetChord) * END_PULL;
+    if (locks.rear && !locks.front) {
+      head.x -= ux * delta;
+      head.y -= uy * delta;
+    } else if (locks.front && !locks.rear) {
+      rear.x += ux * delta;
+      rear.y += uy * delta;
+    } else if (!locks.rear && !locks.front) {
+      head.x -= ux * delta * 0.5;
+      head.y -= uy * delta * 0.5;
+      rear.x += ux * delta * 0.5;
+      rear.y += uy * delta * 0.5;
+    }
+
+    const chord = Math.hypot(head.x - rear.x, head.y - rear.y) || 1;
+    ux = (head.x - rear.x) / chord;
+    uy = (head.y - rear.y) / chord;
+    if (chord >= L * 0.995) return;
+
+    // 2. Half-angle φ of the arc of length L spanning the chord: sin(φ)/φ = chord/L
+    const ratio = chord / L;
+    let lo = 0.0001;
+    let hi = Math.PI - 0.0001;
+    for (let k = 0; k < 24; k++) {
+      const mid = (lo + hi) * 0.5;
+      if (Math.sin(mid) / mid > ratio) lo = mid;
+      else hi = mid;
+    }
+    const phi = (lo + hi) * 0.5;
+    const r = L / (2 * phi);
+
+    // 3. Bulge side: away from the gripped surface, else keep the current bulge, else up
+    let vx = -uy;
+    let vy = ux;
+    const grip = locks.front ? this.frontAnchor : (locks.rear ? this.rearAnchor : null);
+    let side = 0;
+    if (grip && grip.nx !== undefined) {
+      side = Math.sign(vx * grip.nx + vy * grip.ny);
+    }
+    if (!side) {
+      let bulge = 0;
+      for (let i = 1; i < N - 1; i++) {
+        bulge += (this.nodes[i].x - rear.x) * vx + (this.nodes[i].y - rear.y) * vy;
+      }
+      side = Math.abs(bulge) > 4 ? Math.sign(bulge) : (vy < 0 ? 1 : -1);
+    }
+    vx *= side;
+    vy *= side;
+
+    // 4. Pull every free node toward its place on the arc
+    const mx = (rear.x + head.x) * 0.5;
+    const my = (rear.y + head.y) * 0.5;
+    const ARC_PULL = 0.4;
+    for (let i = 0; i < N; i++) {
+      const pinned = (i === 0 && locks.rear) || (i === 1 && locks.rearSeg) ||
+                     (i === N - 1 && locks.front) || (i === N - 2 && locks.frontSeg);
+      if (pinned) continue;
+      const a = phi - 2 * phi * (i / (N - 1));
+      const along = -r * Math.sin(a);
+      const lift = r * Math.cos(a) - r * Math.cos(phi);
+      const tx = mx + ux * along + vx * lift;
+      const ty = my + uy * along + vy * lift;
+      const n = this.nodes[i];
+      n.x += (tx - n.x) * ARC_PULL;
+      n.y += (ty - n.y) * ARC_PULL;
+    }
+  }
+
+  // Current species data (see CATERPILLAR_CLASSES for the meaning of each field)
+  getSpecies() {
+    return this.bodyClass || CATERPILLAR_CLASSES.classique;
   }
 
   // Compute combined multipliers from roomConfig and cumulative race modifiers
@@ -383,7 +480,8 @@ export class Caterpillar {
     }
 
     const mStats = this.getModifierStats();
-    const kbResist = mStats.massMult > 1.2 ? 0.65 : 1.0;
+    const totalMass = mStats.massMult * (this.getSpecies().massMult || 1.0);
+    const kbResist = Math.max(0.45, Math.min(1.5, 1 / Math.sqrt(totalMass)));
 
     for (let i = 0; i < this.numNodes; i++) {
       this.nodes[i].vx += knockX * 0.8 * kbResist;
@@ -1295,7 +1393,7 @@ export class Caterpillar {
     // Live surface proximity detection for Q and D visual aids (strictly closest within paw radius!)
     const extraGrip = ((this.bodyClass && this.bodyClass.gripExtraDistance) || 0) + (mStats.extraGrip || 0);
     const baseGripDist = (this.roomConfig && this.roomConfig.gripDistance) || GAMEPLAY_CONFIG.gripDistance || 22;
-    const gripDist = Math.max(8, Math.min(36, baseGripDist + extraGrip));
+    const gripDist = Math.max(8, Math.min(44, baseGripDist + extraGrip));
     const rearRange = this.rear.r + gripDist;
     const headRange = this.head.r + gripDist;
 
@@ -1494,6 +1592,14 @@ export class Caterpillar {
     const steerX = (inputs.right ? 1 : 0) - (inputs.left ? 1 : 0);
     const steerY = (inputs.up ? -1 : 0) + (inputs.down ? 1 : 0);
 
+    // Geometridae stride: tail still gripped (Q held), head free → the Ω loop unrolls
+    // forward from the tail (applyOmegaLoop) instead of leaping off the ground.
+    const tailHeld = this.rearAnchor.anchored && this.rearAnchor.holdingKey && !this.isHoldingMovable(this.rearAnchor);
+    if (this.getSpecies().contractStyle === 'omega' && tailHeld && !this.frontAnchor.anchored) {
+      this.extensionTimer = 0.25;
+      return;
+    }
+
     // Special Whip Crack ("Coup de Fouet") when releasing détente while anchored by the head:
     // "je veux que quand on accroche par la tete et qu'on lache la detente ca oriente la queue droit dans cette direction pour la detendre. ceci faisant en plus l'arme de mélée la plus puissante de la chenille comme un genre de coup de fouet."
     const isAnchoredByHead = this.frontAnchor.anchored && !this.isHoldingMovable(this.frontAnchor);
@@ -1601,15 +1707,6 @@ export class Caterpillar {
       return;
     }
 
-    if (this.bodyClass && this.bodyClass.canJump === false && !this.modifiers.includes('sauteuse')) {
-      // Mastodonte is too heavy to jump unless modified with Sauteuse!
-      sound.playSticky(false);
-      if (particles) {
-        particles.spawnPopup(this.head.x, this.head.y - 20, 'TROP LOURD POUR SAUTER ! 🦣', '#ffd93b');
-      }
-      return;
-    }
-
     const mStats = this.getModifierStats();
     const clsJump = (this.bodyClass && this.bodyClass.jumpMult) || 1.0;
     const jumpBoostMult = (GAMEPLAY_CONFIG.jumpBoost !== undefined ? GAMEPLAY_CONFIG.jumpBoost : 1.00) * (clsJump || 1.0) * mStats.jumpMult;
@@ -1679,7 +1776,8 @@ export class Caterpillar {
     // Maximum spring speed: charged jump pushes up to 2/3 of the caterpillar's length!
     // Formula from projectile dynamics: v = sqrt(2 * g * H_max)
     const worldGrav = (typeof world !== 'undefined' && world && world.gravity) ? world.gravity : (GAMEPLAY_CONFIG.gravity || 740);
-    const targetMaxHeight = this.fullLength * 0.67; // Exactly 2/3 of caterpillar length!
+    // Apex as a fraction of body length: long/heavy species jump further, light ones hop
+    const targetMaxHeight = this.fullLength * (this.getSpecies().jumpHeightFrac || 0.67);
     const maxSpringSpeed = Math.sqrt(2 * worldGrav * targetMaxHeight);
 
     // Super Force effect: "l'effet force doit nous faire sauter 3 fois plus loin"
@@ -1700,13 +1798,17 @@ export class Caterpillar {
       this.launchSpinePower = power * 0.25;
     }
 
-    // Release any anchor grips immediately
+    // Release any anchor grips immediately. The grip keys are usually still held at
+    // this point: without a short no-grip window the feet re-stuck to the ground on
+    // the very next substep and smothered the jump.
     if (this.rearAnchor.anchored) {
       this.releaseAnchor(this.rearAnchor, false, particles);
     }
     if (this.frontAnchor.anchored) {
       this.releaseAnchor(this.frontAnchor, true, particles);
     }
+    this.rearAnchor.noGripTimer = JUMP_NO_GRIP_TIME;
+    this.frontAnchor.noGripTimer = JUMP_NO_GRIP_TIME;
 
     // Progressive jump power
     if (power <= 0.005) {
@@ -1729,7 +1831,9 @@ export class Caterpillar {
         const nodeBonus = 0.90 + 0.15 * leadRatio + trunkBonus;
 
         this.nodes[i].vx = aimX * jumpSpeed * nodeBonus;
-        this.nodes[i].vy = Math.max(hasStrength ? -1100 : -420, aimY * jumpSpeed * nodeBonus);
+        // Vertical safety cap, scaled with the species' own jump so big jumpers keep their edge
+        const vyCap = hasStrength ? -1100 : -420 * Math.sqrt(targetMaxHeight / 109);
+        this.nodes[i].vy = Math.max(vyCap, aimY * jumpSpeed * nodeBonus);
       }
       this.nodes[i].onGround = false;
     }
@@ -2578,13 +2682,15 @@ export class Caterpillar {
     }
 
     // 3. Integrate Heavier Gravity, Surface-Normal Caterpillar Adhesion & Physical Larval Breathing
-    let currentGravity = (world.gravity || GAMEPLAY_CONFIG.gravity || 740) * mStats.gravityMult;
+    const species = this.getSpecies();
+    let currentGravity = (world.gravity || GAMEPLAY_CONFIG.gravity || 740) * mStats.gravityMult * (species.gravityMult || 1.0);
     const isVoltige = (this.activePowerUp && this.activePowerUp.type === 'feather') ||
-                      (this.cosmetics.bodyType === 'voltigeuse') ||
                       (this.modifiers && (this.modifiers.includes('lune') || this.modifiers.includes('voltige')));
     if (isVoltige) {
       currentGravity *= 0.22; // Much lighter gravity: floats and glides gracefully!
     }
+    // Light species glide gently while falling with an arrow held (much weaker than the feather)
+    const isSpeciesGlide = !isVoltige && species.glide && hasSteer;
 
     for (let i = 0; i < N; i++) {
       const n = this.nodes[i];
@@ -2718,7 +2824,7 @@ export class Caterpillar {
         const isRev = (steerX !== 0) && (Math.sign(steerX) !== facingDir);
         const hasSpeedBoost = (this.activePowerUp && this.activePowerUp.type === 'speed');
         let slopeMult = 1.0;
-        if (n.groundNy !== undefined) {
+        if (n.groundNy !== undefined && !species.wallClimber) {
           if (n.groundNy > 0.15) slopeMult = 0.62; // Slower upside down
           else if (Math.abs(n.groundNy) <= 0.45) slopeMult = 0.72; // Slower on steep walls
           else if (n.groundNx !== undefined) {
@@ -2726,8 +2832,9 @@ export class Caterpillar {
             if (moveTangentY < -0.18) slopeMult = Math.max(0.60, 1.0 + moveTangentY * 0.50);
           }
         }
-        const baseForwardCrawl = 58 * (hasSpeedBoost ? 1.76 : 1.0) * slopeMult;
-        const baseRevCrawl = 35 * (hasSpeedBoost ? 1.76 : 1.0) * slopeMult;
+        const crawlMult = species.crawlMult || 1.0;
+        const baseForwardCrawl = 58 * crawlMult * (hasSpeedBoost ? 1.76 : 1.0) * slopeMult;
+        const baseRevCrawl = 35 * crawlMult * (hasSpeedBoost ? 1.76 : 1.0) * slopeMult;
         const maxGroundCrawl = isRev ? baseRevCrawl : baseForwardCrawl;
         if (n.onGround || n.groundMaterial) {
           if (n.vx > maxGroundCrawl) n.vx = maxGroundCrawl;
@@ -2747,6 +2854,10 @@ export class Caterpillar {
         if (particles && isFirstSubstep && i === Math.floor(N / 2) && Math.random() < 0.28) {
           particles.spawnFeatherDrift(n.x, n.y, 1);
         }
+      }
+
+      if (isSpeciesGlide && isAirborne && n.vy > 160) {
+        n.vy = n.vy * 0.94 + 160 * 0.06;
       }
 
       // Smooth viscous damping
@@ -3023,9 +3134,12 @@ export class Caterpillar {
     const steerExtensionBonus = (hasSteer && (rearLocked || frontLocked)) ? 1.06 : 1.0;
     const reachBonus = this.extensionTimer > 0 ? (GAMEPLAY_CONFIG.unbendReachBonus || 1.15) : steerExtensionBonus;
     const lengthMult = (this.activePowerUp && this.activePowerUp.type === 'length') ? 1.45 : 1.0;
-    const targetSegLen =
-      (this.extendedSegLen * reachBonus * lengthMult) * (1 - this.contraction) +
-      (this.contractedSegLen * lengthMult) * this.contraction;
+    // Geometridae never shorten their segments: contraction folds them into an Ω loop instead
+    const isOmega = this.getSpecies().contractStyle === 'omega';
+    const targetSegLen = isOmega
+      ? this.extendedSegLen * reachBonus * lengthMult
+      : (this.extendedSegLen * reachBonus * lengthMult) * (1 - this.contraction) +
+        (this.contractedSegLen * lengthMult) * this.contraction;
 
     const isSteeredTowardTail = this.launchedFromHead || this.launchedTowardTail ||
       (hasSteer && ((steerX * (this.rear.x - this.head.x) + effSteerY * (this.rear.y - this.head.y)) > 0 || (steerX !== 0 && steerX * (this.head.x - this.rear.x) < 0)));
@@ -3120,6 +3234,12 @@ export class Caterpillar {
           }
         }
       }
+    }
+
+    if (isOmega && this.contraction > 0.02) {
+      this.applyOmegaLoop(targetSegLen, {
+        rear: rearLocked, rearSeg: rearSegmentLocked, front: frontLocked, frontSeg: frontSegmentLocked
+      });
     }
 
     // 3. Directional Détente Constraint:
@@ -3726,7 +3846,11 @@ export class Caterpillar {
     const hasStrengthPower = (this.activePowerUp && this.activePowerUp.type === 'strength') ||
                             (this.modifiers && this.modifiers.includes('super_forte')) ||
                             mStats.strengthMult > 1.35;
-    const maxSafeSpeed = hasStrengthPower ? 640 : 360;
+    // Speed cap scaled with the species' own jump (body length × apex fraction, relative to
+    // the classic caterpillar), otherwise every species' jump was clipped to the same speed
+    const sp = this.getSpecies();
+    const jumpScale = Math.max(1, Math.sqrt((this.fullLength * (sp.jumpHeightFrac || 0.67)) / 109));
+    const maxSafeSpeed = (hasStrengthPower ? 640 : 360) * jumpScale;
     for (let i = 0; i < N; i++) {
       const spd = Math.hypot(this.nodes[i].vx, this.nodes[i].vy);
       if (spd > maxSafeSpeed) {
@@ -4186,7 +4310,7 @@ export class Caterpillar {
         world.applyPlatformForce(plat, anchor.x, anchor.y, 0, node.mass * world.gravity * 1.3, dt);
       }
 
-      if (anchor.material === 'moss' && anchor.segRef) {
+      if (anchor.material === 'moss' && anchor.segRef && !this.getSpecies().mossGrip) {
         anchor.slipping = true;
         const s = anchor.segRef;
         const cp = world.closestPointOnSegment(node.x, node.y, s);
@@ -4231,7 +4355,7 @@ export class Caterpillar {
 
     const extraGrip = ((this.bodyClass && this.bodyClass.gripExtraDistance) || 0) + (mStats.extraGrip || 0);
     const baseGripDist = (this.roomConfig && this.roomConfig.gripDistance) || GAMEPLAY_CONFIG.gripDistance || 22;
-    const maxSurfaceGap = Math.max(8, Math.min(36, baseGripDist + extraGrip));
+    const maxSurfaceGap = Math.max(8, Math.min(44, baseGripDist + extraGrip));
     const suctionRange = node.r + maxSurfaceGap;
 
     // Check grabbable enemy Ants (Fourmis) — Counter-grab neutralizes their suplex!
@@ -4668,7 +4792,7 @@ export class Caterpillar {
 
     // 2c. Cute Multilegged Caterpillar Feet along belly:
     // 10 pairs of adorable little feet (abdominal prolegs + thoracic true legs) with plump stalks and rounded toe pads!
-    const legSamples = [
+    const allLegSamples = [
       { s: 2, isThoracic: false },
       { s: 4, isThoracic: false },
       { s: 6, isThoracic: false },
@@ -4680,6 +4804,11 @@ export class Caterpillar {
       { s: 18, isThoracic: true },
       { s: 20, isThoracic: true }
     ];
+    // Geometridae have no legs mid-body: only rear prolegs and front true legs
+    const species = this.getSpecies();
+    const legSamples = species.contractStyle === 'omega'
+      ? allLegSamples.filter((l) => l.s <= 4 || l.s >= 18)
+      : allLegSamples;
 
     const isAirborne = !this.nodes.some(n => n.onGround);
     const crawlSpeed = Math.hypot(this.nodes[0].vx, this.nodes[0].vy) + Math.hypot(this.head.vx, this.head.vy);
@@ -4958,7 +5087,9 @@ export class Caterpillar {
       ctx.restore();
 
       // 4. SEGMENT ANNULI & FOLDS (Authentic caterpillar segments)
-      const foldFractions = [0.22, 0.42, 0.62, 0.80];
+      const foldFractions = species.contractStyle === 'omega'
+        ? [0.14, 0.26, 0.38, 0.50, 0.62, 0.74, 0.86] // thin twig-like rings
+        : (species.id === 'monarque' ? [0.16, 0.30, 0.44, 0.58, 0.72, 0.86] : [0.22, 0.42, 0.62, 0.80]);
       for (let fi = 0; fi < foldFractions.length; fi++) {
         const sIdx = Math.floor(foldFractions[fi] * (numSamples - 1));
         const seg = samples[sIdx];
@@ -4985,7 +5116,17 @@ export class Caterpillar {
 
         // Cute spot or monarch stripes on dorsal side of this segment
         ctx.save();
-        if (pal.isStriped) {
+        if (species.id === 'monarque' && !pal.isStriped) {
+          // Monarch identity: black / white / yellow bands whatever the palette
+          const bandColors = ['#1e272e', '#fdfdfd', '#ffd32a'];
+          const col = bandColors[fi % 3];
+          ctx.strokeStyle = col;
+          ctx.lineWidth = col === '#1e272e' ? 4.6 : 3.0;
+          ctx.beginPath();
+          ctx.moveTo(seg.x + seg.nx * (seg.r * 0.05), seg.y + seg.ny * (seg.r * 0.05));
+          ctx.quadraticCurveTo(seg.x + seg.nx * seg.r * 0.6 - seg.ux * 2, seg.y + seg.ny * seg.r * 0.6 - seg.uy * 2, seg.dx, seg.dy);
+          ctx.stroke();
+        } else if (pal.isStriped) {
           ctx.strokeStyle = '#1e272e';
           ctx.lineWidth = 4.2;
           ctx.beginPath();
@@ -5024,6 +5165,8 @@ export class Caterpillar {
       }
       ctx.stroke();
       ctx.restore();
+
+      this.drawSpeciesDetails(ctx, samples, time, pal);
     }
 
     // 6. CUTE LARVAL HEAD CAPSULE
@@ -5589,6 +5732,51 @@ export class Caterpillar {
       ctx.stroke();
     }
 
+    ctx.restore();
+  }
+
+  // Species silhouettes on top of the chosen palette, so species read at a glance
+  drawSpeciesDetails(ctx, samples, time, pal) {
+    const species = this.getSpecies();
+    const n = samples.length;
+    ctx.save();
+    ctx.lineCap = 'round';
+    if (species.id === 'dodue') {
+      // Bristly tufts along the back of the heavy species
+      ctx.strokeStyle = pal.outline || '#13361f';
+      ctx.lineWidth = 2.2;
+      for (let k = 3; k < n - 3; k += 2) {
+        const seg = samples[k];
+        const sway = Math.sin(time * 3 + k) * 0.15;
+        for (const spread of [-0.35, 0, 0.35]) {
+          const ax = seg.dx - seg.ux * spread * 6;
+          const ay = seg.dy - seg.uy * spread * 6;
+          const len = seg.r * 0.55;
+          const dirX = seg.nx + seg.ux * (spread + sway);
+          const dirY = seg.ny + seg.uy * (spread + sway);
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(ax + dirX * len, ay + dirY * len);
+          ctx.stroke();
+        }
+      }
+    } else if (species.id === 'voltigeuse') {
+      // Two long, light tail filaments that trail behind
+      const tail = samples[0];
+      const bx = tail.x - tail.ux * tail.r * 0.6;
+      const by = tail.y - tail.uy * tail.r * 0.6;
+      ctx.strokeStyle = pal.outline || '#13361f';
+      ctx.lineWidth = 2.0;
+      for (const side of [-1, 1]) {
+        const wave = Math.sin(time * 6 + side) * 5;
+        ctx.beginPath();
+        ctx.moveTo(bx, by);
+        ctx.quadraticCurveTo(
+          bx - tail.ux * 14 + tail.nx * (side * 6 + wave), by - tail.uy * 14 + tail.ny * (side * 6 + wave),
+          bx - tail.ux * 26 + tail.nx * (side * 12), by - tail.uy * 26 + tail.ny * (side * 12));
+        ctx.stroke();
+      }
+    }
     ctx.restore();
   }
 

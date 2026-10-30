@@ -15,7 +15,8 @@ import {
   applyRoomGameplayConfig,
   restoreSoloGameplayConfig,
   isUsingRoomGameplayConfig,
-  GRIP_STYLES
+  GRIP_STYLES,
+  CATERPILLAR_CLASSES
 } from './gameplayConfig.js';
 import { NetworkManager } from './network.js';
 import { UIManager } from './uiManager.js';
@@ -701,6 +702,50 @@ class SlipGripGame {
     });
   }
 
+  renderSpeciesCards() {
+    const grid = document.getElementById('class-options');
+    if (!grid) return;
+    grid.innerHTML = Object.values(CATERPILLAR_CLASSES).map((cls) => `
+      <button class="class-card" data-class="${cls.id}">
+        <div class="class-header">
+          <span class="class-icon">${cls.icon}</span>
+          <div>
+            <div class="class-title">${cls.name}</div>
+            <div class="class-subtitle">${cls.subtitle}</div>
+          </div>
+        </div>
+        <p class="class-desc">${cls.desc}</p>
+        <div class="class-badges">
+          <span class="badge pro">✅ ${cls.pro}</span>
+          <span class="badge con">⚠️ ${cls.con}</span>
+        </div>
+      </button>`).join('');
+    grid.querySelectorAll('.class-card').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (!this.changeSpecies(btn.dataset.class)) return;
+        this.syncCosmeticsUI();
+        if (this.ui) this.ui.onLocalCosmeticChanged();
+      });
+    });
+  }
+
+  // Species shape the whole physics, so they cannot change during a multiplayer race;
+  // in solo, switching restarts the level so a record can't mix species.
+  changeSpecies(clsId) {
+    if (!CATERPILLAR_CLASSES[clsId]) return false;
+    const inRace = this.ui && this.ui.activeScreen === 'game';
+    if (this.isMultiplayer && (inRace || this.isInActiveCup)) {
+      this.particles.spawnPopup(this.caterpillar.head.x, this.caterpillar.head.y - 30, 'ESPÈCE VERROUILLÉE PENDANT LA COUPE 🔒', '#ff7675');
+      return false;
+    }
+    this.caterpillar.setBodyType(clsId);
+    if (inRace) {
+      this.loadLevel(this.currentLevelIndex);
+      this.particles.spawnPopup(this.caterpillar.head.x, this.caterpillar.head.y - 30, `ESPÈCE : ${CATERPILLAR_CLASSES[clsId].name}`, '#ffd93b');
+    }
+    return true;
+  }
+
   toggleTuningModal() {
     if (!this.elTuningModal) return;
     if (isUsingRoomGameplayConfig() && this.elTuningModal.classList.contains('hidden')) {
@@ -923,17 +968,7 @@ class SlipGripGame {
       });
     }
 
-    document.querySelectorAll('#class-options .class-card').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const clsId = btn.dataset.class;
-        this.caterpillar.setBodyType(clsId);
-        this.syncCosmeticsUI();
-        if (this.ui) this.ui.onLocalCosmeticChanged();
-        const titleEl = btn.querySelector('.class-title');
-        const name = titleEl ? titleEl.textContent.trim() : clsId;
-        this.particles.spawnPopup(this.caterpillar.head.x, this.caterpillar.head.y - 30, `MORPHOLOGIE : ${name}`, '#ffd93b');
-      });
-    });
+    this.renderSpeciesCards();
 
     document.querySelectorAll('#shape-options .cos-btn').forEach((btn) => {
       btn.addEventListener('click', () => {

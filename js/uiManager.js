@@ -1198,14 +1198,14 @@ export class UIManager {
           <button class="ws-item-card class-ws-card ${active ? 'active' : ''}" data-class="${cls.id}">
             <div class="ws-icon">${cls.icon}</div>
             <div class="ws-name">${cls.name}</div>
-            <div class="ws-sub">${cls.pros[0] || ''}</div>
+            <div class="ws-sub">${cls.subtitle || ''}</div>
           </button>
         `;
       }).join('');
 
       grid.querySelectorAll('.ws-item-card').forEach(btn => {
         btn.addEventListener('click', () => {
-          this.game.caterpillar.setBodyType(btn.dataset.class);
+          if (!this.game.changeSpecies(btn.dataset.class)) return;
           this.onLocalCosmeticChanged();
         });
       });
