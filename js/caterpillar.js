@@ -3612,10 +3612,14 @@ export class Caterpillar {
           this.rearAnchor.propRef = null;
           this.frontAnchor.anchored = false;
           this.frontAnchor.propRef = null;
+          // Same as a jump: held grip keys must not re-stick the feet mid-bounce
+          this.rearAnchor.noGripTimer = JUMP_NO_GRIP_TIME;
+          this.frontAnchor.noGripTimer = JUMP_NO_GRIP_TIME;
+          this.hopTimer = Math.max(this.hopTimer, 0.4);
 
           for (let k = 0; k < N; k++) {
-            this.nodes[k].vx = (bounceX / bLen) * m.bounceSpeed * 0.58;
-            this.nodes[k].vy = (bounceY / bLen) * m.bounceSpeed * 0.58;
+            this.nodes[k].vx = (bounceX / bLen) * m.bounceSpeed;
+            this.nodes[k].vy = (bounceY / bLen) * m.bounceSpeed;
           }
 
           if (m.squash <= 0.1) {
@@ -3850,7 +3854,9 @@ export class Caterpillar {
     // the classic caterpillar), otherwise every species' jump was clipped to the same speed
     const sp = this.getSpecies();
     const jumpScale = Math.max(1, Math.sqrt((this.fullLength * (sp.jumpHeightFrac || 0.67)) / 109));
-    const maxSafeSpeed = (hasStrengthPower ? 640 : 360) * jumpScale;
+    // Launches (jumps, mushrooms) may go faster than the normal fall/crawl cap
+    const launchBoost = this.hopTimer > 0 ? 1.4 : 1.0;
+    const maxSafeSpeed = (hasStrengthPower ? 640 : 360) * jumpScale * launchBoost;
     for (let i = 0; i < N; i++) {
       const spd = Math.hypot(this.nodes[i].vx, this.nodes[i].vy);
       if (spd > maxSafeSpeed) {

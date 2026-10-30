@@ -138,8 +138,8 @@ export class PhysicsWorld {
     });
   }
 
-  addDecoration(type, x, y, scale = 1, angle = 0) {
-    this.decorations.push({ type, x, y, scale, angle });
+  addDecoration(type, x, y, scale = 1, angle = 0, text = '') {
+    this.decorations.push({ type, x, y, scale, angle, text });
   }
 
   buildPropLocalPolygon(type, r) {

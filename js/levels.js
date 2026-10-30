@@ -16,95 +16,71 @@ export const LEVEL_DEFINITIONS = [
     theme: 'forest',
     bgSet: 'game_background_2',
     name: 'Bourgeons 1 — L’Orée des Pousses (Facile)',
-    subtitle: 'Initiation douce : collines d’herbe, racines basses, premiers pucerons et arche en raccourci !',
+    subtitle: 'Initiation : chaque panneau enseigne un geste avant de le demander.',
     skyTop: '#ffefc2',
     skyBottom: '#b8f59e',
     accentBg: '#2d5a27',
     startX: 160,
-    startY: 500,
-    finishX: 4400,
-    finishY: 460,
-    coachHint: '💡 <strong>Facile — L’Orée des Pousses :</strong> Rampez avec souplesse. Cassez les <strong>Glands 🌰</strong> pour du soin (+20 ❤️) et projetez les <strong>Pucerons 🐛</strong> pour gagner <strong>+1 Segment 🍏</strong> ! Empruntez la racine haute pour survoler le premier fossé.',
+    startY: 520,
+    finishX: 4100,
+    finishY: 520,
+    coachHint: '💡 <strong>Initiation :</strong> suivez les panneaux en bois ! Flèches pour ramper, <strong>Q / D</strong> pour agripper la queue / la tête, <strong>Espace</strong> maintenu puis relâché pour bondir.',
     build(world) {
-      // SECTION 1 : Collines herbeuses douces & Initiation
+      // Each section teaches ONE gesture on safe ground before the next one asks for it.
+
+      // 1. Ramper (flat, nothing to fail)
       world.addPolyline([
-        [-200, 260], [-200, 560], [0, 560], [350, 560], [600, 520], [900, 550],
-        [1150, 500], [1400, 500], [1650, 540]
+        [-200, 260], [-200, 560], [0, 560], [700, 560], [760, 500], [1150, 500], [1520, 510]
       ], 'dirt', { thickness: 36, isGroundMass: true });
+      world.addDecoration('sign', 330, 560, 1, 0, 'Flèches →\npour ramper');
+      world.addDecoration('flower', 520, 560, 1.0);
 
-      // Branche basse d'initiation à l'escalade (épaisseur d'une vraie branche pour une chenille !)
+      // 2. Une marche : s’agripper et se hisser
+      world.addDecoration('sign', 620, 560, 1, 0, 'Marche !\nMaintiens Q puis D\npour te hisser');
+      world.addDecoration('fern', 820, 500, 1.1);
+
+      // 3. Le coup de fouet, sur un puceron seul et du terrain plat
+      world.addDecoration('sign', 960, 500, 1, 0, 'D (tête accrochée)\n+ Espace relâché\n= coup de fouet');
+      world.addAphid(1250, 480, 22, 1150, 1380);
+      world.addProp('acorn', 1450, 480, 1.0);
+
+      world.addCheckpoint(1440, 490, 'Checkpoint 1');
+
+      // 4. Saut chargé au-dessus d’un petit fossé (champignon de secours au fond)
       world.addPolyline([
-        [750, 475], [950, 420], [1150, 420], [1350, 485]
-      ], 'root', { thickness: 52, isGroundMass: false });
-
-      world.addProp('acorn', 450, 520, 1.0);
-      world.addAphid(700, 520, 22, 580, 820);
-      world.addProp('acorn', 1050, 385, 1.0);
-      world.addPowerUp(1050, 310, 'speed');
-
-      world.addDecoration('flower', 250, 560, 1.1);
-      world.addDecoration('fern', 620, 530, 1.2);
-      world.addDecoration('flower', 1250, 500, 1.0);
-
-      // CHECKPOINT 1
-      world.addCheckpoint(1550, 520, 'Checkpoint 1');
-
-      // SECTION 2 : Le Petit Fossé & Arche Racinaire (Raccourci aérien)
-      // Fossé de boue au sol avec champignon tremplin de secours
-      world.addPolyline([
-        [1650, 540], [1780, 630], [2020, 630], [2150, 520], [2750, 520]
+        [1520, 510], [1640, 510], [1680, 640], [1840, 640], [1880, 500], [2050, 500]
       ], 'dirt', { thickness: 36, isGroundMass: true });
+      world.addDecoration('sign', 1585, 510, 1, 0, 'Espace maintenu…\npuis relâché :\nsaut chargé !');
+      world.addMushroom(1760, 605, 40, 400, 0.05);
 
-      // Champignon pour s'éjecter du fossé
-      world.addMushroom(1900, 595, 42, 390, 0.05);
-
-      // Arche haute de grosse branche (raccourci propre pour chenille habile)
+      // 5. Faire le tour d’une branche (au-dessus, au bout, en dessous)
       world.addPolyline([
-        [1680, 485], [1820, 415], [1980, 415], [2120, 475]
-      ], 'root', { thickness: 52, isGroundMass: false });
-
-      // Feuille oscillante douce au-dessus du plateau
-      world.addDynamicPlatform({
-        type: 'leaf',
-        material: 'leaf',
-        pivotX: 2350,
-        pivotY: 440,
-        moveX: 65,
-        moveY: 10,
-        moveSpeed: 0.9,
-        localPoints: [[-110, 0], [-35, -5], [35, -5], [110, 0]],
-        baseAngle: 0,
-        stiffness: 20,
-        damping: 3.0,
-        thickness: 38
-      });
-
-      world.addProp('acorn', 2480, 490, 1.0);
-      world.addAphid(2620, 495, 22, 2520, 2720);
-      world.addDecoration('rock', 1720, 560, 1.0);
-      world.addDecoration('fern', 2680, 520, 1.2);
-
-      // CHECKPOINT 2
-      world.addCheckpoint(2800, 510, 'Checkpoint 2');
-
-      // SECTION 3 : Pont de Lianes Souples & Ligne Droite Finale
-      world.addPolyline([
-        [2750, 520], [3000, 470], [3250, 530], [3600, 530], [3900, 470],
-        [4150, 480], [4800, 480], [4800, 200]
+        [2050, 500], [2800, 500], [2900, 520]
       ], 'dirt', { thickness: 36, isGroundMass: true });
-
-      // Pont de liane & soie épais au-dessus de la dépression
+      world.addDecoration('sign', 2110, 500, 1, 0, 'Fais le tour\nde la branche :\nQ et D alternés');
       world.addPolyline([
-        [3000, 465], [3280, 435], [3580, 465], [3880, 470]
-      ], 'silk', { thickness: 44, isGroundMass: false });
+        [2260, 400], [2420, 380], [2620, 395]
+      ], 'root', { thickness: 46, isGroundMass: false, subtype: 'hanging' });
+      world.addProp('acorn', 2420, 340, 1.0);
+      world.addPowerUp(2700, 430, 'speed');
 
-      world.addMushroom(3420, 495, 40, 360, 0.05);
-      world.addProp('acorn', 3280, 390, 1.0);
-      world.addAphid(3750, 440, 22, 3620, 3860);
-      world.addPowerUp(3280, 315, 'feather');
+      world.addCheckpoint(2740, 480, 'Checkpoint 2');
 
-      world.addDecoration('flower', 4050, 480, 1.2);
-      world.addDecoration('fern', 4280, 480, 1.3);
+      // 6. Pont de soie au-dessus d’un fossé, ligne droite finale
+      world.addPolyline([
+        [2900, 520], [2980, 640], [3420, 640], [3500, 520], [4500, 520], [4500, 200]
+      ], 'dirt', { thickness: 36, isGroundMass: true });
+      world.addDecoration('sign', 2860, 500, 1, 0, 'Pont de soie :\nça colle bien !');
+      world.addPolyline([
+        [2880, 500], [3200, 470], [3520, 500]
+      ], 'silk', { thickness: 36, isGroundMass: false });
+      world.addMushroom(3200, 605, 40, 420, 0.05);
+      world.addPowerUp(3200, 400, 'feather');
+      world.addAphid(3800, 500, 22, 3650, 3950);
+
+      world.addDecoration('flower', 3620, 520, 1.1);
+      world.addDecoration('fern', 3980, 520, 1.3);
+      world.addDecoration('clover_patch', 3700, 520, 1.0);
     }
   },
 
@@ -1051,7 +1027,7 @@ export const LEVEL_DEFINITIONS = [
 
       // Grand toit de feuillage supérieur couvrant toute la haute canopée (Y=-90)
       world.addPolyline([
-        [2520, -85], [3150, -105], [3780, -105], [4450, -85]
+        [2520, -85], [3150, -105], [3780, -105], [4000, -95]
       ], 'root', { thickness: 60, isGroundMass: false });
 
       // Tourniquet de Brindilles géant entre deux branches maîtresses de la canopée
@@ -1229,7 +1205,7 @@ export const LEVEL_DEFINITIONS = [
 
       // Toit du Sanctuaire Creux Final
       world.addPolyline([
-        [3650, 315], [4020, 205], [4560, 205]
+        [3650, 315], [4020, 205], [4240, 205]
       ], 'root', { thickness: 58, isGroundMass: false });
 
       world.addAnt(4120, 390, 26, 3980, 4250);
@@ -1362,7 +1338,7 @@ export const LEVEL_DEFINITIONS = [
 
       // Grand toit protecteur de la Couronne Royale tout en haut (Y=-90)
       world.addPolyline([
-        [3680, 75], [4120, -85], [4750, -85]
+        [3680, 75], [4120, -85], [4380, -85]
       ], 'root', { thickness: 60, isGroundMass: false });
 
       // Ultime Garde Royale devant la Chrysalide Dorée
@@ -1464,6 +1440,8 @@ export class LevelRenderer {
       factorY: 0.04,
       animSpeed: 0,
       alignBottom: false,
+      // Busy painted backdrop: softened so the gameplay layer stays readable
+      soften: 'blur(2.5px) saturate(0.7) brightness(0.72)',
       img: ancientImg,
       loaded: false
     };
@@ -1498,6 +1476,7 @@ export class LevelRenderer {
     canvas.height = drawH;
     const c = canvas.getContext('2d');
     c.imageSmoothingQuality = 'high';
+    if (holder.soften) c.filter = holder.soften;
     c.drawImage(img, 0, 0, drawW, drawH);
     holder.scaled = canvas;
     holder.scaledH = drawH;
@@ -2125,10 +2104,203 @@ export class LevelRenderer {
 
   // Draw Elevated Structures (root, stem, silk, mushroom_cap, reed, honeycomb, moss, straw, can, plastic, fork)
   // Always thick (caterpillar-scale branches: 48..64px), richly textured and visually unmistakable!
+  // Small deterministic PRNG so decorations vary per chain but never flicker
+  seededRandom(seed) {
+    let a = (seed * 2654435761) >>> 0;
+    return () => {
+      a = (a + 0x6D2B79F5) >>> 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // Polyline offset along per-vertex normals that point "up" (toward the light)
+  offsetPolyline(pts, d) {
+    const out = [];
+    for (let i = 0; i < pts.length; i++) {
+      const a = pts[Math.max(0, i - 1)];
+      const b = pts[Math.min(pts.length - 1, i + 1)];
+      const tx = b[0] - a[0];
+      const ty = b[1] - a[1];
+      const len = Math.hypot(tx, ty) || 1;
+      let nx = ty / len;
+      let ny = -tx / len;
+      if (ny > 0 || (Math.abs(ny) < 0.05 && nx > 0)) { nx = -nx; ny = -ny; }
+      out.push([pts[i][0] + nx * d, pts[i][1] + ny * d]);
+    }
+    return out;
+  }
+
+  strokePolyline(ctx, pts) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.stroke();
+  }
+
+  // Bark branch with volume lit from above, longitudinal grain, knots, cut ends,
+  // patchy moss and a soft contact shadow. W is the full drawn width (= collision width).
+  drawBarkBranch(ctx, chain, pts, W, time, isMostlyHorizontal) {
+    const rand = this.seededRandom(chain.id || 1);
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Soft contact shadow cast below
+    ctx.strokeStyle = 'rgba(20, 10, 0, 0.16)';
+    ctx.lineWidth = W * 0.75;
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1] + W * 0.6);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1] + W * 0.6);
+    ctx.stroke();
+
+    // Outline and base wood
+    ctx.strokeStyle = '#2a1608';
+    ctx.lineWidth = W;
+    this.strokePolyline(ctx, pts);
+    ctx.strokeStyle = '#6b3d1a';
+    ctx.lineWidth = W - 7;
+    this.strokePolyline(ctx, pts);
+
+    // Shaded underside and lit top (offset along the normal, so it works on slopes too)
+    ctx.strokeStyle = '#4b2810';
+    ctx.lineWidth = W * 0.4;
+    this.strokePolyline(ctx, this.offsetPolyline(pts, -W * 0.2));
+    ctx.strokeStyle = '#94592a';
+    ctx.lineWidth = W * 0.34;
+    this.strokePolyline(ctx, this.offsetPolyline(pts, W * 0.16));
+    ctx.strokeStyle = 'rgba(232, 170, 104, 0.55)';
+    ctx.lineWidth = 3;
+    this.strokePolyline(ctx, this.offsetPolyline(pts, W * 0.33));
+
+    // Longitudinal bark grain: broken lines following the branch
+    ctx.strokeStyle = 'rgba(42, 20, 6, 0.42)';
+    ctx.lineWidth = 1.6;
+    for (const off of [-0.24, -0.08, 0.06, 0.22]) {
+      const dash = 18 + rand() * 30;
+      ctx.setLineDash([dash, 8 + rand() * 18, dash * 0.4, 6 + rand() * 10]);
+      ctx.lineDashOffset = rand() * 60;
+      this.strokePolyline(ctx, this.offsetPolyline(pts, W * off));
+    }
+    ctx.setLineDash([]);
+
+    // Knots
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x1, y1] = pts[i];
+      const [x2, y2] = pts[i + 1];
+      const len = Math.hypot(x2 - x1, y2 - y1);
+      const ang = Math.atan2(y2 - y1, x2 - x1);
+      const count = Math.floor(len / 170 + rand());
+      for (let k = 0; k < count; k++) {
+        const t = 0.15 + rand() * 0.7;
+        const side = (rand() - 0.5) * W * 0.35;
+        const kx = x1 + (x2 - x1) * t - Math.sin(ang) * side;
+        const ky = y1 + (y2 - y1) * t + Math.cos(ang) * side;
+        const kr = W * (0.1 + rand() * 0.07);
+        ctx.fillStyle = '#3a1f0a';
+        ctx.beginPath();
+        ctx.ellipse(kx, ky, kr * 1.6, kr, ang, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(160, 104, 52, 0.7)';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.ellipse(kx, ky, kr * 2.2, kr * 1.45, ang, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+
+    // Cut ends: show the pale wood rings where a branch stops in mid-air
+    const ends = [[pts[0], pts[1]], [pts[pts.length - 1], pts[pts.length - 2]]];
+    for (const [end, prev] of ends) {
+      const ang = Math.atan2(end[1] - prev[1], end[0] - prev[0]);
+      ctx.save();
+      ctx.translate(end[0], end[1]);
+      ctx.rotate(ang);
+      ctx.fillStyle = '#d6a66a';
+      ctx.strokeStyle = '#2a1608';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.ellipse(W * 0.08, 0, W * 0.2, W * 0.44, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(122, 76, 34, 0.75)';
+      ctx.lineWidth = 1.3;
+      for (const f of [0.68, 0.4]) {
+        ctx.beginPath();
+        ctx.ellipse(W * 0.08, 0, W * 0.2 * f, W * 0.44 * f, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    // Patchy moss on top of horizontal branches (grip cue) + leafy twigs
+    if (isMostlyHorizontal) {
+      const top = this.offsetPolyline(pts, W * 0.42);
+      for (let i = 0; i < top.length - 1; i++) {
+        const [x1, y1] = top[i];
+        const [x2, y2] = top[i + 1];
+        const len = Math.hypot(x2 - x1, y2 - y1);
+        let t = rand() * 0.1;
+        while (t < 1) {
+          const patch = Math.min(1 - t, (40 + rand() * 90) / len);
+          const ax = x1 + (x2 - x1) * t;
+          const ay = y1 + (y2 - y1) * t;
+          const bx = x1 + (x2 - x1) * (t + patch);
+          const by = y1 + (y2 - y1) * (t + patch);
+          ctx.strokeStyle = '#3e8f2a';
+          ctx.lineWidth = 9 + rand() * 4;
+          ctx.beginPath();
+          ctx.moveTo(ax, ay);
+          ctx.lineTo(bx, by);
+          ctx.stroke();
+          ctx.strokeStyle = '#7bd34f';
+          ctx.lineWidth = 4;
+          ctx.beginPath();
+          ctx.moveTo(ax, ay - 2);
+          ctx.lineTo(bx, by - 2);
+          ctx.stroke();
+          t += patch + (30 + rand() * 120) / len;
+        }
+        // Leafy twig now and then
+        if (len > 120 && rand() < 0.7) {
+          const tt = 0.2 + rand() * 0.6;
+          const lx = x1 + (x2 - x1) * tt;
+          const ly = y1 + (y2 - y1) * tt;
+          const sway = Math.sin(time * 2.4 + lx * 0.03) * 0.12;
+          const dir = rand() < 0.5 ? -1 : 1;
+          ctx.save();
+          ctx.translate(lx, ly);
+          ctx.rotate(dir * (0.5 + rand() * 0.4) + sway);
+          ctx.strokeStyle = '#4a2a10';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.quadraticCurveTo(dir * 6, -14, dir * 4, -26);
+          ctx.stroke();
+          for (const [ly2, sz] of [[-14, 0.8], [-26, 1]]) {
+            ctx.fillStyle = rand() < 0.5 ? '#5bc43b' : '#48a92f';
+            ctx.strokeStyle = '#1d4a15';
+            ctx.lineWidth = 1.8;
+            ctx.beginPath();
+            ctx.ellipse(dir * 10 * sz, ly2, 11 * sz, 5 * sz, dir * -0.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+          ctx.restore();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
   drawElevatedStructure(ctx, chain, time) {
     const pts = chain.points;
     if (pts.length < 2) return;
-    const thick = Math.max(48, chain.thickness || 50);
+    // Drawn width (thick + the ~12-14 px outline every material adds) must match the
+    // collision thickness, otherwise caterpillars look sunk into the wood.
+    const thick = Math.max(16, (chain.thickness || 50) - 12);
 
     ctx.save();
     ctx.lineCap = 'round';
@@ -2143,7 +2315,7 @@ export class LevelRenderer {
       if (isMostlyHorizontal && spanX > 160) {
         const midIdx = Math.floor(pts.length / 2);
         const supportPt = pts[midIdx];
-        if (supportPt[1] > 230) {
+        if (supportPt[1] > 230 && chain.subtype !== 'hanging') {
           ctx.fillStyle = '#4a2810';
           ctx.strokeStyle = '#221104';
           ctx.lineWidth = 4.5;
@@ -2177,81 +2349,7 @@ export class LevelRenderer {
         }
       }
 
-      // 1. Thick dark bark outline
-      ctx.strokeStyle = '#1e0e03';
-      ctx.lineWidth = thick + 14;
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-      ctx.stroke();
-
-      // 2. Deep shadow bark underside
-      ctx.strokeStyle = '#4d290e';
-      ctx.lineWidth = thick + 4;
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1] + 3);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1] + 3);
-      ctx.stroke();
-
-      // 3. Rich warm timber core
-      ctx.strokeStyle = '#7c471e';
-      ctx.lineWidth = thick - 2;
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-      ctx.stroke();
-
-      // 4. Lighter wood grain highlight
-      ctx.strokeStyle = '#b5723b';
-      ctx.lineWidth = thick * 0.42;
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1] - thick * 0.14);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1] - thick * 0.14);
-      ctx.stroke();
-
-      // 5. Lush green forest moss ribbon along top of horizontal branches (signals high natural grip!)
-      if (isMostlyHorizontal) {
-        ctx.strokeStyle = '#4cd137';
-        ctx.lineWidth = 9;
-        ctx.beginPath();
-        ctx.moveTo(pts[0][0], pts[0][1] - thick * 0.38);
-        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1] - thick * 0.38);
-        ctx.stroke();
-      }
-
-      // 6. Detailed bark rings, wooden knots & sprouting leaves along the branch!
-      for (let i = 0; i < pts.length - 1; i++) {
-        const p1 = pts[i];
-        const p2 = pts[i + 1];
-        const segLen = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
-        const steps = Math.max(1, Math.floor(segLen / 75));
-        for (let s = 1; s <= steps; s++) {
-          const t = s / (steps + 1);
-          const bx = p1[0] + (p2[0] - p1[0]) * t;
-          const by = p1[1] + (p2[1] - p1[1]) * t;
-          ctx.strokeStyle = '#331806';
-          ctx.lineWidth = 3.2;
-          ctx.beginPath();
-          ctx.arc(bx, by + 3, thick * 0.28, 0.15, Math.PI - 0.15);
-          ctx.stroke();
-
-          // Sprouting twig & leaf on alternating knots
-          if ((s + i) % 2 === 0) {
-            const sway = Math.sin(time * 2.6 + bx * 0.04) * 0.10;
-            ctx.save();
-            ctx.translate(bx, by - thick * 0.46);
-            ctx.rotate(-0.35 + sway);
-            ctx.fillStyle = '#4cd137';
-            ctx.strokeStyle = '#183d16';
-            ctx.lineWidth = 2.2;
-            ctx.beginPath();
-            ctx.ellipse(8, -5, 11, 5.5, -0.25, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-          }
-        }
-      }
+      this.drawBarkBranch(ctx, chain, pts, thick + 14, time, isMostlyHorizontal);
     } else if (chain.material === 'stem') {
       // Thick Juicy Botanical Stalk / Vine (very high grip)
       ctx.strokeStyle = '#143814';
@@ -2300,78 +2398,81 @@ export class LevelRenderer {
         ctx.restore();
       }
     } else if (chain.material === 'silk') {
-      // Thick Braided Forest Liana & Golden Silk Suspension Bridge (maximum grip + springy)
-      const bridgeThick = Math.max(44, thick);
-
-      // Dark forest outline
-      ctx.strokeStyle = '#142e15';
-      ctx.lineWidth = bridgeThick + 12;
+      // Braided silk cord: pale twisted fibres, drawn exactly at collision width
+      const W = thick + 12;
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.12)';
+      ctx.lineWidth = W * 0.7;
       ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+      ctx.moveTo(pts[0][0], pts[0][1] + W * 0.7);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1] + W * 0.7);
       ctx.stroke();
 
-      // Lush moss-vine core
-      ctx.strokeStyle = '#3d8b37';
-      ctx.lineWidth = bridgeThick + 2;
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-      ctx.stroke();
+      ctx.strokeStyle = '#6f6a5c';
+      ctx.lineWidth = W;
+      this.strokePolyline(ctx, pts);
+      ctx.strokeStyle = '#e9e3cf';
+      ctx.lineWidth = W - 6;
+      this.strokePolyline(ctx, pts);
+      ctx.strokeStyle = '#c9c1a6';
+      ctx.lineWidth = W * 0.35;
+      this.strokePolyline(ctx, this.offsetPolyline(pts, -W * 0.18));
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.lineWidth = 3;
+      this.strokePolyline(ctx, this.offsetPolyline(pts, W * 0.26));
 
-      // Inner lighter liana fiber
-      ctx.strokeStyle = '#52b788';
-      ctx.lineWidth = bridgeThick * 0.55;
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1]);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
-      ctx.stroke();
-
-      // Braided golden-silk cross-cord pattern along the vine bridge
-      ctx.strokeStyle = '#e8f8f5';
-      ctx.lineWidth = 9;
-      ctx.setLineDash([18, 16]);
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1] - bridgeThick * 0.18);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1] - bridgeThick * 0.18);
-      ctx.stroke();
-
-      ctx.strokeStyle = '#ffd166';
-      ctx.lineWidth = 7;
-      ctx.lineDashOffset = 17;
-      ctx.beginPath();
-      ctx.moveTo(pts[0][0], pts[0][1] + bridgeThick * 0.18);
-      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1] + bridgeThick * 0.18);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.lineDashOffset = 0;
-
-      // Wooden anchor knots at each vertex + glistening dew droplets underneath
-      for (const p of pts) {
-        ctx.fillStyle = '#6e3b14';
-        ctx.strokeStyle = '#221104';
-        ctx.lineWidth = 3.5;
-        ctx.beginPath();
-        ctx.arc(p[0], p[1], bridgeThick * 0.56, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+      // Twist: diagonal fibre strokes across the cord
+      ctx.strokeStyle = 'rgba(120, 110, 86, 0.55)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [x1, y1] = pts[i];
+        const [x2, y2] = pts[i + 1];
+        const len = Math.hypot(x2 - x1, y2 - y1) || 1;
+        const ux = (x2 - x1) / len;
+        const uy = (y2 - y1) / len;
+        const half = (W - 8) * 0.5;
+        for (let d = 6; d < len - 6; d += 11) {
+          const cx = x1 + ux * d;
+          const cy = y1 + uy * d;
+          ctx.beginPath();
+          ctx.moveTo(cx - uy * half - ux * 5, cy + ux * half - uy * 5);
+          ctx.lineTo(cx + uy * half + ux * 5, cy - ux * half + uy * 5);
+          ctx.stroke();
+        }
       }
 
+      // Knotted anchors at both ends and dew drops hanging underneath
+      for (const p of [pts[0], pts[pts.length - 1]]) {
+        ctx.fillStyle = '#d8cfb4';
+        ctx.strokeStyle = '#6f6a5c';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(p[0], p[1], W * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(p[0], p[1], W * 0.28, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       for (let i = 0; i < pts.length - 1; i++) {
         const p1 = pts[i];
         const p2 = pts[i + 1];
         const segLen = Math.hypot(p2[0] - p1[0], p2[1] - p1[1]);
-        const count = Math.max(1, Math.floor(segLen / 65));
+        const count = Math.max(1, Math.floor(segLen / 90));
         for (let k = 1; k <= count; k++) {
           const t = k / (count + 1);
           const dx = p1[0] + (p2[0] - p1[0]) * t;
-          const dy = p1[1] + (p2[1] - p1[1]) * t + bridgeThick * 0.58;
-          const pulse = 1 + Math.sin(time * 4 + dx * 0.1) * 0.18;
-          ctx.fillStyle = 'rgba(178, 245, 234, 0.92)';
-          ctx.strokeStyle = '#1b4332';
-          ctx.lineWidth = 1.8;
+          const dy = p1[1] + (p2[1] - p1[1]) * t + W * 0.5;
+          const pulse = 1 + Math.sin(time * 3 + dx * 0.1) * 0.15;
+          ctx.strokeStyle = 'rgba(233, 227, 207, 0.8)';
+          ctx.lineWidth = 1.2;
           ctx.beginPath();
-          ctx.arc(dx, dy, 4.8 * pulse, 0, Math.PI * 2);
+          ctx.moveTo(dx, dy - 3);
+          ctx.lineTo(dx, dy + 4);
+          ctx.stroke();
+          ctx.fillStyle = 'rgba(190, 240, 255, 0.9)';
+          ctx.strokeStyle = 'rgba(40, 90, 110, 0.8)';
+          ctx.beginPath();
+          ctx.ellipse(dx, dy + 8, 3.6 * pulse, 4.6 * pulse, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
         }
@@ -3219,6 +3320,35 @@ export class LevelRenderer {
       ctx.beginPath();
       ctx.arc(16, -62, 5.5, 0, Math.PI * 2);
       ctx.fill();
+    } else if (dec.type === 'sign') {
+      // Wooden tutorial sign: post + board with short lines of text
+      const lines = String(dec.text || '').split('\n');
+      ctx.font = 'bold 13px Fredoka, Nunito, sans-serif';
+      const w = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 22;
+      const h = lines.length * 16 + 14;
+      const boardY = -62 - h;
+      ctx.fillStyle = '#5a3416';
+      ctx.strokeStyle = '#2a1608';
+      ctx.lineWidth = 3;
+      ctx.fillRect(-4, boardY + h - 4, 8, 66);
+      ctx.strokeRect(-4, boardY + h - 4, 8, 66);
+      ctx.fillStyle = '#c89255';
+      ctx.beginPath();
+      ctx.roundRect(-w / 2, boardY, w, h, 7);
+      ctx.fill();
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(90, 52, 22, 0.35)';
+      ctx.lineWidth = 1.2;
+      for (let gy = boardY + 6; gy < boardY + h - 3; gy += 7) {
+        ctx.beginPath();
+        ctx.moveTo(-w / 2 + 6, gy);
+        ctx.lineTo(w / 2 - 6, gy + 1);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#2a1608';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      lines.forEach((l, i) => ctx.fillText(l, 0, boardY + 15 + i * 16));
     } else if (dec.type === 'rock') {
       ctx.fillStyle = '#8d99ae';
       ctx.strokeStyle = '#2b2d42';

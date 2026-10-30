@@ -23,6 +23,8 @@ import { UIManager } from './uiManager.js';
 
 // How far below a checkpoint / finish line (in px) the head may be and still validate it
 const CHECKPOINT_BELOW_TOLERANCE = 160;
+// How far above the finish line (in px) the head may be and still finish
+const FINISH_ABOVE_TOLERANCE = 150;
 
 class SlipGripGame {
   constructor() {
@@ -1598,7 +1600,11 @@ class SlipGripGame {
     }
 
     const head = this.caterpillar.head;
-    if (!this.raceFinished && head.x >= this.level.finishX && head.y <= this.level.finishY + CHECKPOINT_BELOW_TOLERANCE) {
+    // The finish line must be crossed at its own height: not from far below, and not
+    // from a branch passing high above it (that used to let players skip whole sections)
+    const atFinishHeight = head.y <= this.level.finishY + CHECKPOINT_BELOW_TOLERANCE &&
+                           head.y >= this.level.finishY - FINISH_ABOVE_TOLERANCE;
+    if (!this.raceFinished && head.x >= this.level.finishX && atFinishHeight) {
       this.triggerVictory();
     }
 
