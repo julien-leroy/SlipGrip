@@ -11,7 +11,8 @@ for f in server.js js/*.js; do node --check "$f"; done
 ```
 
 - Aucune dépendance npm. Chromium et Playwright sont disponibles dans l'environnement cloud. Le jeu s'expose sur `window.slipGripGame` : on peut piloter une partie (`ui.showScreen`, `startSoloMode()`, `network.createRoom()`…) et mesurer (`update(dt)`, `draw()`).
-- **Après toute modif** : `node tools/smoke-test.js`. Le script lance son propre serveur et vérifie la reptation, le fouet, le coût d'une image, le multi à 2, les réglages de room, la reconnexion et le popup d'arrivée.
+- **Après toute modif** : `node tools/smoke-test.js`.
+- Physique de la chenille : `node tools/fuzz-branch.js [parties] [secondes]` (entrées aléatoires autour d'une branche, compte les images où le corps la traverse ; `SEED=n` pour varier). `node tools/species-bench.js` mesure reptation, saut et marche en boucles par espèce. Le script lance son propre serveur et vérifie la reptation, le fouet, le coût d'une image, le multi à 2, les réglages de room, la reconnexion et le popup d'arrivée.
 - Test multijoueur manuel : 2 contextes navigateur ; l'un appelle `network.createRoom(...)`, l'autre `network.joinRoom(code, ...)`, puis l'hôte appelle `network.updateRoomConfig({cupId})` et `network.startCup()`.
 
 ## Pièges connus (à lire avant toute modif)
@@ -24,8 +25,14 @@ for f in server.js js/*.js; do node --check "$f"; done
 - Dégâts des projectiles : c'est la **victime** qui les applique, en rejouant le lancer reçu par `entity_throw`. Ne jamais aussi envoyer de `pvp_action` pour un projectile, sinon les dégâts sont doublés.
 - Reconnexion : le serveur donne un `resumeToken` (stocké dans sessionStorage) et garde la place 30 s (`RECONNECT_GRACE_MS`). Côté serveur, `handleWsMessage` peut renvoyer un autre objet client après une reprise de session.
 - Physique de la chenille : 6 sous-étapes à pas variable (`dt` limité à 1/30 dans `Caterpillar.update`, 0,05 dans `main.loop`). Beaucoup de coefficients sont appliqués par sous-étape sans `dt`. Le monde (`PhysicsWorld.update`) n'a pas de sous-étapes.
+- Espèces : toujours passer par `getSpecies()` (= `CATERPILLAR_CLASSES[bodyType]`). Les champs sont documentés en tête de `CATERPILLAR_CLASSES`. `contractStyle: 'omega'` active `applyOmegaLoop` (géométridé).
+- Anti-traversée : `keepBodyOutsideSegments` en fin de chaque sous-pas, et `updateAnchor` lâche une ventouse plutôt que de recoller le pied à travers une branche. Tout code qui déplace des nœuds doit passer avant `handleWorldCollisions`.
+- Après un saut ou un champignon, `noGripTimer` empêche les ventouses (touches encore tenues) de se raccrocher pendant `JUMP_NO_GRIP_TIME`.
+- Rendu des branches : largeur dessinée = épaisseur de collision (`drawElevatedStructure`, `drawBarkBranch`). Ne pas ajouter de minimum.
 - Progression : ne regarde que X.
-- Arrivée et checkpoints : X dépassé, et la tête au plus 160 px sous le point (`CHECKPOINT_BELOW_TOLERANCE`).
+- Checkpoints : X dépassé, et la tête au plus 160 px sous le point (`CHECKPOINT_BELOW_TOLERANCE`).
+- Arrivée : même règle, et au plus 150 px au-dessus (`FINISH_ABOVE_TOLERANCE`).
+- Décoration `sign` : panneau de tutoriel. `world.addDecoration('sign', x, y, 1, 0, 'ligne1\nligne2')`.
 - Constantes codées en dur dans `main.js` : mort sous `com.y > 1280`, caméra Y bornée à [-680, 480]. Les props sont réinitialisés sous y = 1250 (`physics.js`).
 
 ## Fichiers
@@ -42,7 +49,7 @@ for f in server.js js/*.js; do node --check "$f"; done
 | `js/network.js` | Client WebSocket + bus d'événements `on` / `emit` | `handleMessage`, `send*` |
 | `js/audio.js` | Sons synthétisés (Web Audio), singleton `sound` | |
 | `js/particles.js` | Particules + popups texte | `spawnPopup`, `spawnConfetti` |
-| `tools/smoke-test.js` | Tests de bout en bout headless (Playwright) | |
+| `tools/smoke-test.js`, `tools/fuzz-branch.js`, `tools/species-bench.js` | Tests headless (Playwright) : bout en bout, anti-traversée, mesures par espèce | |
 | `index.html` / `styles.css` | DOM de l'application d'une seule page (ancien modal cosmétique + labo de réglages encore présents) | |
 
 ## Modèle multijoueur actuel

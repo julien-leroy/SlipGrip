@@ -37,6 +37,23 @@ Course-plateforme multijoueur en physique molle (Verlet) : chaque joueur incarne
 - **Anti-spam** : taper Espace rapidement est plus lent que marcher (vérifié : ~16 px/s contre ~28 px/s).
 - **Verrou d'orientation** : tant qu'une ventouse tient, la chenille ne se retourne pas.
 - **Points de vie** : 100 PV ; à 0 PV ou en tombant dans le vide → retour au checkpoint (perte de temps, pas d'élimination).
+- **Le corps ne traverse jamais une branche.** Une ventouse qui se retrouverait de l'autre côté lâche prise.
+
+### 3bis. Espèces
+
+Chaque espèce change réellement la physique. Les valeurs sont dans `CATERPILLAR_CLASSES` et mesurées par `tools/species-bench.js` sur sol plat :
+
+| Espèce | Gabarit | Reptation | Saut chargé (haut. / dist.) | Particularité |
+|---|---|---|---|---|
+| **Classique** | 5 segments, référence | 90 px/s | 78 / 96 px | équilibrée |
+| **Voltigeuse** | fine, légère (×0,6) | **160 px/s** | 71 / 83 px | ventouses de longue portée, gravité ×0,85, plane un peu en tombant ; projetée loin par les coups |
+| **Mastodonte** | grosse et longue, 6 segments, lourde (×1,8) | 46 px/s | **107 / 130 px** | charge lente, encaisse les coups, plus lourde à hisser |
+| **Arpenteuse** (géométridé) | longue et fine, 6 segments | 71 px/s | — | **se plie en boucle Ω** : ses segments ne raccourcissent pas, ses deux ventouses se rejoignent et le dos s'arque (pattes avant 47 px, boucle 101 px de haut). Elle avance par boucles à **~120 px/s** (voir ci-dessous) |
+| **Monarque** | standard | 90 px/s | 77 / 92 px | ne glisse pas sur la mousse ; aussi rapide aux murs et au plafond qu'au sol |
+
+**Marche de l'arpenteuse** : D (tête accrochée), Espace maintenu (la queue remonte sous la boucle), Q (queue accrochée), lâcher D puis Espace. Le corps se déroule loin devant. Avec la queue tenue, relâcher Espace déroule la boucle au lieu de bondir.
+
+L'espèce est verrouillée pendant une coupe multijoueur. En solo, changer d'espèce relance le niveau.
 
 ## 4. Monde, ennemis, objets (vision)
 
@@ -72,10 +89,12 @@ Légende : ✅ fonctionne · ⚠️ partiel / fragile · ❌ cassé ou absent
 | Dégâts PvP par projectile | ⚠️ | Appliqués par la victime, qui rejoue le lancer reçu. Le code mort qui aurait doublé les dégâts a été retiré. Reste fragile : l'objet lancé est retrouvé par proximité, sans identifiant |
 | Coup de fouet | ⚠️ | **Figeait le jeu** au premier fouet (variable inexistante dans le rendu) et durait ~6× trop longtemps : les deux sont corrigés en phase 1. Restent : la queue est téléportée et peut traverser les murs ; pas de protection contre les piquants de hérisson ; dégâts PvP 12–34 |
 | Matériaux de surface | ❌ | Les valeurs de friction ne sont pas utilisées par la physique : terre, soie et miel se comportent pareil. Seule la mousse est un cas spécial, et elle ne glisse pas à plat |
-| Champignons tremplins | ⚠️ | Rebond d'environ 35 à 65 px : petit saut, pas une catapulte |
+| Champignons tremplins | ✅ | Le rebond était réduit à 58 % et étouffé par les ventouses ; c'est désormais un vrai tremplin |
 | Fourmis | ⚠️ | Le minuteur d'armement tourne pendant l'approche, donc pas de fenêtre de contre réelle |
 | Ennemis vaincus → pomme | ⚠️ | Toujours une pomme de **soin** ; les pommes **segment** ne sont que 3 secrets placés à la main |
-| Classes de chenilles | ❌ | Le Mastodonte ne peut pas sauter ; les stats vitesse/allonge des classes ne sont lues nulle part ; la classe peut être changée en pleine course (l'icône « undefined » est corrigée) |
+| Espèces | ✅ | Refondues : chaque caractéristique est lue par la physique (section 3bis), boucle Ω pour l'arpenteuse, silhouette propre à chaque espèce, verrouillées pendant une coupe |
+| Corps qui traverse une branche | ✅ | Corrigé : 0 traversée sur 600 parties aléatoires (`tools/fuzz-branch.js`), contre 16 sur 200 avant |
+| Sauts | ✅ | Ils étaient étouffés : la ventouse se raccrochait au sol tant que Q restait enfoncé, et une vitesse maximale globale égalisait toutes les espèces. Les deux sont corrigés |
 | Draft de bonus | ⚠️ | La même carte peut être prise plusieurs fois et les multiplicateurs se composent (ex. 2× « Petite & Ultra-Rapide » ≈ 2,8× la vitesse de saut) |
 | Cadeau cosmétique du champion | ❌ | Tous les joueurs reçoivent un cadeau aléatoire, pas seulement le champion ; l'ancien modal permet d'équiper des cosmétiques verrouillés |
 | Performance | ✅ | Corrigé en phase 1. Les calques du fond sont pré-redimensionnés une seule fois ; une image complète coûte ~1,5 ms (contre ~20 ms avant) |
@@ -121,23 +140,53 @@ Légende : ✅ fonctionne · ⚠️ partiel / fragile · ❌ cassé ou absent
 
 ---
 
-## 6. Critique de design (au-delà des bugs)
+## 6. Critique du gameplay et du game design
 
-Ces points ne sont pas des erreurs de code mais des choix à trancher :
+### 6.1 Trous dans la raquette des contrôles (constatés dans le code, encore ouverts)
 
-1. **Le rythme est trop lent pour un party-game.** À ~28 px/s de reptation, un niveau de 4 300 à 5 800 px représente 2 à 3 minutes pour un joueur moyen. Pendant ce temps, le compte à rebours de 20 s après le premier arrivé coupe la plupart des joueurs. Viser des courses de 60 à 90 s : niveaux plus courts ou locomotion plus rapide, et compte à rebours proportionnel à la durée de la course.
-2. **Le draft ne rattrape pas vraiment.** Tous les joueurs sauf le premier reçoivent des cartes de même puissance, et ces cartes se cumulent sans limite. Proposition : une carte au plus par type, et une puissance de carte qui dépend de l'écart de points (le dernier reçoit le meilleur choix).
-3. **Les classes punissent au lieu de différencier.** Une classe qui ne saute pas dans un jeu de saut est un piège. Proposition :
-   - un trait passif clair par classe, plus une compétence active unique sur une touche dédiée, avec recharge ;
-   - classe verrouillée pendant la course et validée par le serveur ;
-   - exemples :
-     - Mastodonte : résistance au recul + « Choc » au sol ;
-     - Voltigeuse : charge plus rapide + « Détente » aérienne ;
-     - Arpenteuse : portée d'accroche + « Étirement » ;
-     - Monarque : adhérence sur mousse + « Ventouse » universelle 2 s.
-4. **Le multijoueur a besoin d'un modèle d'autorité simple et explicite.** Proposition : chaque entité appartient à l'hôte par défaut. Un joueur qui la saisit en devient propriétaire jusqu'à ce qu'elle se pose. Tous les événements (dégâts, ramassage, lancer) circulent par identifiant, jamais « au plus proche ». Les dégâts PvP sont appliqués par la victime.
-5. **La difficulté de prise en main est élevée** (2 ventouses + flèches + charge + fouet). C'est cohérent avec la référence *Getting Over It*, mais il faut un niveau tutoriel guidé avant la première coupe.
-6. **Le classement des non-arrivés par position X** est injuste sur les niveaux verticaux. Il faut une progression le long d'un tracé (suite de points de passage) plutôt que la coordonnée X.
+1. **Marcher aux flèches rend les ventouses facultatives.** Sans aucune ventouse, la flèche → fait ramper jusqu'à ~58 px/s par nœud. Sur le plat, Q et D ne servent à rien, alors qu'ils sont l'identité du jeu. Les ventouses ne deviennent utiles que sur les pentes, les murs et les plafonds.
+   - *Proposition* : réduire fortement la reptation libre (un simple tortillement de secours) et récompenser le cycle ventouses + contraction par une vraie foulée. C'est déjà le cas pour l'arpenteuse, qui va 5 fois plus vite en boucles qu'aux flèches.
+   - **C'est la décision de design la plus importante à prendre** : elle change tout le ressenti.
+2. **Les flèches sont absolues à l'écran**, pas relatives au corps. La tête en bas sous une branche, ← reste « gauche de l'écran » et ↑ peut pousser dans la paroi.
+   - *Proposition* : → = « vers la tête », ↑ = « loin de la surface ».
+3. **↓ fait quatre choses différentes** selon l'état :
+   - queue tenue : la tête se plaque ;
+   - tête tenue : la queue descend ;
+   - en l'air : rotation ;
+   - libre : rien.
+4. **Relâcher Espace (après 0,5 s de charge) la tête accrochée déclenche toujours un coup de fouet.** Il est impossible de sauter depuis une prise de tête.
+5. **Adhérence sans ventouse** (lu dans le code, pas encore vérifié en jeu) : le corps colle aux murs et aux plafonds (gravité redirigée vers la surface) même sans tenir Q ou D. Grimper ne demande donc pas les ventouses.
+6. **Aucun retour visuel** quand un saut échoue faute d'appui, ni sur la pénalité anti-spam, ni sur le seuil des 0,5 s de charge.
+7. **Deux systèmes de saut se superposent** :
+   - détente immédiate au relâchement d'Espace ;
+   - « élan » si l'on lâche une ventouse dans les 0,3 s qui suivent.
+
+   Le second donne les plus grands sauts mais il est invisible pour le joueur.
+
+### 6.2 Game design
+
+1. **Le rythme est trop lent pour un party-game.**
+   - Un niveau de 4 300 à 5 800 px représente 1 à 3 minutes.
+   - Le compte à rebours de 20 s après le premier arrivé coupe la plupart des joueurs.
+   - *Proposition* : viser des courses de 60 à 90 s, avec un compte à rebours proportionnel à la durée de la course. Le nouveau niveau 1 fait 4 100 px.
+2. **Le draft ne rattrape pas vraiment.** Tous les joueurs sauf le premier reçoivent des cartes de même puissance, et une même carte se cumule sans limite.
+   - *Proposition* : une carte au plus par type, et une puissance qui dépend de l'écart de points.
+3. **Les espèces** sont maintenant différenciées par leur physique (3bis). On pourrait aller plus loin avec une compétence active par espèce, sur une touche dédiée avec recharge. Par exemple :
+   - le Mastodonte : un « Choc » au sol ;
+   - la Voltigeuse : une détente aérienne.
+4. **Le multijoueur a besoin d'un modèle d'autorité simple** :
+   - chaque entité appartient à l'hôte, puis à celui qui la saisit ;
+   - les événements circulent par identifiant ;
+   - les dégâts PvP sont appliqués par la victime.
+5. **Le classement des non-arrivés par position X** est injuste sur les niveaux verticaux. Il faut une progression le long d'un tracé.
+6. **Niveaux 2 à 9 : même squelette**, avec un sol à strates, une cuvette, un champignon et un pont. La difficulté monte surtout en ajoutant des épines.
+   - Chaque niveau devrait introduire **une** idée, enseignée sans danger avant d'être exigée, comme dans le nouveau niveau 1 avec ses panneaux.
+   - Mécaniques jamais enseignées : épines (niveau 4), miettes collantes (niveau 8), tourniquets et cascades de sève (niveau 10).
+7. **Le décor manque de profondeur.**
+   - Pas de premier plan devant la chenille.
+   - Le sol est une masse de strates identiques.
+   - Les décorations sont espacées mécaniquement.
+   - *Prochaines étapes* : un calque de premier plan, une palette par niveau plutôt que 4 thèmes, et du sol pré-rendu en cache.
 
 ## 7. Feuille de route proposée
 
@@ -163,12 +212,14 @@ Ces points ne sont pas des erreurs de code mais des choix à trancher :
 
 **Phase 3 — Design** :
 
+- ~~refonte des espèces~~ (fait) ;
+- ~~niveau tutoriel~~ (fait : niveau 1) ;
+- reptation libre réduite et contrôles relatifs au corps (6.1, à trancher) ;
 - rythme des courses ;
-- refonte des classes (section 6.3) ;
 - draft de rattrapage (6.2) ;
 - matériaux réellement différenciés (friction utilisée par la physique) ;
 - progression le long d'un tracé ;
-- niveau tutoriel.
+- une idée nouvelle par niveau pour les niveaux 2 à 9.
 
 **Phase 4 — Contenu et finition** :
 
