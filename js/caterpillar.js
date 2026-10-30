@@ -325,6 +325,7 @@ export class Caterpillar {
   createEmptyAnchor(x, y) {
     return {
       holdingKey: false,
+      noGripTimer: 0,
       anchored: false,
       slipping: false,
       propRef: null,
@@ -1538,13 +1539,12 @@ export class Caterpillar {
       this.contraction = 0;
 
       // Project the tail straight in the aimed direction:
-      const targetSegLen = this.extendedSegLen * 1.15;
       const whipSpeed = (1850 + 950 * whipPower) * mStats.speedMult * strengthMult;
 
+      // Velocities only: the tail used to be teleported onto the aim line, which put it
+      // straight through any branch the head was gripping. The straightening pass in
+      // stepPhysics pulls it into line within a few substeps, under collision checks.
       for (let i = 0; i < N - 1; i++) {
-        const dist = (N - 1 - i) * targetSegLen;
-        this.nodes[i].x = this.head.x + whipAimX * dist;
-        this.nodes[i].y = this.head.y + whipAimY * dist;
         const nodeWeight = Math.pow((N - 1 - i) / (N - 1), 0.72);
         this.nodes[i].vx = whipAimX * whipSpeed * nodeWeight;
         this.nodes[i].vy = whipAimY * whipSpeed * nodeWeight;
@@ -3735,11 +3735,132 @@ export class Caterpillar {
       }
     }
 
+    this.keepBodyOutsideSegments(world, particles);
+
     // Sticky Crumbs
     for (const c of world.stickyCrumbs) {
       this.checkStickyTrap(this.rearAnchor, this.rear, false, c, particles);
       this.checkStickyTrap(this.frontAnchor, this.head, true, c, particles);
     }
+  }
+
+  // Final safety net of each substep: no body edge may cross a world segment.
+  // Nodes are collided one by one, so a node shoved past the midline of a thick
+  // branch (by constraints, anchors or segment locks) used to pop out on the far
+  // side, leaving the body threaded through the branch. Here the offending node is
+  // put back on the same side as its neighbour.
+  keepBodyOutsideSegments(world, particles) {
+    const N = this.nodes.length;
+    // A foot only counts as fixed when the node is still near its grip point
+    // (a stale anchor far from its node must not freeze the correction)
+    const isPinnedAt = (anchor, node) => anchor.anchored && !this.isHoldingMovable(anchor) &&
+      Math.hypot(node.x - anchor.x, node.y - anchor.y) < node.r * 4;
+    const rearPinned = isPinnedAt(this.rearAnchor, this.rear);
+    const frontPinned = isPinnedAt(this.frontAnchor, this.head);
+
+    // Corrections propagate away from gripped feet: of the two nodes of a crossing
+    // edge, move the one further (along the body) from a fixed foot.
+    const pinnedIdx = [];
+    if (rearPinned) pinnedIdx.push(0);
+    if (frontPinned) pinnedIdx.push(N - 1);
+    const chainDist = (idx) => pinnedIdx.length ? Math.min(...pinnedIdx.map((p) => Math.abs(p - idx))) : Infinity;
+
+    for (let pass = 0; pass < N; pass++) {
+      let corrected = false;
+      for (let i = 0; i < N - 1; i++) {
+        const a = this.nodes[i];
+        const b = this.nodes[i + 1];
+        const reach = Math.hypot(b.x - a.x, b.y - a.y) * 0.5 + 40;
+        const segs = world.getAllSegmentsNear((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, reach);
+        for (const seg of segs) {
+          const cross = this.edgeCrossesSegment(a, b, seg, segs);
+          if (!cross) continue;
+
+          const aPinned = i === 0 && rearPinned;
+          const bPinned = i + 1 === N - 1 && frontPinned;
+          let mover;
+          if (aPinned && bPinned) {
+            // Both feet gripped on opposite faces of the same branch: impossible pose,
+            // the tail lets go.
+            this.releaseAnchor(this.rearAnchor, false, particles);
+            mover = a;
+          } else if (aPinned) {
+            mover = b;
+          } else if (bPinned) {
+            mover = a;
+          } else if (chainDist(i) !== chainDist(i + 1)) {
+            mover = chainDist(i) > chainDist(i + 1) ? a : b;
+          } else {
+            // Prefer the node that changed side during this substep
+            const crossedA = a.stepStartX !== undefined && Math.sign(this.signedSegDist(seg, a.stepStartX, a.stepStartY)) !== Math.sign(cross.da);
+            const crossedB = b.stepStartX !== undefined && Math.sign(this.signedSegDist(seg, b.stepStartX, b.stepStartY)) !== Math.sign(cross.db);
+            if (crossedA !== crossedB) mover = crossedA ? a : b;
+            else mover = Math.abs(cross.da) < Math.abs(cross.db) ? a : b;
+          }
+          // Solid ground only has one valid side: its outward face
+          const side = (seg.isGroundMass && !seg.isDynamic) ? 1 : Math.sign(mover === a ? cross.db : cross.da) || 1;
+
+          const cp = world.closestPointOnSegment(mover.x, mover.y, seg);
+          const nx = cp.surfNx * side;
+          const ny = cp.surfNy * side;
+          const clearance = (seg.thickness || 20) * 0.5 + mover.r + 1;
+          mover.x = cp.cx + nx * clearance;
+          mover.y = cp.cy + ny * clearance;
+          const vn = mover.vx * nx + mover.vy * ny;
+          if (vn < 0) {
+            mover.vx -= nx * vn;
+            mover.vy -= ny * vn;
+          }
+          corrected = true;
+        }
+      }
+      if (!corrected) return;
+    }
+
+    // Still threaded after every pass: the feet hold the body in an impossible pose
+    // (typically gripped on opposite faces of a branch). The tail lets go.
+    if (this.rearAnchor.anchored) {
+      for (let i = 0; i < N - 1; i++) {
+        const a = this.nodes[i];
+        const b = this.nodes[i + 1];
+        const segs = world.getAllSegmentsNear((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, Math.hypot(b.x - a.x, b.y - a.y) * 0.5 + 40);
+        if (segs.some((seg) => this.edgeCrossesSegment(a, b, seg, segs))) {
+          this.releaseAnchor(this.rearAnchor, false, particles);
+          // Give the body a moment to slide back before the held key re-grips
+          this.rearAnchor.noGripTimer = 0.25;
+          return;
+        }
+      }
+    }
+  }
+
+  signedSegDist(seg, px, py) {
+    const dx = seg.x2 - seg.x1;
+    const dy = seg.y2 - seg.y1;
+    const len = Math.hypot(dx, dy) || 1;
+    return ((px - seg.x1) * dy - (py - seg.y1) * dx) / len;
+  }
+
+  // Returns the signed distances of a and b when edge a-b crosses the segment's
+  // centerline, ignoring crossings at a free tip (wrapping around a branch end is legal).
+  edgeCrossesSegment(a, b, seg, neighbours) {
+    const da = this.signedSegDist(seg, a.x, a.y);
+    const db = this.signedSegDist(seg, b.x, b.y);
+    if (da === 0 || db === 0 || Math.sign(da) === Math.sign(db)) return null;
+    const t = da / (da - db);
+    const ix = a.x + (b.x - a.x) * t;
+    const iy = a.y + (b.y - a.y) * t;
+    const sdx = seg.x2 - seg.x1;
+    const sdy = seg.y2 - seg.y1;
+    const len = Math.hypot(sdx, sdy) || 1;
+    const along = ((ix - seg.x1) * sdx + (iy - seg.y1) * sdy) / len;
+    if (along < 0 || along > len) return null;
+    const tipMargin = Math.min((seg.thickness || 20) * 0.5, Math.max(a.r, b.r));
+    const isFreeEnd = (x, y) => !neighbours.some((o) => o !== seg &&
+      ((Math.abs(o.x1 - x) < 1 && Math.abs(o.y1 - y) < 1) || (Math.abs(o.x2 - x) < 1 && Math.abs(o.y2 - y) < 1)));
+    if (along < tipMargin && isFreeEnd(seg.x1, seg.y1)) return null;
+    if (along > len - tipMargin && isFreeEnd(seg.x2, seg.y2)) return null;
+    return { da, db };
   }
 
   checkStickyTrap(anchor, node, isFront, crumb, particles) {
@@ -4087,10 +4208,24 @@ export class Caterpillar {
         anchor.slipping = false;
       }
 
+      // The foot is snapped back onto its grip point every substep. If the body was
+      // dragged to the other side of a branch meanwhile, that snap would teleport it
+      // through the wood: let go instead.
+      if (Math.hypot(anchor.x - node.x, anchor.y - node.y) > node.r &&
+          world.checkSegmentIntersection(node.x, node.y, anchor.x, anchor.y)) {
+        this.releaseAnchor(anchor, isFront, particles);
+        return;
+      }
+
       node.x = anchor.x;
       node.y = anchor.y;
       node.vx = 0;
       node.vy = 0;
+      return;
+    }
+
+    if (anchor.noGripTimer > 0) {
+      anchor.noGripTimer -= dt;
       return;
     }
 
