@@ -4,6 +4,7 @@
 export const CATERPILLAR_CLASSES = {
   classique: {
     id: 'classique',
+    icon: '🐛',
     name: 'Chenille Classique',
     subtitle: 'L’Équilibrée',
     desc: 'Squelette anatomique 5 segments, maniement naturel de la tête, reptation souple.',
@@ -26,6 +27,7 @@ export const CATERPILLAR_CLASSES = {
   },
   arpenteuse: {
     id: 'arpenteuse',
+    icon: '📏',
     name: 'Arpenteuse Géante',
     subtitle: 'La Longue Portée',
     desc: 'Corps long et élancé à 6 segments, allonge extrême pour franchir de grands gouffres.',
@@ -48,6 +50,7 @@ export const CATERPILLAR_CLASSES = {
   },
   dodue: {
     id: 'dodue',
+    icon: '🍡',
     name: 'Mastodonte (Sumo)',
     subtitle: 'L’Ancre Inébranlable',
     desc: 'Colosse sumo géant (scale x1.6) et ultra-lourd, ancre rocheuse indestructible.',
@@ -70,6 +73,7 @@ export const CATERPILLAR_CLASSES = {
   },
   voltigeuse: {
     id: 'voltigeuse',
+    icon: '🪽',
     name: 'Voltigeuse Aérienne',
     subtitle: 'L’Acrobate Vif',
     desc: 'Chenille nerveuse et aérodynamique conçue pour l’orientation et la détente rapide.',
@@ -92,6 +96,7 @@ export const CATERPILLAR_CLASSES = {
   },
   monarque: {
     id: 'monarque',
+    icon: '🦋',
     name: 'Chenille Monarque',
     subtitle: 'La Grimpeuse Zébrée',
     desc: 'Superbes rayures d’alerte, ventouses à très haute adhérence.',
@@ -342,6 +347,11 @@ export const GAMEPLAY_CONFIG = {
   activePreset: 'arcade_dynamique'
 };
 
+// Pristine defaults, captured before any localStorage override is applied
+const DEFAULT_GAMEPLAY_CONFIG = JSON.parse(JSON.stringify(GAMEPLAY_CONFIG));
+// Purely visual keys that stay under the player's control in multiplayer
+const PERSONAL_DISPLAY_KEYS = ['backgroundMode', 'showBadgesOverlay'];
+
 const STORAGE_KEY = 'slipgrip_gameplay_config_v72';
 const USER_DEFAULT_KEY = 'slipgrip_user_default_config_v72';
 
@@ -361,6 +371,7 @@ export function loadSavedGameplayConfig() {
 }
 
 export function saveGameplayConfig() {
+  if (soloConfigSnapshot) return; // Room settings are temporary, never persist them
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(GAMEPLAY_CONFIG));
   } catch (err) {
@@ -377,6 +388,33 @@ export function saveAsDefaultGameplayConfig() {
     console.warn('Impossible de sauvegarder par défaut:', err);
     return false;
   }
+}
+
+let soloConfigSnapshot = null;
+
+// Multiplayer races must run on identical physics for everyone: start from the
+// defaults (ignoring each player's tuning-lab tweaks) and apply the room settings.
+// The player's own config is kept aside and restored by restoreSoloGameplayConfig().
+export function applyRoomGameplayConfig(roomSettings = {}) {
+  if (!soloConfigSnapshot) {
+    soloConfigSnapshot = JSON.parse(JSON.stringify(GAMEPLAY_CONFIG));
+  }
+  const personal = {};
+  for (const key of PERSONAL_DISPLAY_KEYS) personal[key] = GAMEPLAY_CONFIG[key];
+  Object.assign(GAMEPLAY_CONFIG, JSON.parse(JSON.stringify(DEFAULT_GAMEPLAY_CONFIG)), personal);
+  for (const key of ['jumpBoost', 'gravity', 'gripDistance']) {
+    if (typeof roomSettings[key] === 'number') GAMEPLAY_CONFIG[key] = roomSettings[key];
+  }
+}
+
+export function restoreSoloGameplayConfig() {
+  if (!soloConfigSnapshot) return;
+  Object.assign(GAMEPLAY_CONFIG, soloConfigSnapshot);
+  soloConfigSnapshot = null;
+}
+
+export function isUsingRoomGameplayConfig() {
+  return soloConfigSnapshot !== null;
 }
 
 export function applyPreset(presetKey) {

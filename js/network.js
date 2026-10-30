@@ -37,6 +37,23 @@ export class NetworkManager {
     return clean;
   }
 
+  // Per-tab token letting the server hand our room slot back after a network drop
+  loadResumeToken() {
+    try {
+      return sessionStorage.getItem('slipgrip_resume_token') || null;
+    } catch {
+      return null;
+    }
+  }
+
+  saveResumeToken(token) {
+    try {
+      if (token) sessionStorage.setItem('slipgrip_resume_token', token);
+    } catch {
+      // Ignore
+    }
+  }
+
   on(event, callback) {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, []);
@@ -82,7 +99,8 @@ export class NetworkManager {
       }
       this.send('hello', {
         pseudo: this.pseudo,
-        cosmetics: initialCosmetics
+        cosmetics: initialCosmetics,
+        resumeToken: this.loadResumeToken()
       });
       this.emit('connected', {});
     });
@@ -129,6 +147,15 @@ export class NetworkManager {
     switch (msg.type) {
       case 'welcome':
         this.playerId = msg.playerId;
+        this.saveResumeToken(msg.resumeToken);
+        if (msg.resumed && msg.room) {
+          this.currentRoom = msg.room;
+          this.emit('room_state', msg.room);
+        } else if (this.currentRoom) {
+          // We were in a room but the server no longer holds our slot
+          this.currentRoom = null;
+          this.emit('room_lost', {});
+        }
         if (msg.serverIp) this.serverIp = msg.serverIp;
         if (msg.serverPort) this.serverPort = msg.serverPort;
         if (Array.isArray(msg.rooms)) {

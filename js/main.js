@@ -1,10 +1,10 @@
 // js/main.js — Main Game Loop, Hold-to-Grip Input Controller, Multiplayer Sync, Checkpoints, Camera & HUD Manager
 
-import { PhysicsWorld } from './physics.js?v=106';
-import { Caterpillar } from './caterpillar.js?v=106';
-import { ParticleSystem } from './particles.js?v=106';
-import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js?v=106';
-import { sound } from './audio.js?v=106';
+import { PhysicsWorld } from './physics.js';
+import { Caterpillar } from './caterpillar.js';
+import { ParticleSystem } from './particles.js';
+import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js';
+import { sound } from './audio.js';
 import {
   GAMEPLAY_CONFIG,
   GAMEPLAY_PRESETS,
@@ -12,10 +12,16 @@ import {
   saveGameplayConfig,
   resetGameplayConfig,
   saveAsDefaultGameplayConfig,
+  applyRoomGameplayConfig,
+  restoreSoloGameplayConfig,
+  isUsingRoomGameplayConfig,
   GRIP_STYLES
-} from './gameplayConfig.js?v=106';
-import { NetworkManager } from './network.js?v=106';
-import { UIManager } from './uiManager.js?v=106';
+} from './gameplayConfig.js';
+import { NetworkManager } from './network.js';
+import { UIManager } from './uiManager.js';
+
+// How far below a checkpoint / finish line (in px) the head may be and still validate it
+const CHECKPOINT_BELOW_TOLERANCE = 160;
 
 class SlipGripGame {
   constructor() {
@@ -119,21 +125,6 @@ class SlipGripGame {
       });
     };
 
-    // 3. When a thrown projectile (acorn, pinecone, aphid, hedgehog) hits a caterpillar in PhysicsWorld
-    this.world.onPvpProjectileHit = (targetCat, dmg, kx, ky, proj) => {
-      if (targetCat === this.caterpillar) {
-        this.caterpillar.takeDamage(dmg, kx, ky, this.particles, sound);
-      } else if (this.isMultiplayer && targetCat.isRemote && targetCat.playerId && proj.thrownBy === (this.network.playerId || 'local')) {
-        this.network.sendPvpAction({
-          targetId: targetCat.playerId,
-          damage: dmg,
-          vx: kx,
-          vy: ky,
-          actionType: 'projectile'
-        });
-      }
-    };
-
     // 4. Listen for incoming network gameplay events
     this.network.on('welcome', (msg) => {
       this.caterpillar.playerId = (msg && msg.playerId) ? msg.playerId : msg;
@@ -167,17 +158,18 @@ class SlipGripGame {
 
     this.network.on('player_crossed_finish', (msg) => {
       if (!this.isMultiplayer) return;
+      const rank = msg.finishOrder;
       this.remoteFinishState.set(msg.playerId, {
         finished: true,
-        finishTime: msg.raceTime || msg.finishTime,
-        rank: msg.rank
+        finishTime: msg.finishTime,
+        rank
       });
       if (msg.playerId !== this.network.playerId) {
         sound.playCheckpoint();
         this.particles.spawnPopup(
           this.caterpillar.head.x,
           this.caterpillar.head.y - 45,
-          `🏁 ${msg.pseudo} termine ${msg.rank === 1 ? '1er' : msg.rank + 'e'} !`,
+          `🏁 ${msg.pseudo} termine ${rank === 1 ? '1er' : rank + 'e'} !`,
           '#ffd93b'
         );
       }
@@ -450,6 +442,8 @@ class SlipGripGame {
 
   startSoloMode() {
     this.isMultiplayer = false;
+    restoreSoloGameplayConfig();
+    this.world.gravity = GAMEPLAY_CONFIG.gravity;
     this.isInActiveCup = false;
     this.remoteCaterpillars.clear();
     this.remoteFinishState.clear();
@@ -479,12 +473,8 @@ class SlipGripGame {
 
     // Apply Room Admin settings
     const s = msg.config || msg.settings || (msg.room && msg.room.config) || {};
-    if (typeof s.jumpBoost === 'number') GAMEPLAY_CONFIG.jumpBoost = s.jumpBoost;
-    if (typeof s.gravity === 'number') {
-      GAMEPLAY_CONFIG.gravity = s.gravity;
-      this.world.gravity = s.gravity;
-    }
-    if (typeof s.gripDistance === 'number') GAMEPLAY_CONFIG.gripDistance = s.gripDistance;
+    applyRoomGameplayConfig(s);
+    this.world.gravity = GAMEPLAY_CONFIG.gravity;
     this.world.pvpDamageMult = typeof s.pvpDamageMult === 'number' ? s.pvpDamageMult : 1.0;
 
     const startScale = typeof s.startScale === 'number' ? s.startScale : 1.0;
@@ -713,6 +703,10 @@ class SlipGripGame {
 
   toggleTuningModal() {
     if (!this.elTuningModal) return;
+    if (isUsingRoomGameplayConfig() && this.elTuningModal.classList.contains('hidden')) {
+      this.particles.spawnPopup(this.caterpillar.head.x, this.caterpillar.head.y - 30, 'RÉGLAGES VERROUILLÉS EN MULTIJOUEUR 🔒', '#ff7675');
+      return;
+    }
     const isHidden = this.elTuningModal.classList.contains('hidden');
     if (isHidden) {
       this.syncTuningUI();
@@ -1200,12 +1194,19 @@ class SlipGripGame {
       if (!cp.activated) {
         const distHead = Math.hypot(head.x - cp.x, head.y - cp.y);
         const distRear = Math.hypot(rear.x - cp.x, rear.y - cp.y);
-        if (distHead < 85 || distRear < 85 || head.x >= cp.x) {
+        // Passing a checkpoint horizontally only counts when not far below it, so
+        // vertical levels can't be skipped by running underneath a high checkpoint
+        // and then dying to respawn on top. Upper alternate routes still count.
+        const passedAbove = head.x >= cp.x && head.y <= cp.y + CHECKPOINT_BELOW_TOLERANCE;
+        if (distHead < 85 || distRear < 85 || passedAbove) {
           cp.activated = true;
-          this.lastCheckpoint = {
-            x: cp.x - 60,
-            y: cp.y - 28
-          };
+          // Several checkpoints can trigger on the same frame: keep the furthest one
+          if (cp.x - 60 >= this.lastCheckpoint.x) {
+            this.lastCheckpoint = {
+              x: cp.x - 60,
+              y: cp.y - 28
+            };
+          }
           sound.playCheckpoint();
           this.particles.spawnConfetti(cp.x, cp.y - 70, 20);
           this.particles.spawnPopup(cp.x, cp.y - 105, `${cp.label} VALIDÉ !`, '#38d84e');
@@ -1561,7 +1562,8 @@ class SlipGripGame {
       return;
     }
 
-    if (!this.raceFinished && this.caterpillar.head.x >= this.level.finishX) {
+    const head = this.caterpillar.head;
+    if (!this.raceFinished && head.x >= this.level.finishX && head.y <= this.level.finishY + CHECKPOINT_BELOW_TOLERANCE) {
       this.triggerVictory();
     }
 

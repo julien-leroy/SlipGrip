@@ -1410,7 +1410,7 @@ export class LevelRenderer {
 
   // Initialize and preload the multi-layered parallax background packs from assets
   initParallaxPacks() {
-    const basePath = 'assets/parallax%20backgrounds/';
+    const basePath = 'assets/backgrounds/';
     // Curated high-performance layers: keeps visual beauty and depth while cutting GPU fillrate by 60%!
     const packDefs = {
       game_background_1: [
@@ -1488,19 +1488,56 @@ export class LevelRenderer {
     }
   }
 
+  // Returns the image pre-scaled to the given height. Scaling 1920x1080 sources on every
+  // frame was the main rendering cost (~30 ms/frame); now it happens once per resize.
+  getScaledImage(holder, img, drawH) {
+    if (holder.scaled && holder.scaledH === drawH && holder.scaledSrc === img) return holder.scaled;
+    const drawW = Math.round(drawH * (img.naturalWidth / img.naturalHeight));
+    const canvas = document.createElement('canvas');
+    canvas.width = drawW;
+    canvas.height = drawH;
+    const c = canvas.getContext('2d');
+    c.imageSmoothingQuality = 'high';
+    c.drawImage(img, 0, 0, drawW, drawH);
+    holder.scaled = canvas;
+    holder.scaledH = drawH;
+    holder.scaledSrc = img;
+    return canvas;
+  }
+
+  // Free the pre-scaled bitmaps of every background set except the active one
+  releaseScaledBackgrounds(keepBgSet) {
+    if (this.activeBgSet === keepBgSet) return;
+    this.activeBgSet = keepBgSet;
+    const holders = [];
+    for (const [name, layers] of Object.entries(this.parallaxPacks || {})) {
+      if (name !== keepBgSet) holders.push(...layers);
+    }
+    for (const [name, comp] of Object.entries(this.parallaxComposites || {})) {
+      if (name !== keepBgSet) holders.push(comp);
+    }
+    for (const h of holders) h.scaled = null;
+  }
+
+  // Blit a pre-scaled image tiled horizontally, only the tiles that cover the screen
+  drawTiledRow(ctx, scaled, width, scrollX, drawY) {
+    const drawW = scaled.width;
+    let startX = -Math.floor(((scrollX % drawW) + drawW) % drawW);
+    for (let x = startX; x < width; x += drawW) {
+      ctx.drawImage(scaled, x, drawY);
+    }
+  }
+
   // Draw an individual parallax image layer with horizontal wrapping and camera offsets
   drawParallaxLayer(ctx, layer, width, height, cameraX, cameraY, time) {
     if (!layer.loaded || !layer.img || layer.img.naturalWidth === 0) return false;
+    if (height <= 0) return false;
 
-    const img = layer.img;
-    const aspect = img.naturalWidth / img.naturalHeight;
-    const drawH = height;
-    const drawW = Math.round(drawH * aspect);
-
-    if (drawW <= 0 || drawH <= 0) return false;
+    const scaled = this.getScaledImage(layer, layer.img, Math.round(height));
+    const drawH = scaled.height;
 
     const animX = (layer.animSpeed || 0) * (time || 0);
-    const scrollX = (cameraX * (layer.factorX || 0) + animX) % drawW;
+    const scrollX = cameraX * (layer.factorX || 0) + animX;
 
     let drawY = 0;
     if (layer.alignBottom) {
@@ -1511,14 +1548,7 @@ export class LevelRenderer {
       drawY = Math.round(-camOffsetY + (layer.offsetY || 0));
     }
 
-    let startX = -scrollX;
-    while (startX > 0) startX -= drawW;
-    while (startX + drawW < 0) startX += drawW;
-
-    for (let x = startX; x < width + drawW; x += drawW - 1) {
-      ctx.drawImage(img, Math.floor(x), drawY, drawW + 1, drawH);
-    }
-
+    this.drawTiledRow(ctx, scaled, width, scrollX, drawY);
     return true;
   }
 
@@ -1528,20 +1558,14 @@ export class LevelRenderer {
     const bgSet = level.bgSet || 'game_background_2';
     const bgMode = (typeof GAMEPLAY_CONFIG !== 'undefined' && GAMEPLAY_CONFIG.backgroundMode) ? GAMEPLAY_CONFIG.backgroundMode : 'parallax';
 
-    // ECO MODE: 1 single drawImage call with gentle parallax, saving 90% GPU fillrate!
+    this.releaseScaledBackgrounds(bgSet);
+
+    // ECO MODE: a single pre-composited image with gentle parallax
     if (bgMode === 'eco') {
       const comp = this.parallaxComposites ? this.parallaxComposites[bgSet] : null;
-      if (comp && comp.loaded && comp.img && comp.img.naturalWidth > 0) {
-        const aspect = comp.img.naturalWidth / comp.img.naturalHeight;
-        const drawH = height;
-        const drawW = Math.round(drawH * aspect);
-        const scrollX = (cameraX * 0.12) % drawW;
-        let startX = -scrollX;
-        while (startX > 0) startX -= drawW;
-        while (startX + drawW < 0) startX += drawW;
-        for (let x = startX; x < width + drawW; x += drawW - 1) {
-          ctx.drawImage(comp.img, Math.floor(x), 0, drawW + 1, drawH);
-        }
+      if (comp && comp.loaded && comp.img && comp.img.naturalWidth > 0 && height > 0) {
+        const scaled = this.getScaledImage(comp, comp.img, Math.round(height));
+        this.drawTiledRow(ctx, scaled, width, cameraX * 0.12, 0);
         return;
       }
     }
@@ -3649,7 +3673,7 @@ export class LevelRenderer {
 
     const appleImg = isSegment
       ? this.getSprite('collectibles/golden_apple.png')
-      : (this.getSprite('collectibles/red_apple.png') || null);
+      : null; // Heal apples are drawn procedurally (no red_apple sprite exists)
     if (appleImg) {
       const size = r * 2.5;
       ctx.drawImage(appleImg, -size * 0.5, -size * 0.55, size, size);

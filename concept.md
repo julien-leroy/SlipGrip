@@ -64,31 +64,35 @@ Légende : ✅ fonctionne · ⚠️ partiel / fragile · ❌ cassé ou absent
 | Salons, code à 4 chiffres, liste publique | ✅ | Pas de vérification des données reçues côté serveur |
 | Anti-spam Espace | ✅ | Spammer est plus lent que marcher |
 | Mise en veille du moteur hors course | ✅ | Boucle arrêtée sur l'accueil |
-| Réglages de room de l'hôte (saut, accroche) | ❌ | Jamais appliqués à la chenille (copie de module en double, voir 5.2-1) |
-| Labo de réglages (T) | ❌ | Les curseurs ne modifient pas la chenille en direct (même cause) |
-| Bouton muet | ⚠️ | Ne coupe qu'un des deux moteurs audio (même cause) |
-| Reconnexion réseau | ❌ | Une micro-coupure exclut silencieusement le joueur de la room |
+| Réglages de room de l'hôte (saut, accroche) | ✅ | Corrigé en phase 1. En multi, tout le monde joue avec la même physique (défauts + réglages de room) ; la config perso est restaurée en solo |
+| Labo de réglages (T) | ✅ | Corrigé en phase 1. Effet immédiat en solo, verrouillé en multijoueur |
+| Bouton muet | ✅ | Corrigé en phase 1 (un seul moteur audio) |
+| Reconnexion réseau | ✅ | Corrigé en phase 1. La place est gardée 30 s et le joueur reprend avec le même identifiant ; au-delà, il est renvoyé à l'accueil avec un message |
 | Ennemis / objets en multijoueur | ❌ | Un ennemi tué par un non-hôte est ressuscité par l'hôte ; les pommes peuvent être ramassées par tous ; les plateformes ne sont pas réellement synchronisées |
-| Dégâts PvP par projectile | ❌ | L'envoi réseau n'est jamais déclenché (mauvais argument passé au callback) |
-| Coup de fouet | ⚠️ | Fonctionne mais dure ~6× trop longtemps (bug de minuteur) ; la queue est téléportée et peut traverser les murs ; ne protège pas des piquants de hérisson ; dégâts PvP 12–34, pas « hachoir » |
+| Dégâts PvP par projectile | ⚠️ | Appliqués par la victime, qui rejoue le lancer reçu. Le code mort qui aurait doublé les dégâts a été retiré. Reste fragile : l'objet lancé est retrouvé par proximité, sans identifiant |
+| Coup de fouet | ⚠️ | **Figeait le jeu** au premier fouet (variable inexistante dans le rendu) et durait ~6× trop longtemps : les deux sont corrigés en phase 1. Restent : la queue est téléportée et peut traverser les murs ; pas de protection contre les piquants de hérisson ; dégâts PvP 12–34 |
 | Matériaux de surface | ❌ | Les valeurs de friction ne sont pas utilisées par la physique : terre, soie et miel se comportent pareil. Seule la mousse est un cas spécial, et elle ne glisse pas à plat |
 | Champignons tremplins | ⚠️ | Rebond d'environ 35 à 65 px : petit saut, pas une catapulte |
 | Fourmis | ⚠️ | Le minuteur d'armement tourne pendant l'approche, donc pas de fenêtre de contre réelle |
 | Ennemis vaincus → pomme | ⚠️ | Toujours une pomme de **soin** ; les pommes **segment** ne sont que 3 secrets placés à la main |
-| Classes de chenilles | ❌ | Le Mastodonte ne peut pas sauter ; les stats vitesse/allonge des classes ne sont lues nulle part ; l'icône de classe affiche « undefined » dans le salon ; la classe peut être changée en pleine course |
+| Classes de chenilles | ❌ | Le Mastodonte ne peut pas sauter ; les stats vitesse/allonge des classes ne sont lues nulle part ; la classe peut être changée en pleine course (l'icône « undefined » est corrigée) |
 | Draft de bonus | ⚠️ | La même carte peut être prise plusieurs fois et les multiplicateurs se composent (ex. 2× « Petite & Ultra-Rapide » ≈ 2,8× la vitesse de saut) |
 | Cadeau cosmétique du champion | ❌ | Tous les joueurs reçoivent un cadeau aléatoire, pas seulement le champion ; l'ancien modal permet d'équiper des cosmétiques verrouillés |
-| Performance | ❌ | Le fond parallaxe coûte ~30 ms par image (redimensionnement de 10 à 14 images 1920×1080 à chaque frame), contre < 1 ms pour le monde et la chenille |
+| Performance | ✅ | Corrigé en phase 1. Les calques du fond sont pré-redimensionnés une seule fois ; une image complète coûte ~1,5 ms (contre ~20 ms avant) |
 | Mobile / tactile | ❌ | Seules les ventouses Q/D sont cliquables ; jeu jouable au clavier uniquement |
 | Rendu procédural | ✅ | Le jeu dessine tout en Canvas ; les sprites ne servent qu'aux bonus et aux pommes |
 
 ### 5.2 Bugs prioritaires (par gravité)
 
+> **Phase 1 appliquée** (branche `claude/audit-concept`). Points corrigés : 1, 2, 4 (nettoyage + modèle victime), 5, 6 (checkpoints : on ne valide plus un checkpoint en passant loin en dessous ; le plus avancé est conservé), 7.
+> Corrigés en plus : le gel du jeu au premier coup de fouet, et le lien `red_apple.png` manquant.
+> Vérification : `node tools/smoke-test.js`.
+
 1. **Modules chargés en double.** `main.js` et `uiManager.js` importent avec `?v=106`, `caterpillar.js` et `physics.js` avec `?v=73`. Le navigateur charge alors deux instances distinctes de `gameplayConfig.js`, `physics.js` et `audio.js`. Conséquences : réglages de room ignorés, labo T inopérant, deux moteurs audio. Le serveur envoie déjà `Cache-Control: no-store`, donc ces suffixes ne servent à rien et doivent disparaître.
 2. **Reconnexion** : à la reconnexion le serveur attribue un nouvel identifiant et a déjà retiré l'ancien de la room, alors que le client se croit toujours en partie.
 3. **Autorité multijoueur des entités** : chaque client simule son propre monde. L'hôte écrase PV et position des ennemis, mais n'apprend jamais les dégâts infligés par les autres joueurs. Les objets lancés sont retrouvés « au plus proche » au lieu d'un identifiant.
 4. **Projectiles PvP** : `physics.js` passe `proj.kind` (une chaîne) là où `main.js` attend l'objet projectile, donc `sendPvpAction` n'est jamais appelé.
-5. **Coup de fouet** : `whipCrackTimer` est décrémenté du pas de sous-étape une seule fois par frame, ce qui fait durer le fouet ~6× trop longtemps.
+5. ~~**Coup de fouet**~~ (corrigé) : `whipCrackTimer` est décrémenté du pas de sous-étape une seule fois par frame, ce qui fait durer le fouet ~6× trop longtemps.
 6. **Arrivée et checkpoints basés sur X seulement** : un checkpoint s'active dès que la tête dépasse sa position horizontale, quelle que soit la hauteur. Sur les niveaux 10 et 12, marcher sur le « toit » permet probablement d'atteindre l'arrivée sans faire le parcours (à confirmer en jeu). La barre de progression stagne pendant les montées.
 7. **Popup d'arrivée d'un rival** : affiche « termine undefinede » (le serveur envoie `finishOrder`, le client lit `rank`).
 8. **Physique dépendante du framerate** : nombreux coefficients appliqués « par sous-étape » sans tenir compte de `dt` ; le monde n'a pas de sous-étapes, donc les objets rapides traversent les branches fines.
@@ -106,14 +110,14 @@ Légende : ✅ fonctionne · ⚠️ partiel / fragile · ❌ cassé ou absent
 - « Synchronisation des ennemis frappés et des dégâts PvP » : voir 5.2-3 et 5.2-4.
 - « Interpolation côté client » : c'est un lissage vers la dernière position reçue, sans tampon d'interpolation.
 - « Architecture vanilla ultra-performante » : le code est léger, mais le rendu du fond est le goulot d'étranglement principal.
-- `GEMINI.md` décrit un format de niveaux déclaratif (`extractDeclarativeMap` / `buildFromDeclarative`) qui n'existe pas, 3 coupes au lieu de 4, et des numéros de ligne périmés. Ce fichier est remplacé par `CLAUDE.md`.
+- `GEMINI.md` décrit un format de niveaux déclaratif (`extractDeclarativeMap` / `buildFromDeclarative`) qui n'existe pas, 3 coupes au lieu de 4, et des numéros de ligne périmés. Ce fichier a été supprimé et remplacé par `CLAUDE.md`.
 
 ### 5.4 Dette technique (constat chiffré)
 
 - `caterpillar.js` : 5 600 lignes, dont `stepPhysics` = 1 400 lignes. Environ la moitié est constituée de cas particuliers empilés (une douzaine de drapeaux comme `launchedFromHead`, `isTailDetente`, `isSteeredTowardTail`… qui expriment des variantes de la même chose) et de forces qui se contredisent.
 - `levels.js` : 4 500 lignes ; le moteur de rendu (3 100 lignes) est mélangé aux données des niveaux.
 - `physics.js` : logique pucerons / hérissons / fourmis copiée-collée à ~85 %.
-- **Assets** : ~41 Mo dans le dépôt, dont ~36 Mo jamais chargés (`assets/Raw`, `assets/sprites/hires`, la plupart des sprites `game/`, `maquettes/`, textures en double, `.DS_Store`). `collectibles/red_apple.png` est référencé mais absent.
+- **Assets** : le dépôt contenait ~41 Mo d'images dont ~36 Mo jamais chargées. Le nettoyage de la phase 1 n'a gardé que les 28 fichiers réellement utilisés (4,8 Mo, dans `assets/backgrounds` et `assets/sprites/game`). Les sources restent dans l'historique git de `main`.
 
 ---
 

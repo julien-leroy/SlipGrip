@@ -1,7 +1,7 @@
 # SlipGrip — carte du code
 
 Jeu de course multijoueur en physique molle (chenilles Verlet). Vision et état réel : `concept.md` (la section 5 liste les bugs connus).
-`GEMINI.md` est périmé et partiellement faux : ne pas s'y fier.
+Branche de travail : jamais directement sur `main`.
 
 ## Lancer & vérifier
 
@@ -11,14 +11,21 @@ for f in server.js js/*.js; do node --check "$f"; done
 ```
 
 - Aucune dépendance npm. Chromium et Playwright sont disponibles dans l'environnement cloud. Le jeu s'expose sur `window.slipGripGame` : on peut piloter une partie (`ui.showScreen`, `startSoloMode()`, `network.createRoom()`…) et mesurer (`update(dt)`, `draw()`).
-- Test multijoueur : 2 contextes navigateur ; l'un appelle `network.createRoom(...)`, l'autre `network.joinRoom(code, ...)`, puis l'hôte appelle `network.updateRoomConfig({cupId})` et `network.startCup()`.
+- **Après toute modif** : `node tools/smoke-test.js`. Le script lance son propre serveur et vérifie la reptation, le fouet, le coût d'une image, le multi à 2, les réglages de room, la reconnexion et le popup d'arrivée.
+- Test multijoueur manuel : 2 contextes navigateur ; l'un appelle `network.createRoom(...)`, l'autre `network.joinRoom(code, ...)`, puis l'hôte appelle `network.updateRoomConfig({cupId})` et `network.startCup()`.
 
 ## Pièges connus (à lire avant toute modif)
 
-- **Imports** : tous les imports d'un même fichier doivent utiliser **exactement la même URL**. `./x.js?v=73` et `./x.js?v=106` créent deux instances de module distinctes, donc un `GAMEPLAY_CONFIG` en double et deux moteurs audio. Les en-têtes `no-store` du serveur rendent les `?v=` inutiles.
-- `GAMEPLAY_CONFIG` est un objet mutable partagé, persisté en localStorage. `startMultiplayerRace` y écrit les réglages de room sans les restaurer ensuite en solo.
+- **Imports** : ne jamais ajouter de suffixe `?v=` aux imports. `./x.js?v=1` et `./x.js?v=2` créent deux instances de module distinctes, donc un `GAMEPLAY_CONFIG` en double et deux moteurs audio. Le serveur envoie déjà `no-store`.
+- `GAMEPLAY_CONFIG` est un objet mutable partagé, persisté en localStorage.
+  - En multi, `applyRoomGameplayConfig` repart des défauts, applique les réglages de room et met la config perso de côté.
+  - `restoreSoloGameplayConfig` remet la config perso de côté en place (dans `startSoloMode`).
+  - `saveGameplayConfig` ne sauvegarde rien tant qu'une config de room est active.
+- Dégâts des projectiles : c'est la **victime** qui les applique, en rejouant le lancer reçu par `entity_throw`. Ne jamais aussi envoyer de `pvp_action` pour un projectile, sinon les dégâts sont doublés.
+- Reconnexion : le serveur donne un `resumeToken` (stocké dans sessionStorage) et garde la place 30 s (`RECONNECT_GRACE_MS`). Côté serveur, `handleWsMessage` peut renvoyer un autre objet client après une reprise de session.
 - Physique de la chenille : 6 sous-étapes à pas variable (`dt` limité à 1/30 dans `Caterpillar.update`, 0,05 dans `main.loop`). Beaucoup de coefficients sont appliqués par sous-étape sans `dt`. Le monde (`PhysicsWorld.update`) n'a pas de sous-étapes.
-- La progression, l'arrivée (`head.x >= finishX`) et les checkpoints ne regardent que X.
+- Progression : ne regarde que X.
+- Arrivée et checkpoints : X dépassé, et la tête au plus 160 px sous le point (`CHECKPOINT_BELOW_TOLERANCE`).
 - Constantes codées en dur dans `main.js` : mort sous `com.y > 1280`, caméra Y bornée à [-680, 480]. Les props sont réinitialisés sous y = 1250 (`physics.js`).
 
 ## Fichiers
@@ -29,12 +36,13 @@ for f in server.js js/*.js; do node --check "$f"; done
 | `js/main.js` | Classe `SlipGripGame` : boucle, entrées clavier, caméra, HUD, checkpoints, sync multijoueur | `update`, `draw`, `loop`, `loadLevel`, `startSoloMode`, `startMultiplayerRace`, `serializeWorldState` / `applyRemoteWorldSync` (sync des entités par l'hôte, 12 Hz), `applyRemoteEntityThrow`, `bindMultiplayerWorldCallbacks`, `checkCheckpoints`, `triggerVictory`, `pauseGameLoop` / `resumeGameLoop` |
 | `js/caterpillar.js` | Chenille : physique Verlet, ventouses, saut, fouet, lancers, rendu, sérialisation réseau | `update` (entrées, charge, sous-étapes), `onReleaseSpace` (saut / détente / fouet), `stepPhysics` (~1 400 lignes), `handleWorldCollisions`, `updateAnchor`, `releaseAnchor` (lancers), `checkWhipMeleeCollisions`, `takeDamage`, `applyBodyClass` / `getModifierStats`, `draw` + `draw*`, `serializeState` / `applyRemoteState` / `updateRemote` |
 | `js/physics.js` | `MATERIALS`, `PhysicsWorld` : segments statiques, plateformes dynamiques, champignons, ennemis (puceron / hérisson / fourmi), props, pommes, bonus, eau, sève, projectiles | `addPolyline`, `addDynamicPlatform`, `addAphid` / `addHedgehog` / `addAnt`, `addProp`, `update`, `damageEnemy`, `findClosestSurface`, `getAllSegmentsNear` (scan linéaire) |
-| `js/levels.js` | `LEVEL_DEFINITIONS` (12 niveaux, fonctions `build(world)` impératives) + `LevelRenderer` | `drawBackground` / `initParallaxPacks` / `drawParallaxLayer` (goulot de perf), `drawWorld`, dessins d'ennemis et de structures |
+| `js/levels.js` | `LEVEL_DEFINITIONS` (12 niveaux, fonctions `build(world)` impératives) + `LevelRenderer` | `drawBackground` / `initParallaxPacks` / `drawParallaxLayer` (calques pré-redimensionnés via `getScaledImage`, cache libéré par `releaseScaledBackgrounds`), `drawWorld`, dessins d'ennemis et de structures |
 | `js/gameplayConfig.js` | `CATERPILLAR_CLASSES`, `BODY_SHAPES`, `GAMEPLAY_CONFIG` / `GAMEPLAY_PRESETS`, `RACE_MODIFIERS`, `CUPS_DEFINITIONS`, `COSMETICS_CATALOG` + déblocage (localStorage) | |
 | `js/uiManager.js` | Écrans (home / lobbies / room / game), atelier, salon, HUD de course multi, draft, podium | `showScreen`, `bindUIEvents`, handlers `network.on(...)` dans le constructeur, `escapeHtml` |
 | `js/network.js` | Client WebSocket + bus d'événements `on` / `emit` | `handleMessage`, `send*` |
 | `js/audio.js` | Sons synthétisés (Web Audio), singleton `sound` | |
 | `js/particles.js` | Particules + popups texte | `spawnPopup`, `spawnConfetti` |
+| `tools/smoke-test.js` | Tests de bout en bout headless (Playwright) | |
 | `index.html` / `styles.css` | DOM de l'application d'une seule page (ancien modal cosmétique + labo de réglages encore présents) | |
 
 ## Modèle multijoueur actuel
@@ -47,5 +55,8 @@ for f in server.js js/*.js; do node --check "$f"; done
 
 ## Assets
 
-- Utilisés : `assets/parallax backgrounds/game_background_*/layers/*.png`, `ancient_forest_1920x1080.jpg`, quelques sprites `assets/sprites/game/powerups` et `collectibles`.
-- Le reste (`assets/Raw`, `assets/sprites/hires`, `maquettes/`, la plupart de `sprites/game`) n'est jamais chargé.
+- Seuls les fichiers réellement chargés sont conservés :
+  - `assets/backgrounds/` : calques de fond par pack, composites du mode éco, `ancient_forest_1920x1080.jpg` ;
+  - `assets/sprites/game/` : 4 icônes de bonus et la pomme dorée.
+- Tout le reste du rendu (terrain, ennemis, chenilles, décor) est procédural, en Canvas.
+- Les anciennes sources (sprites, maquettes) sont dans l'historique git de `main`.

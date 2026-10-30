@@ -1,5 +1,5 @@
-import { GAMEPLAY_CONFIG } from './gameplayConfig.js?v=73';
-import { sound } from './audio.js?v=73';
+import { GAMEPLAY_CONFIG } from './gameplayConfig.js';
+import { sound } from './audio.js';
 
 export const MATERIALS = {
   dirt:         { friction: 0.90, gripSlide: 0.0,  restitution: 0.05, name: 'Terre meuble' },
@@ -39,7 +39,6 @@ export class PhysicsWorld {
     this.decorations = [];
     this.caterpillars = [];
     this.pvpDamageMult = 1.0;
-    this.onPvpProjectileHit = null;
     this.nextSegId = 1;
   }
 
@@ -1501,9 +1500,10 @@ export class PhysicsWorld {
                   const attackerTag = e.thrownByPseudo ? ` par ${e.thrownByPseudo}` : '';
                   particles.spawnPopup(cat.head.x, cat.head.y - 48, `💥 TOUCHÉ${attackerTag} ! -${dmg} ❤️`, '#ff4757');
                 }
-              } else if (this.onPvpProjectileHit && e.thrownBy) {
-                this.onPvpProjectileHit(cat, dmg, knockX, knockY, proj.kind);
               }
+              // Remote targets: nothing to do here. Each client re-simulates thrown
+              // entities (entity_throw) and applies hits to its own caterpillar only,
+              // so damage is victim-authoritative and never applied twice.
 
               // Rebound projectile
               e.vx *= -0.35;

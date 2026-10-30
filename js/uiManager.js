@@ -10,10 +10,10 @@ import {
   isCosmeticUnlocked,
   unlockRandomCosmeticGift,
   getUnlockedCosmeticsCount
-} from './gameplayConfig.js?v=106';
-import { COSMETIC_PALETTES, Caterpillar } from './caterpillar.js?v=106';
-import { LEVEL_DEFINITIONS } from './levels.js?v=106';
-import { sound } from './audio.js?v=106';
+} from './gameplayConfig.js';
+import { COSMETIC_PALETTES, Caterpillar } from './caterpillar.js';
+import { LEVEL_DEFINITIONS } from './levels.js';
+import { sound } from './audio.js';
 
 export class UIManager {
   constructor(game, network) {
@@ -726,6 +726,18 @@ export class UIManager {
         this.renderOpenLobbies(msg.rooms);
       }
       this.showScreen('home');
+    });
+
+    this.network.on('room_lost', () => {
+      document.getElementById('modal-race-results')?.classList.add('hidden');
+      document.getElementById('modal-cup-podium')?.classList.add('hidden');
+      document.getElementById('mp-race-hud')?.classList.add('hidden');
+      this.closeCupPickerModal();
+      this.game.caterpillar.resetProgression();
+      this.game.isInActiveCup = false;
+      this.game.isMultiplayer = false;
+      this.showScreen('home');
+      alert('Connexion perdue trop longtemps : vous avez quitté la room.');
     });
 
     this.network.on('room_error', (msg) => {

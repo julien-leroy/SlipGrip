@@ -1,7 +1,7 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js?v=73';
-import { sound } from './audio.js?v=73';
-import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES, BODY_SHAPES, RACE_MODIFIERS, GRIP_STYLES } from './gameplayConfig.js?v=73';
+import { MATERIALS } from './physics.js';
+import { sound } from './audio.js';
+import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES, BODY_SHAPES, RACE_MODIFIERS, GRIP_STYLES } from './gameplayConfig.js';
 
 export const COSMETIC_PALETTES = {
   emerald: {
@@ -3222,7 +3222,8 @@ export class Caterpillar {
     if (this.whipCrackTimer > 0) {
       this.checkWhipMeleeCollisions(world, particles);
     }
-    if (isFirstSubstep && this.whipCrackTimer > 0) {
+    // dt is the substep duration here, so the timer must tick on every substep
+    if (this.whipCrackTimer > 0) {
       this.whipCrackTimer = Math.max(0, this.whipCrackTimer - dt);
     }
 
@@ -4340,6 +4341,28 @@ export class Caterpillar {
       ctx.globalAlpha = 0.35;
     }
 
+    // Dynamic whip slash trail during whip crack attack (world space, drawn behind the body)
+    if (this.whipCrackTimer > 0) {
+      const alpha = Math.min(1.0, this.whipCrackTimer / 0.25);
+      ctx.save();
+      ctx.strokeStyle = `rgba(255, 234, 167, ${0.85 * alpha})`;
+      ctx.lineWidth = 14 * alpha;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(this.head.x, this.head.y);
+      for (let i = this.nodes.length - 2; i >= 0; i--) {
+        ctx.lineTo(this.nodes[i].x, this.nodes[i].y);
+      }
+      ctx.stroke();
+
+      ctx.strokeStyle = `rgba(253, 203, 110, ${0.95 * alpha})`;
+      ctx.lineWidth = 6 * alpha;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+
     // 1. DENSE SMOOTH SPINE SPLINE (24 samples along 5-node skeleton)
     const numSamples = 24;
     const centerPoints = [];
@@ -5429,27 +5452,6 @@ export class Caterpillar {
       ctx.arc(wobble * 1.4, -17, 5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
-    }
-
-    // Dynamic whip slash trail during whip crack attack:
-    if (this.whipCrackTimer > 0) {
-      const alpha = Math.min(1.0, this.whipCrackTimer / 0.25);
-      ctx.save();
-      ctx.strokeStyle = `rgba(255, 234, 167, ${0.85 * alpha})`;
-      ctx.lineWidth = 14 * alpha;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.beginPath();
-      ctx.moveTo(this.head.x, this.head.y);
-      for (let i = N - 2; i >= 0; i--) {
-        ctx.lineTo(this.nodes[i].x, this.nodes[i].y);
-      }
-      ctx.stroke();
-
-      ctx.strokeStyle = `rgba(253, 203, 110, ${0.95 * alpha})`;
-      ctx.lineWidth = 6 * alpha;
-      ctx.stroke();
-      ctx.restore();
     }
 
     ctx.restore();

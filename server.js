@@ -159,7 +159,8 @@ function serializeRoom(room) {
       draftOptions: p.draftOptions || [],
       lastRank: p.lastRank || null,
       finishTime: p.finishTime || null,
-      progress: p.progress || 0
+      progress: p.progress || 0,
+      connected: p.connected !== false
     });
   }
   return {
@@ -531,15 +532,52 @@ function removeClientFromRoom(client) {
   broadcastLobbyList();
 }
 
+// How long a disconnected player keeps their room slot, waiting for a reconnect
+const RECONNECT_GRACE_MS = 30000;
+
+function findResumableClient(token) {
+  for (const c of clients.values()) {
+    if (c.resumeToken === token && c.dropTimer) return c;
+  }
+  return null;
+}
+
+// Returns a client record when the socket must from now on be bound to another
+// (already known) client, i.e. after a successful session resume.
 function handleWsMessage(client, msg) {
   if (!msg || typeof msg.type !== 'string') return;
 
   switch (msg.type) {
     case 'hello': {
+      // Session resume after a network drop: hand the new socket over to the
+      // previous client record so the player keeps its id and its room slot.
+      const previous = typeof msg.resumeToken === 'string' ? findResumableClient(msg.resumeToken) : null;
+      if (previous && previous !== client) {
+        clearTimeout(previous.dropTimer);
+        previous.dropTimer = null;
+        previous.socket = client.socket;
+        clients.delete(client.id);
+        const room = previous.roomCode ? rooms.get(previous.roomCode) : null;
+        const p = room && room.players.get(previous.id);
+        if (p) p.connected = true;
+        sendWs(previous, 'welcome', {
+          playerId: previous.id,
+          resumeToken: previous.resumeToken,
+          resumed: !!p,
+          room: p ? serializeRoom(room) : null,
+          serverIp: getLocalIpAddress(),
+          serverPort: PORT,
+          rooms: getPublicRoomList()
+        });
+        if (p) broadcastRoom(room, 'room_state', { room: serializeRoom(room) }, previous.id);
+        return previous;
+      }
       if (msg.pseudo) client.pseudo = String(msg.pseudo).slice(0, 18);
       if (msg.cosmetics) client.cosmetics = msg.cosmetics;
       sendWs(client, 'welcome', {
         playerId: client.id,
+        resumeToken: client.resumeToken,
+        resumed: false,
         serverIp: getLocalIpAddress(),
         serverPort: PORT,
         rooms: getPublicRoomList()
@@ -984,8 +1022,10 @@ server.on('upgrade', (req, socket, head) => {
   socket.write(responseHeaders.join('\r\n'));
 
   const clientId = 'p_' + crypto.randomBytes(5).toString('hex');
-  const client = {
+  let client = {
     id: clientId,
+    resumeToken: crypto.randomBytes(16).toString('hex'),
+    dropTimer: null,
     socket,
     pseudo: 'Chenille',
     cosmetics: {
@@ -1053,7 +1093,8 @@ server.on('upgrade', (req, socket, head) => {
         try {
           const str = payload.toString('utf8');
           const parsed = JSON.parse(str);
-          handleWsMessage(client, parsed);
+          const rebound = handleWsMessage(client, parsed);
+          if (rebound) client = rebound;
         } catch (err) {
           // Ignore malformed JSON
         }
@@ -1061,15 +1102,26 @@ server.on('upgrade', (req, socket, head) => {
     }
   });
 
-  socket.on('close', () => {
-    removeClientFromRoom(client);
-    clients.delete(clientId);
-  });
-
-  socket.on('error', () => {
-    removeClientFromRoom(client);
-    clients.delete(clientId);
-  });
+  const onSocketGone = () => {
+    // Ignore the old socket of a client that already resumed on a new one
+    if (client.socket !== socket || client.dropTimer) return;
+    const room = client.roomCode ? rooms.get(client.roomCode) : null;
+    if (!room) {
+      clients.delete(client.id);
+      return;
+    }
+    const p = room.players.get(client.id);
+    if (p) p.connected = false;
+    broadcastRoom(room, 'room_state', { room: serializeRoom(room) }, client.id);
+    const dropped = client;
+    dropped.dropTimer = setTimeout(() => {
+      dropped.dropTimer = null;
+      removeClientFromRoom(dropped);
+      clients.delete(dropped.id);
+    }, RECONNECT_GRACE_MS);
+  };
+  socket.on('close', onSocketGone);
+  socket.on('error', onSocketGone);
 });
 
 server.listen(PORT, '0.0.0.0', () => {
