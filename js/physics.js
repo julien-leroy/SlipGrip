@@ -1,22 +1,26 @@
 import { GAMEPLAY_CONFIG } from './gameplayConfig.js';
 import { sound } from './audio.js';
 
+// Only three physical behaviours exist. Every surface of every level uses one of them;
+// how it LOOKS (bark, stem, wax, stone…) is a separate, purely visual 'look' option.
+//   normal   → standard grip, crawl and jump
+//   slippery → suction feet slide down slopes, no resting friction (always drawn wet & glossy)
+//   sticky   → the body clings to walls/ceilings, crawling is slowed (always drawn with honey drips)
 export const MATERIALS = {
-  dirt:         { friction: 0.90, gripSlide: 0.0,  restitution: 0.05, name: 'Terre meuble' },
-  root:         { friction: 0.85, gripSlide: 0.0,  restitution: 0.08, name: 'Racine & Branche' },
-  moss:         { friction: 0.08, gripSlide: 0.85, restitution: 0.05, name: 'Mousse glissante' },
-  stem:         { friction: 0.96, gripSlide: 0.0,  restitution: 0.06, name: 'Tige de tomate' },
-  leaf:         { friction: 0.82, gripSlide: 0.0,  restitution: 0.12, name: 'Feuille de chou' },
-  hose:         { friction: 0.45, gripSlide: 0.35, restitution: 0.15, name: 'Tuyau instable' },
-  can:          { friction: 0.30, gripSlide: 0.40, restitution: 0.18, name: 'Canette métallique' },
-  plastic:      { friction: 0.65, gripSlide: 0.10, restitution: 0.22, name: 'Plastique froissé' },
-  fork:         { friction: 0.55, gripSlide: 0.15, restitution: 0.12, name: 'Fourchette' },
-  silk:         { friction: 0.98, gripSlide: 0.0,  restitution: 0.14, name: 'Fil de soie' },
-  mushroom_cap: { friction: 0.88, gripSlide: 0.0,  restitution: 0.16, name: 'Chapeau de champignon' },
-  reed:         { friction: 0.92, gripSlide: 0.0,  restitution: 0.08, name: 'Tige de roseau' },
-  honeycomb:    { friction: 0.94, gripSlide: 0.0,  restitution: 0.06, name: 'Rayon de cire' },
-  straw:        { friction: 0.78, gripSlide: 0.05, restitution: 0.12, name: 'Paille géante' }
+  normal:   { kind: 'normal',   friction: 0.90, restitution: 0.06, name: 'Sol normal' },
+  slippery: { kind: 'slippery', friction: 0.08, restitution: 0.05, name: 'Sol glissant' },
+  sticky:   { kind: 'sticky',   friction: 1.00, restitution: 0.00, name: 'Sol collant' }
 };
+// Legacy material names (entity grips, dynamic platforms) map onto the three behaviours
+for (const legacy of ['dirt', 'root', 'stem', 'leaf', 'silk', 'reed', 'mushroom_cap', 'straw', 'plastic', 'fork', 'hose', 'can']) {
+  MATERIALS[legacy] = MATERIALS.normal;
+}
+MATERIALS.moss = MATERIALS.slippery;
+MATERIALS.honeycomb = MATERIALS.sticky;
+
+export function surfaceKind(material) {
+  return (MATERIALS[material] || MATERIALS.normal).kind;
+}
 
 export class PhysicsWorld {
   constructor() {
@@ -202,6 +206,7 @@ export class PhysicsWorld {
   addPolyline(points, material = 'dirt', options = {}) {
     const thickness = options.thickness || 20;
     const isGroundMass = options.isGroundMass !== undefined ? options.isGroundMass : (material === 'dirt' || material === 'moss');
+    const look = options.look || null;
 
     this.terrainChains.push({
       id: this.nextSegId++,
@@ -209,6 +214,7 @@ export class PhysicsWorld {
       material,
       thickness,
       isGroundMass,
+      look,
       subtype: options.subtype || material
     });
 
@@ -1269,7 +1275,7 @@ export class PhysicsWorld {
 
           const isRestingGentle =
             slopeGrade <= 0.30 &&
-            seg.material !== 'moss' &&
+            surfaceKind(seg.material) !== 'slippery' &&
             Math.abs(p.vx) < 22 &&
             Math.abs(p.angVel * p.radius) < 22;
 
@@ -1298,7 +1304,7 @@ export class PhysicsWorld {
               const rollVel = p.angVel * p.radius * (cp.tx >= 0 ? 1 : -1);
               const rollDamp = p.type === 'pinecone' ? 5.0 : 3.0;
               let newVt = (vt * 0.55 + rollVel * 0.45) * Math.max(0, 1 - rollDamp * dt);
-              if (slopeGrade <= 0.30 && seg.material !== 'moss' && Math.abs(newVt) < 14) {
+              if (slopeGrade <= 0.30 && surfaceKind(seg.material) !== 'slippery' && Math.abs(newVt) < 14) {
                 newVt = 0;
               }
               p.vx = cp.nx * newVn + cp.tx * newVt;

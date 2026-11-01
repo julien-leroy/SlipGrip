@@ -3,7 +3,7 @@
 import { PhysicsWorld } from './physics.js';
 import { Caterpillar } from './caterpillar.js';
 import { ParticleSystem } from './particles.js';
-import { LEVEL_DEFINITIONS, LevelRenderer } from './levels.js';
+import { LEVEL_DEFINITIONS, TRAINING_LEVEL_INDEX, LevelRenderer } from './levels.js';
 import { sound } from './audio.js';
 import {
   GAMEPLAY_CONFIG,
@@ -16,7 +16,8 @@ import {
   restoreSoloGameplayConfig,
   isUsingRoomGameplayConfig,
   GRIP_STYLES,
-  CATERPILLAR_CLASSES
+  CATERPILLAR_CLASSES,
+  CUPS_DEFINITIONS
 } from './gameplayConfig.js';
 import { NetworkManager } from './network.js';
 import { UIManager } from './uiManager.js';
@@ -35,8 +36,9 @@ class SlipGripGame {
     this.particles = new ParticleSystem();
     this.renderer = new LevelRenderer();
 
-    this.currentLevelIndex = 0;
-    this.level = LEVEL_DEFINITIONS[0];
+    // Solo practice opens on the training level; every cup race is selectable too
+    this.currentLevelIndex = TRAINING_LEVEL_INDEX;
+    this.level = LEVEL_DEFINITIONS[TRAINING_LEVEL_INDEX];
     this.caterpillar = new Caterpillar(this.level.startX, this.level.startY);
 
     // Multiplayer state
@@ -92,7 +94,6 @@ class SlipGripGame {
 
     this.isGameRunning = false;
     this.rafId = null;
-    this.currentLevelIndex = 0;
 
     this.syncCosmeticsUI();
     this.syncTuningUI();
@@ -704,6 +705,16 @@ class SlipGripGame {
     });
   }
 
+  renderLevelSelect() {
+    const select = document.getElementById('solo-level-select');
+    if (!select) return;
+    const option = (idx) => `<option value="${idx}">${LEVEL_DEFINITIONS[idx].name}</option>`;
+    select.innerHTML = `<optgroup label="🎓 Entraînement">${option(TRAINING_LEVEL_INDEX)}</optgroup>` +
+      Object.values(CUPS_DEFINITIONS).map((cup) =>
+        `<optgroup label="${cup.icon} ${cup.name}">${cup.levels.map(option).join('')}</optgroup>`).join('');
+    select.value = String(this.currentLevelIndex);
+  }
+
   renderSpeciesCards() {
     const grid = document.getElementById('class-options');
     if (!grid) return;
@@ -971,6 +982,7 @@ class SlipGripGame {
     }
 
     this.renderSpeciesCards();
+    this.renderLevelSelect();
 
     document.querySelectorAll('#shape-options .cos-btn').forEach((btn) => {
       btn.addEventListener('click', () => {

@@ -1,5 +1,5 @@
 // js/caterpillar.js — Viscous Arcade Larval Caterpillar with Configurable Physics & Responsive Controls
-import { MATERIALS } from './physics.js';
+import { MATERIALS, surfaceKind } from './physics.js';
 import { sound } from './audio.js';
 import { GAMEPLAY_CONFIG, CATERPILLAR_CLASSES, BODY_SHAPES, RACE_MODIFIERS, GRIP_STYLES } from './gameplayConfig.js';
 
@@ -2735,7 +2735,7 @@ export class Caterpillar {
 
       const restingOnGentleSlope =
         n.onGround &&
-        n.groundMaterial !== 'moss' &&
+        surfaceKind(n.groundMaterial) !== 'slippery' &&
         n.groundSlopeGrade <= 0.30 &&
         (n.groundNy === undefined || n.groundNy < -0.5) &&
         !isHopping &&
@@ -2758,7 +2758,7 @@ export class Caterpillar {
         // its local gravity pulls it toward that surface (-groundNx, -groundNy) so the caterpillar clings and crawls along walls & undersides!
         const canAdhereToSurface =
           wasGroundedOrAdhered &&
-          n.groundMaterial !== 'moss' &&
+          surfaceKind(n.groundMaterial) !== 'slippery' &&
           n.groundNx !== undefined &&
           n.groundNy !== undefined &&
           !isHopping &&
@@ -2774,7 +2774,8 @@ export class Caterpillar {
 
         if (canAdhereToSurface && !peelingAway && (n.groundNy > -0.65 || Math.abs(n.groundNx) > 0.35)) {
           // Local surface adhesion gravity vector pulling the segment onto its supporting wall/branch/ceiling
-          const adhereStrength = currentGravity * 1.08;
+          // Sticky surfaces hold the body much harder (hang from ceilings without gripping)
+          const adhereStrength = currentGravity * (surfaceKind(n.groundMaterial) === 'sticky' ? 1.6 : 1.08);
           n.vx -= n.groundNx * adhereStrength * dt;
           n.vy -= n.groundNy * adhereStrength * dt;
           // Slight world gravity residual (18%) so hanging upside-down still feels organic
@@ -2832,7 +2833,8 @@ export class Caterpillar {
             if (moveTangentY < -0.18) slopeMult = Math.max(0.60, 1.0 + moveTangentY * 0.50);
           }
         }
-        const crawlMult = species.crawlMult || 1.0;
+        // Sticky ground slows the crawl down (honey drag)
+        const crawlMult = (species.crawlMult || 1.0) * (surfaceKind(n.groundMaterial) === 'sticky' ? 0.6 : 1.0);
         const baseForwardCrawl = 58 * crawlMult * (hasSpeedBoost ? 1.76 : 1.0) * slopeMult;
         const baseRevCrawl = 35 * crawlMult * (hasSpeedBoost ? 1.76 : 1.0) * slopeMult;
         const maxGroundCrawl = isRev ? baseRevCrawl : baseForwardCrawl;
@@ -3455,7 +3457,7 @@ export class Caterpillar {
             const isHead = (i === N - 1);
             const isSteeredTail = (this.frontAnchor.anchored && !this.rearAnchor.anchored && (steerX !== 0 || inputs.up || inputs.down) && i < N - 1);
 
-            if (seg.material !== 'moss' && slopeGrade <= 0.30 && colNy < -0.5) {
+            if (surfaceKind(seg.material) !== 'slippery' && slopeGrade <= 0.30 && colNy < -0.5) {
               n.x += colNx * overlap;
               n.y += colNy * overlap;
 
@@ -3490,8 +3492,11 @@ export class Caterpillar {
               const newVn = vn < 0 ? -vn * mat.restitution : vn;
 
               let newVt = vt;
-              if (seg.material === 'moss') {
+              if (surfaceKind(seg.material) === 'slippery') {
                 newVt = vt * Math.max(0, 1 - 1.2 * dt);
+              } else if (surfaceKind(seg.material) === 'sticky') {
+                // Sticky: the body barely slides, even when steering
+                newVt = vt * Math.max(0, 1 - (hasSteer ? 6.0 : 30.0) * dt);
               } else {
                 const excessSlope = Math.max(0, slopeGrade - 0.30);
                 const isLeadingReverse = isReverse && hasSteer && (i <= 1);
@@ -3604,8 +3609,11 @@ export class Caterpillar {
           n.x = m.x + nx * minDist;
           n.y = m.y + ny * minDist;
 
-          const bounceX = nx * 0.55 + Math.sin(m.angle) * 0.45;
-          const bounceY = Math.min(-0.55, ny * 0.8 - 0.35);
+          // Launch up and toward where the caterpillar is heading: bouncing off the
+          // contact normal sent anyone walking into a mushroom's side straight back
+          const heading = Math.sign(this.head.x - this.rear.x) || 1;
+          const bounceX = heading * 0.4 + Math.sin(m.angle) * 0.45;
+          const bounceY = -1;
           const bLen = Math.hypot(bounceX, bounceY) || 1;
 
           this.rearAnchor.anchored = false;
@@ -4316,7 +4324,7 @@ export class Caterpillar {
         world.applyPlatformForce(plat, anchor.x, anchor.y, 0, node.mass * world.gravity * 1.3, dt);
       }
 
-      if (anchor.material === 'moss' && anchor.segRef && !this.getSpecies().mossGrip) {
+      if (surfaceKind(anchor.material) === 'slippery' && anchor.segRef && !this.getSpecies().mossGrip) {
         anchor.slipping = true;
         const s = anchor.segRef;
         const cp = world.closestPointOnSegment(node.x, node.y, s);
@@ -4555,7 +4563,7 @@ export class Caterpillar {
         anchor.localPt = null;
       }
 
-      anchor.slipping = hit.material === 'moss';
+      anchor.slipping = surfaceKind(hit.material) === 'slippery' && !this.getSpecies().mossGrip;
 
       node.x = anchor.x;
       node.y = anchor.y;

@@ -559,66 +559,62 @@ export const RACE_MODIFIERS = {
   }
 };
 
-// ==================== COUPES (COMPÉTITIONS DE 3 COURSES PAR DIFFICULTÉ) ====================
+// ==================== COUPES : 4 univers, 3 courses chacune ====================
+// Une coupe = 3 courses d'affilée (bonus de rattrapage entre les courses, cosmétique pour le vainqueur).
 export const CUPS_DEFINITIONS = {
-  coupe_bourgeons: {
-    id: 'coupe_bourgeons',
-    name: 'Coupe des Bourgeons (Facile)',
-    difficulty: 'Facile',
-    icon: '🌱',
-    desc: 'Initiation douce & sous-bois : 1. L’Orée des Pousses • 2. Les Ponts de Lianes • 3. Le Verger Fleuri !',
+  coupe_potager: {
+    id: 'coupe_potager',
+    name: 'Coupe du Potager',
+    difficulty: 'Jardin en plein jour',
+    icon: '🥬',
+    desc: 'Feuilles mouillées en toboggan, feuilles qui basculent, escaliers de tiges.',
     levels: [0, 1, 2],
     cards: [
-      { levelId: 0, title: '1. L’ORÉE DES POUSSES', icon: '🌱', bg: 'linear-gradient(135deg, #2d5a27, #8cf5ab)' },
-      { levelId: 1, title: '2. LES PONTS DE LIANES', icon: '🌿', bg: 'linear-gradient(135deg, #236937, #74c668)' },
-      { levelId: 2, title: '3. LE VERGER FLEURI', icon: '🌸', bg: 'linear-gradient(135deg, #1e4620, #ffeaa7)' }
+      { levelId: 0, title: '1. LES RANGS DE LAITUES', icon: '🥬', bg: 'linear-gradient(135deg, #2d5a27, #8cf5ab)' },
+      { levelId: 1, title: '2. LA TONNELLE AUX TOMATES', icon: '🍅', bg: 'linear-gradient(135deg, #236937, #ff7675)' },
+      { levelId: 2, title: '3. LE CARRÉ DE FRAISES', icon: '🍓', bg: 'linear-gradient(135deg, #1e4620, #fab1a0)' }
     ]
   },
-  coupe_vents: {
-    id: 'coupe_vents',
-    name: 'Coupe des Vents (Moyen)',
-    difficulty: 'Moyen',
-    icon: '🍃',
-    desc: 'Aventure aérienne & caverne : 4. La Grotte aux Spores • 5. Le Gouffre Poids-Plume • 6. La Falaise des Cimes !',
+  coupe_sousbois: {
+    id: 'coupe_sousbois',
+    name: 'Coupe du Sous-Bois',
+    difficulty: 'Forêt profonde',
+    icon: '🌳',
+    desc: 'Réseaux de branches à passer dessus ou dessous, bûches moussues glissantes.',
     levels: [3, 4, 5],
     cards: [
-      { levelId: 3, title: '4. LA GROTTE AUX SPORES', icon: '🍄', bg: 'linear-gradient(135deg, #5f27cd, #fd79a8)' },
-      { levelId: 4, title: '5. LE GOUFFRE POIDS-PLUME', icon: '🪶', bg: 'linear-gradient(135deg, #0984e3, #81ecec)' },
-      { levelId: 5, title: '6. LA FALAISE DES CIMES', icon: '🌲', bg: 'linear-gradient(135deg, #2d3436, #00b894)' }
+      { levelId: 3, title: '1. LES RACINES MÊLÉES', icon: '🌿', bg: 'linear-gradient(135deg, #1e3d24, #7ed36b)' },
+      { levelId: 4, title: '2. LE PONT DES BRANCHES', icon: '🪵', bg: 'linear-gradient(135deg, #3f2712, #c98850)' },
+      { levelId: 5, title: '3. LA CLAIRIÈRE AUX CHAMPIGNONS', icon: '🍄', bg: 'linear-gradient(135deg, #24160a, #ff85a2)' }
     ]
   },
-  coupe_titans: {
-    id: 'coupe_titans',
-    name: 'Coupe des Titans (Difficile)',
-    difficulty: 'Difficile',
-    icon: '⚡',
-    desc: 'Défi expert & vertige : 7. Le Tronc des Titans • 8. La Ruche des Cires • 9. Le Festin des Tempêtes !',
+  coupe_ruche: {
+    id: 'coupe_ruche',
+    name: 'Coupe de la Ruche',
+    difficulty: 'Cire et miel',
+    icon: '🍯',
+    desc: 'Murs de miel collants à escalader, pentes de cire glissantes.',
     levels: [6, 7, 8],
     cards: [
-      { levelId: 6, title: '7. LE TRONC DES TITANS', icon: '🪵', bg: 'linear-gradient(135deg, #6c5ce7, #d63031)' },
-      { levelId: 7, title: '8. LA RUCHE DES CIRES', icon: '🍯', bg: 'linear-gradient(135deg, #b86b11, #fff3b0)' },
-      { levelId: 8, title: '9. LE FESTIN DES TEMPÊTES', icon: '🌪️', bg: 'linear-gradient(135deg, #c0392b, #2c3e50)' }
+      { levelId: 6, title: '1. LES ALVÉOLES', icon: '🐝', bg: 'linear-gradient(135deg, #7a4c12, #ffd27a)' },
+      { levelId: 7, title: '2. LE PLAFOND DE MIEL', icon: '🍯', bg: 'linear-gradient(135deg, #9a6418, #ffe39a)' },
+      { levelId: 8, title: '3. LA COULÉE DE CIRE', icon: '🕯️', bg: 'linear-gradient(135deg, #5a360a, #f3d27a)' }
     ]
   },
-  coupe_fourmiliere: {
-    id: 'coupe_fourmiliere',
-    name: 'Coupe de la Fourmilière Royale (Maître)',
-    difficulty: 'Maître',
-    icon: '🐜',
-    desc: 'Verticalité extrême, embranchements tactiques & fourmis guerrières : 10. L’Arbre Creux • 11. Jardins d’Ambre • 12. Citadelle des Mandibules !',
+  coupe_rosee: {
+    id: 'coupe_rosee',
+    name: 'Coupe de la Rosée',
+    difficulty: 'Jardin la nuit',
+    icon: '🌙',
+    desc: 'Galets mouillés glissants, champignons lumineux qui propulsent haut.',
     levels: [9, 10, 11],
     cards: [
-      { levelId: 9, title: '10. L’ARBRE CREUX MILLÉNAIRE', icon: '🌳', bg: 'linear-gradient(135deg, #4a2511, #d35400)' },
-      { levelId: 10, title: '11. JARDINS SUSPENDUS D’AMBRE', icon: '🔶', bg: 'linear-gradient(135deg, #b7410e, #f39c12)' },
-      { levelId: 11, title: '12. CITADELLE DES MANDIBULES', icon: '🐜', bg: 'linear-gradient(135deg, #641e16, #e74c3c)' }
+      { levelId: 9, title: '1. LES GALETS MOUILLÉS', icon: '🪨', bg: 'linear-gradient(135deg, #151b2c, #7d8799)' },
+      { levelId: 10, title: '2. LE CHAMP DE TRÈFLES', icon: '☘️', bg: 'linear-gradient(135deg, #1b2340, #3fbf8f)' },
+      { levelId: 11, title: '3. LES GRANDS REBONDS', icon: '✨', bg: 'linear-gradient(135deg, #28324d, #9ff5d0)' }
     ]
   }
 };
-// Aliases de compatibilité avec les configurations existantes (non-énumérables pour éviter les doublons dans l'UI)
-Object.defineProperty(CUPS_DEFINITIONS, 'potager_geant', { value: CUPS_DEFINITIONS.coupe_bourgeons, enumerable: false, writable: true, configurable: true });
-Object.defineProperty(CUPS_DEFINITIONS, 'vallee_folle', { value: CUPS_DEFINITIONS.coupe_vents, enumerable: false, writable: true, configurable: true });
-Object.defineProperty(CUPS_DEFINITIONS, 'pique_nique_royal', { value: CUPS_DEFINITIONS.coupe_titans, enumerable: false, writable: true, configurable: true });
-Object.defineProperty(CUPS_DEFINITIONS, 'fourmiliere_royale', { value: CUPS_DEFINITIONS.coupe_fourmiliere, enumerable: false, writable: true, configurable: true });
 
 // ==================== STYLES DE GRIPS / VENTOUSES ====================
 export const GRIP_STYLES = {

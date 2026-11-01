@@ -74,7 +74,7 @@ async function openPage(browser, errors) {
     const code = await A.evaluate(() => window.slipGripGame.network.currentRoom.code);
     await B.evaluate((c) => window.slipGripGame.network.joinRoom(c, window.slipGripGame.caterpillar.cosmetics), code);
     await B.waitForTimeout(300);
-    await A.evaluate(() => window.slipGripGame.network.updateRoomConfig({ cupId: 'coupe_bourgeons', jumpBoost: 2.0, gripDistance: 40 }));
+    await A.evaluate(() => window.slipGripGame.network.updateRoomConfig({ cupId: 'coupe_potager', jumpBoost: 2.0, gripDistance: 40 }));
     await A.waitForTimeout(200);
     await A.evaluate(() => window.slipGripGame.network.startCup());
     await A.waitForTimeout(4500);

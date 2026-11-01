@@ -57,15 +57,30 @@ L'espèce est verrouillée pendant une coupe multijoueur. En solo, changer d'esp
 
 ## 4. Monde, ennemis, objets (vision)
 
-- **Surfaces** : terre, écorce/racine, miel (adhérence maximale), mousse (glissante même en s'agrippant), soie/lianes, tiges ; plateformes dynamiques (feuilles oscillantes, bascules, tourniquets) ; champignons tremplins ; eau (flottaison) ; cascades de sève (ralentissent).
+- **Surfaces : seulement 3 comportements physiques**, quel que soit leur dessin :
+
+  | Sol | Effet | Toujours dessiné… |
+  |---|---|---|
+  | **Normal** | adhérence, reptation et saut standards | aux couleurs de la coupe (terre, tige, écorce, cire, pierre) |
+  | **Glissant** | les ventouses glissent en pente, aucun frein au repos | mouillé : turquoise brillant, gouttes de rosée |
+  | **Collant** | le corps tient aux murs et aux plafonds, reptation ralentie | miel : ambre, alvéoles, coulures |
+
+- **Éléments de parcours conservés** (lisibles) : champignons tremplins (ils propulsent vers l'avant de la chenille), feuilles qui basculent, épines.
+- **Retirés** car confus : eau, cascades de sève, miettes collantes, tuyaux / canettes / fourchettes, tourniquets.
 - **Ennemis** : pucerons (inoffensifs, projectiles), hérissons (piquants de dos, saisissables par le museau), fourmis (chargent puis tentent une projection après 0,68 s d'armement ; contrable en les attrapant d'abord).
 - **Objets** : glands (légers, cassables, projectiles), pommes de pin (lourdes, roulent, écrasent), bonus temporaires (vitesse, force, plume, bouclier), pommes de soin et pommes « segment ».
 - **Interactions** : lancer un ennemi ou un objet sur un ennemi ou un rival (« bowling »), s'agripper à un rival pour l'aider ou le gêner.
-- **Coupes** (4 × 3 niveaux, 12 au total) :
-  1. **Bourgeons** (facile) : L'Orée des Pousses, Les Ponts de Lianes, Le Verger Fleuri
-  2. **Vents** (moyen) : La Grotte aux Spores, Le Gouffre Poids-Plume, La Falaise des Cimes
-  3. **Titans** (difficile) : Le Tronc des Titans, La Ruche & les Cires, Le Festin des Tempêtes
-  4. **Fourmilière Royale** (maître) : L'Ascension du Grand Chêne Creux, L'Arbre Brisé & le Grand Plongeon, La Citadelle des Racines
+- **Coupes** : 4 univers, 3 courses chacun. Une course n'est pas une étape d'une progression : c'est une course de coupe autonome, de 60 à 90 s.
+  1. 🥬 **Potager** (jardin de jour). Identité : feuilles mouillées en toboggan, feuilles qui basculent, escaliers de tiges.
+     - Courses : Les Rangs de Laitues, La Tonnelle aux Tomates, Le Carré de Fraises.
+  2. 🌳 **Sous-Bois** (forêt profonde). Identité : branches à passer dessus ou dessous, bûches moussues, ravin à deux étages.
+     - Courses : Les Racines Mêlées, Le Pont des Branches, La Clairière aux Champignons.
+  3. 🍯 **Ruche** (cire et miel, ciel ambré). Identité : murs de miel à escalader, pont collant lent mais sûr, pentes de cire glissantes.
+     - Courses : Les Alvéoles, Le Plafond de Miel, La Coulée de Cire.
+  4. 🌙 **Rosée** (jardin la nuit). Identité : galets mouillés, champignons lumineux qui propulsent haut, feuilles de trèfle qui basculent.
+     - Courses : Les Galets Mouillés, Le Champ de Trèfles, Les Grands Rebonds.
+- **Initiation** : un parcours hors coupe, en entraînement solo. Un panneau enseigne chaque geste, y compris le sol glissant et le sol collant.
+- **Décor de fond propre à chaque univers** : laitues et tomates ; troncs et fougères ; alvéoles et abeilles ; lucioles et fleurs de nuit.
 
 ---
 
@@ -88,7 +103,8 @@ Légende : ✅ fonctionne · ⚠️ partiel / fragile · ❌ cassé ou absent
 | Ennemis / objets en multijoueur | ❌ | Un ennemi tué par un non-hôte est ressuscité par l'hôte ; les pommes peuvent être ramassées par tous ; les plateformes ne sont pas réellement synchronisées |
 | Dégâts PvP par projectile | ⚠️ | Appliqués par la victime, qui rejoue le lancer reçu. Le code mort qui aurait doublé les dégâts a été retiré. Reste fragile : l'objet lancé est retrouvé par proximité, sans identifiant |
 | Coup de fouet | ⚠️ | **Figeait le jeu** au premier fouet (variable inexistante dans le rendu) et durait ~6× trop longtemps : les deux sont corrigés en phase 1. Restent : la queue est téléportée et peut traverser les murs ; pas de protection contre les piquants de hérisson ; dégâts PvP 12–34 |
-| Matériaux de surface | ❌ | Les valeurs de friction ne sont pas utilisées par la physique : terre, soie et miel se comportent pareil. Seule la mousse est un cas spécial, et elle ne glisse pas à plat |
+| Surfaces | ✅ | Standardisées en 3 comportements (normal / glissant / collant), chacun avec un rendu reconnaissable dans tous les univers |
+| Courses | ✅ | 4 coupes thématiques reconstruites + initiation. Toutes finissables (`tools/race-bot.js`), aucun coincement ni empalement (`tools/fuzz-levels.js`) |
 | Champignons tremplins | ✅ | Le rebond était réduit à 58 % et étouffé par les ventouses ; c'est désormais un vrai tremplin |
 | Fourmis | ⚠️ | Le minuteur d'armement tourne pendant l'approche, donc pas de fenêtre de contre réelle |
 | Ennemis vaincus → pomme | ⚠️ | Toujours une pomme de **soin** ; les pommes **segment** ne sont que 3 secrets placés à la main |

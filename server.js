@@ -38,63 +38,36 @@ function getLocalIpAddress() {
 
 // ==================== CUPS & DEFAULT ROOM SETTINGS ====================
 const CUPS_CATALOG = {
-  coupe_bourgeons: {
-    id: 'coupe_bourgeons',
-    name: 'Coupe des Bourgeons (Facile)',
-    icon: '🌱',
+  coupe_potager: {
+    id: 'coupe_potager',
+    name: 'Coupe du Potager',
+    icon: '🥬',
     levels: [0, 1, 2],
-    levelNames: ['1. L’Orée des Pousses', '2. Les Ponts de Lianes', '3. Le Verger Fleuri']
+    levelNames: ['1. Les rangs de laitues', '2. La tonnelle aux tomates', '3. Le carré de fraises']
   },
-  coupe_vents: {
-    id: 'coupe_vents',
-    name: 'Coupe des Vents (Moyen)',
-    icon: '🍃',
+  coupe_sousbois: {
+    id: 'coupe_sousbois',
+    name: 'Coupe du Sous-Bois',
+    icon: '🌳',
     levels: [3, 4, 5],
-    levelNames: ['4. La Grotte aux Spores', '5. Le Gouffre Poids-Plume', '6. La Falaise des Cimes']
+    levelNames: ['1. Les racines mêlées', '2. Le pont des branches', '3. La clairière aux champignons']
   },
-  coupe_titans: {
-    id: 'coupe_titans',
-    name: 'Coupe des Titans (Difficile)',
-    icon: '⚡',
+  coupe_ruche: {
+    id: 'coupe_ruche',
+    name: 'Coupe de la Ruche',
+    icon: '🍯',
     levels: [6, 7, 8],
-    levelNames: ['7. Le Tronc des Titans', '8. La Ruche des Cires', '9. Le Festin des Tempêtes']
+    levelNames: ['1. Les alvéoles', '2. Le plafond de miel', '3. La coulée de cire']
   },
-  coupe_fourmiliere: {
-    id: 'coupe_fourmiliere',
-    name: 'Coupe de la Fourmilière Royale (Maître)',
-    icon: '🐜',
+  coupe_rosee: {
+    id: 'coupe_rosee',
+    name: 'Coupe de la Rosée',
+    icon: '🌙',
     levels: [9, 10, 11],
-    levelNames: ['10. L’Arbre Creux Millénaire', '11. Jardins Suspendus d’Ambre', '12. Citadelle des Mandibules']
-  },
-  potager_geant: {
-    id: 'potager_geant',
-    name: 'Coupe des Bourgeons (Facile)',
-    icon: '🌱',
-    levels: [0, 1, 2],
-    levelNames: ['1. L’Orée des Pousses', '2. Les Ponts de Lianes', '3. Le Verger Fleuri']
-  },
-  vallee_folle: {
-    id: 'vallee_folle',
-    name: 'Coupe des Vents (Moyen)',
-    icon: '🍃',
-    levels: [3, 4, 5],
-    levelNames: ['4. La Grotte aux Spores', '5. Le Gouffre Poids-Plume', '6. La Falaise des Cimes']
-  },
-  pique_nique_royal: {
-    id: 'pique_nique_royal',
-    name: 'Coupe des Titans (Difficile)',
-    icon: '⚡',
-    levels: [6, 7, 8],
-    levelNames: ['7. Le Tronc des Titans', '8. La Ruche des Cires', '9. Le Festin des Tempêtes']
-  },
-  fourmiliere_royale: {
-    id: 'fourmiliere_royale',
-    name: 'Coupe de la Fourmilière Royale (Maître)',
-    icon: '🐜',
-    levels: [9, 10, 11],
-    levelNames: ['10. L’Arbre Creux Millénaire', '11. Jardins Suspendus d’Ambre', '12. Citadelle des Mandibules']
+    levelNames: ['1. Les galets mouillés', '2. Le champ de trèfles', '3. Les grands rebonds']
   }
 };
+const DEFAULT_CUP_ID = 'coupe_potager';
 
 function createDefaultRoomConfig() {
   return {
@@ -125,7 +98,7 @@ function getPublicRoomList() {
   const list = [];
   for (const room of rooms.values()) {
     const host = room.players.get(room.hostId);
-    const cup = CUPS_CATALOG[room.config.cupId] || CUPS_CATALOG.potager_geant;
+    const cup = CUPS_CATALOG[room.config.cupId] || CUPS_CATALOG[DEFAULT_CUP_ID];
     list.push({
       code: room.code,
       hostName: host ? host.pseudo : 'Hôte',
@@ -142,7 +115,7 @@ function getPublicRoomList() {
 }
 
 function serializeRoom(room) {
-  const cup = CUPS_CATALOG[room.config.cupId] || CUPS_CATALOG.potager_geant;
+  const cup = CUPS_CATALOG[room.config.cupId] || CUPS_CATALOG[DEFAULT_CUP_ID];
   const playersArr = [];
   for (const p of room.players.values()) {
     playersArr.push({
@@ -457,7 +430,7 @@ function launchRoomRace(room, raceIndex) {
     room.autoLaunchTimerHandle = null;
   }
 
-  const cup = CUPS_CATALOG[room.config.cupId] || CUPS_CATALOG.potager_geant;
+  const cup = CUPS_CATALOG[room.config.cupId] || CUPS_CATALOG[DEFAULT_CUP_ID];
   room.raceIndex = raceIndex;
   room.state = 'racing';
   room.finishCounter = 0;

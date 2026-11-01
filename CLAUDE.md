@@ -12,6 +12,7 @@ for f in server.js js/*.js; do node --check "$f"; done
 
 - Aucune dépendance npm. Chromium et Playwright sont disponibles dans l'environnement cloud. Le jeu s'expose sur `window.slipGripGame` : on peut piloter une partie (`ui.showScreen`, `startSoloMode()`, `network.createRoom()`…) et mesurer (`update(dt)`, `draw()`).
 - **Après toute modif** : `node tools/smoke-test.js`.
+- Niveaux : `node tools/race-bot.js [niveaux] [espèces]` vérifie qu'une course est finissable. `node tools/fuzz-levels.js` doit donner 0 image empalée partout.
 - Physique de la chenille : `node tools/fuzz-branch.js [parties] [secondes]` (entrées aléatoires autour d'une branche, compte les images où le corps la traverse ; `SEED=n` pour varier). `node tools/species-bench.js` mesure reptation, saut et marche en boucles par espèce. Le script lance son propre serveur et vérifie la reptation, le fouet, le coût d'une image, le multi à 2, les réglages de room, la reconnexion et le popup d'arrivée.
 - Test multijoueur manuel : 2 contextes navigateur ; l'un appelle `network.createRoom(...)`, l'autre `network.joinRoom(code, ...)`, puis l'hôte appelle `network.updateRoomConfig({cupId})` et `network.startCup()`.
 
@@ -32,6 +33,12 @@ for f in server.js js/*.js; do node --check "$f"; done
 - Progression : ne regarde que X.
 - Checkpoints : X dépassé, et la tête au plus 160 px sous le point (`CHECKPOINT_BELOW_TOLERANCE`).
 - Arrivée : même règle, et au plus 150 px au-dessus (`FINISH_ABOVE_TOLERANCE`).
+- **Sols** : seulement `normal`, `slippery`, `sticky` (`MATERIALS`, `surfaceKind()` dans `physics.js`). Les anciens noms (`dirt`, `root`, `moss`, `honeycomb`…) sont des alias. L'aspect passe par l'option `look` (`stem`, `root`, `waxbeam`, `stone`, `honeycomb`, `silk`…). Le rendu ajoute toujours un aspect mouillé au glissant et des coulures de miel au collant.
+- **Règles de conception des niveaux** (sinon des corps se coincent ou s'empalent) :
+  - une plateforme touche le sol, ou en est séparée de plus de ~90 px ;
+  - pas de pilier de sol plus étroit qu'un corps (~250 px) : un sol n'est solide que près de sa surface ;
+  - pas d'arche qui plonge en pointe dans le sol : utiliser une butte de sol ;
+  - les bûches posées au sol sont des bosses de sol, pas des plateformes.
 - Décoration `sign` : panneau de tutoriel. `world.addDecoration('sign', x, y, 1, 0, 'ligne1\nligne2')`.
 - Constantes codées en dur dans `main.js` : mort sous `com.y > 1280`, caméra Y bornée à [-680, 480]. Les props sont réinitialisés sous y = 1250 (`physics.js`).
 
@@ -39,11 +46,12 @@ for f in server.js js/*.js; do node --check "$f"; done
 
 | Fichier | Rôle | Points d'entrée |
 |---|---|---|
-| `server.js` | HTTP statique + WebSocket maison + rooms/coupes/draft | `handleWsMessage` (switch sur `msg.type`), `launchRoomRace`, `concludeRoomRace`, `startRoomDraftTimer`, `CUPS_CATALOG` (contient 4 alias dupliqués), `ALL_MODIFIER_IDS` |
+| `server.js` | HTTP statique + WebSocket maison + rooms/coupes/draft | `handleWsMessage` (switch sur `msg.type`), `launchRoomRace`, `concludeRoomRace`, `startRoomDraftTimer`, `CUPS_CATALOG` (doit rester identique à `CUPS_DEFINITIONS` côté client), `ALL_MODIFIER_IDS` |
 | `js/main.js` | Classe `SlipGripGame` : boucle, entrées clavier, caméra, HUD, checkpoints, sync multijoueur | `update`, `draw`, `loop`, `loadLevel`, `startSoloMode`, `startMultiplayerRace`, `serializeWorldState` / `applyRemoteWorldSync` (sync des entités par l'hôte, 12 Hz), `applyRemoteEntityThrow`, `bindMultiplayerWorldCallbacks`, `checkCheckpoints`, `triggerVictory`, `pauseGameLoop` / `resumeGameLoop` |
 | `js/caterpillar.js` | Chenille : physique Verlet, ventouses, saut, fouet, lancers, rendu, sérialisation réseau | `update` (entrées, charge, sous-étapes), `onReleaseSpace` (saut / détente / fouet), `stepPhysics` (~1 400 lignes), `handleWorldCollisions`, `updateAnchor`, `releaseAnchor` (lancers), `checkWhipMeleeCollisions`, `takeDamage`, `applyBodyClass` / `getModifierStats`, `draw` + `draw*`, `serializeState` / `applyRemoteState` / `updateRemote` |
 | `js/physics.js` | `MATERIALS`, `PhysicsWorld` : segments statiques, plateformes dynamiques, champignons, ennemis (puceron / hérisson / fourmi), props, pommes, bonus, eau, sève, projectiles | `addPolyline`, `addDynamicPlatform`, `addAphid` / `addHedgehog` / `addAnt`, `addProp`, `update`, `damageEnemy`, `findClosestSurface`, `getAllSegmentsNear` (scan linéaire) |
-| `js/levels.js` | `LEVEL_DEFINITIONS` (12 niveaux, fonctions `build(world)` impératives) + `LevelRenderer` | `drawBackground` / `initParallaxPacks` / `drawParallaxLayer` (calques pré-redimensionnés via `getScaledImage`, cache libéré par `releaseScaledBackgrounds`), `drawWorld`, dessins d'ennemis et de structures |
+| `js/courses.js` | Données des courses : `THEMES` (fond, palette, look des plateformes par univers), kit de construction (`ground`, `plat`, `leaf`, `mush`, `cp`, `sign`), `LEVEL_DEFINITIONS` (ids 0-11 = 4 coupes × 3, 12 = initiation), décor de fond automatique (`plantScenery`) | |
+| `js/levels.js` | Ré-exporte `LEVEL_DEFINITIONS` + `LevelRenderer` | `drawBackground` / `initParallaxPacks` / `drawParallaxLayer` (calques pré-redimensionnés via `getScaledImage`, cache libéré par `releaseScaledBackgrounds`), `drawWorld`, `drawScenery` (décor de fond `bg_*`), `drawGroundKindOverlay` / `drawWetOverlay` / `drawHoneyOverlay`, `drawBarkBranch`, `drawWaxBeam`, `drawStoneSlab`, dessins d'ennemis |
 | `js/gameplayConfig.js` | `CATERPILLAR_CLASSES`, `BODY_SHAPES`, `GAMEPLAY_CONFIG` / `GAMEPLAY_PRESETS`, `RACE_MODIFIERS`, `CUPS_DEFINITIONS`, `COSMETICS_CATALOG` + déblocage (localStorage) | |
 | `js/uiManager.js` | Écrans (home / lobbies / room / game), atelier, salon, HUD de course multi, draft, podium | `showScreen`, `bindUIEvents`, handlers `network.on(...)` dans le constructeur, `escapeHtml` |
 | `js/network.js` | Client WebSocket + bus d'événements `on` / `emit` | `handleMessage`, `send*` |
