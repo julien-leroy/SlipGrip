@@ -395,7 +395,7 @@ export class LevelRenderer {
 
     // 2. Draw Background Scenic & Interactive Decorations
     for (const dec of world.decorations) {
-      if (!dec.type.startsWith('bg_')) this.drawDecoration(ctx, dec, time, world);
+      if (!dec.type.startsWith('bg_') && !dec.type.startsWith('fg_')) this.drawDecoration(ctx, dec, time, world);
     }
 
     // 3. Draw Elevated Structures (Branches, Tomato vines, Silk bridges, Mushroom caps, Reeds, Honeycombs, Straws, Cans, Forks)
@@ -439,7 +439,7 @@ export class LevelRenderer {
 
     // 7. Draw Bouncy Mushrooms
     for (const m of world.mushrooms) {
-      this.drawMushroom(ctx, m, time);
+      this.drawMushroom(ctx, m, time, level);
     }
 
     // 8. Draw Soft Squishy Aphids
@@ -486,9 +486,375 @@ export class LevelRenderer {
       }
     }
 
-    // 10. Start & Finish Banners
-    this.drawStartBanner(ctx, level.startX - 40, level.startY);
-    this.drawFinishLine(ctx, level.finishX, level.finishY, time, isVictory);
+    // 10. Start & Finish gates, standing on the ground
+    this.drawStartGate(ctx, level.startX, this.groundTopAt(world, level.startX + 80, level.startY + 22), time);
+    this.drawFinishGate(ctx, level.finishX, this.groundTopAt(world, level.finishX, level.finishY + 2), time, isVictory);
+  }
+
+  // Top of the ground at x (ground masses only), or the fallback when over a gap
+  groundTopAt(world, x, fallback) {
+    let best = null;
+    for (const chain of world.terrainChains) {
+      if (!chain.isGroundMass) continue;
+      const pts = chain.points;
+      for (let i = 0; i < pts.length - 1; i++) {
+        const [x1, y1] = pts[i];
+        const [x2, y2] = pts[i + 1];
+        if (Math.abs(x2 - x1) < 1 || x < Math.min(x1, x2) || x > Math.max(x1, x2)) continue;
+        const y = y1 + (y2 - y1) * ((x - x1) / (x2 - x1)) - (chain.thickness || 36) * 0.5;
+        if (best === null || y < best) best = y;
+      }
+    }
+    return best === null ? fallback : best;
+  }
+
+  // Twisted twig post used by both gates
+  drawTwigPost(ctx, x, groundY, height, lean = 0) {
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#3b230e';
+    ctx.lineWidth = 15;
+    ctx.beginPath();
+    ctx.moveTo(x, groundY + 6);
+    ctx.quadraticCurveTo(x + lean * 0.5 - 6, groundY - height * 0.5, x + lean, groundY - height);
+    ctx.stroke();
+    ctx.strokeStyle = '#8a5a2b';
+    ctx.lineWidth = 9;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(230, 180, 120, 0.6)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(x - 2, groundY);
+    ctx.quadraticCurveTo(x + lean * 0.5 - 8, groundY - height * 0.5, x + lean - 2, groundY - height + 4);
+    ctx.stroke();
+    // small knots and a leaf sprouting
+    ctx.fillStyle = '#3b230e';
+    ctx.beginPath();
+    ctx.ellipse(x + lean * 0.25 - 3, groundY - height * 0.3, 3, 5, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#5bc43b';
+    ctx.strokeStyle = '#1d4a15';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(x + lean * 0.4 + 12, groundY - height * 0.55, 12, 5, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // Bunting: little triangular pennants hanging on a silk thread
+  drawBunting(ctx, x1, y1, x2, y2, sag, time, colors) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(240, 235, 215, 0.95)';
+    ctx.lineWidth = 2;
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2 + sag;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.quadraticCurveTo(midX, midY + sag, x2, y2);
+    ctx.stroke();
+    const n = Math.max(4, Math.floor(Math.abs(x2 - x1) / 26));
+    for (let i = 1; i < n; i++) {
+      const t = i / n;
+      const px = (1 - t) * (1 - t) * x1 + 2 * (1 - t) * t * midX + t * t * x2;
+      const py = (1 - t) * (1 - t) * y1 + 2 * (1 - t) * t * (midY + sag) + t * t * y2;
+      const flutter = Math.sin(time * 4 + i * 1.3) * 3;
+      ctx.fillStyle = colors[i % colors.length];
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(px - 9, py);
+      ctx.lineTo(px + 9, py);
+      ctx.lineTo(px + flutter, py + 20);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // START: twig arch with a big leaf banner, bunting and a chalk start line on the ground
+  drawStartGate(ctx, startX, groundY, time) {
+    const left = startX - 80;
+    const right = startX + 250;
+    const top = groundY - 215;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    this.drawTwigPost(ctx, left, groundY, 205, 8);
+    this.drawTwigPost(ctx, right, groundY, 205, -8);
+
+    // Bent stem across the top, with leaves
+    ctx.strokeStyle = '#2f6b1f';
+    ctx.lineWidth = 12;
+    ctx.beginPath();
+    ctx.moveTo(left + 8, groundY - 200);
+    ctx.quadraticCurveTo((left + right) / 2, top - 45, right - 8, groundY - 200);
+    ctx.stroke();
+    ctx.strokeStyle = '#5bc43b';
+    ctx.lineWidth = 6;
+    ctx.stroke();
+    for (let k = 1; k < 8; k++) {
+      const t = k / 8;
+      const lx = left + (right - left) * t;
+      const ly = groundY - 200 - Math.sin(t * Math.PI) * 40;
+      const sway = Math.sin(time * 2 + k) * 0.15;
+      ctx.fillStyle = k % 2 ? '#4fae3a' : '#6fcf4a';
+      ctx.strokeStyle = '#1d4a15';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(lx, ly - 8, 13, 6, (k % 2 ? -0.6 : 0.6) + sway, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    this.drawBunting(ctx, left + 6, groundY - 175, right - 6, groundY - 175, 18, time,
+      ['#ff6b6b', '#ffd93b', '#48dbfb', '#1dd1a1', '#ff9ff3']);
+
+    // Big leaf banner hanging from the arch
+    const bx = (left + right) / 2;
+    const by = top + 8;
+    const swing = Math.sin(time * 1.5) * 0.03;
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.rotate(swing);
+    ctx.strokeStyle = '#e8e2cc';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-60, -10); ctx.lineTo(-48, 14);
+    ctx.moveTo(60, -10); ctx.lineTo(48, 14);
+    ctx.stroke();
+    ctx.fillStyle = '#7ccf4c';
+    ctx.strokeStyle = '#1d4a15';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(-78, 30);
+    ctx.quadraticCurveTo(-60, 4, 0, 8);
+    ctx.quadraticCurveTo(60, 4, 78, 30);
+    ctx.quadraticCurveTo(60, 58, 0, 54);
+    ctx.quadraticCurveTo(-60, 58, -78, 30);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(29, 74, 21, 0.45)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-74, 30);
+    ctx.lineTo(74, 30);
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#1d4a15';
+    ctx.lineWidth = 4;
+    ctx.font = '900 21px "Fredoka", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeText('DÉPART', 0, 31);
+    ctx.fillText('DÉPART', 0, 31);
+    ctx.restore();
+
+    // Chalk start line just ahead of the caterpillar
+    const lineX = startX + 200;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+    for (let k = 0; k < 3; k++) {
+      ctx.beginPath();
+      ctx.ellipse(lineX + (k - 1) * 3, groundY - 2 + (k - 1) * 4, 4, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillRect(lineX - 3, groundY - 40, 6, 36);
+    ctx.restore();
+  }
+
+  // FINISH: flowered arch, waving checkered banner, bunting, checkered ground strip
+  // and spectators cheering on a log
+  drawFinishGate(ctx, x, groundY, time, isVictory) {
+    const left = x - 40;
+    const right = x + 170;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Checkered line painted on the ground, seen in slight perspective
+    const tile = 9;
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 4; c++) {
+        ctx.fillStyle = (r + c) % 2 ? '#1e1b18' : '#fdfdfd';
+        ctx.beginPath();
+        const y0 = groundY - 3 + r * 4;
+        ctx.moveTo(x - 18 + c * tile + r * 3, y0);
+        ctx.lineTo(x - 18 + (c + 1) * tile + r * 3, y0);
+        ctx.lineTo(x - 18 + (c + 1) * tile + (r + 1) * 3, y0 + 4);
+        ctx.lineTo(x - 18 + c * tile + (r + 1) * 3, y0 + 4);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    this.drawTwigPost(ctx, left, groundY, 230, 6);
+    this.drawTwigPost(ctx, right, groundY, 230, -6);
+
+    // Flowers crowning the posts
+    for (const [fx, fy] of [[left + 6, groundY - 232], [right - 6, groundY - 232]]) {
+      for (let k = 0; k < 8; k++) {
+        const a = (Math.PI / 4) * k + time * 0.3;
+        ctx.fillStyle = '#ffd93b';
+        ctx.strokeStyle = '#b8860b';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.ellipse(fx + Math.cos(a) * 14, fy + Math.sin(a) * 14, 10, 5, a, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#7a4a1a';
+      ctx.beginPath();
+      ctx.arc(fx, fy, 10, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Waving checkered silk banner between the posts
+    const bw = right - left - 40;
+    const bx0 = left + 20;
+    const by0 = groundY - 205;
+    const cols = 10;
+    const rows = 3;
+    const cw = bw / cols;
+    const ch = 14;
+    for (let c = 0; c < cols; c++) {
+      const wave = Math.sin(time * 4 + c * 0.7) * (isVictory ? 7 : 4);
+      for (let r = 0; r < rows; r++) {
+        ctx.fillStyle = (r + c) % 2 ? '#1e1b18' : '#fdfdfd';
+        ctx.fillRect(bx0 + c * cw, by0 + r * ch + wave, cw + 0.6, ch + 0.6);
+      }
+    }
+    ctx.strokeStyle = '#2a1b0e';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(left + 6, by0 - 2);
+    ctx.lineTo(right - 6, by0 - 2);
+    ctx.stroke();
+
+    // Sign under the banner
+    ctx.fillStyle = '#ffd93b';
+    ctx.strokeStyle = '#2a1b0e';
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.roundRect(x + 65 - 62, by0 + rows * ch + 10, 124, 32, 9);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#2a1b0e';
+    ctx.font = '900 19px "Fredoka", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('ARRIVÉE', x + 65, by0 + rows * ch + 27);
+
+    this.drawBunting(ctx, left + 6, groundY - 240, right - 6, groundY - 240, -14, time,
+      ['#ff6b6b', '#ffd93b', '#48dbfb', '#1dd1a1', '#ff9ff3']);
+
+    // Spectator log just before the arch (behind the track, never past the end wall)
+    const logX = left - 200;
+    ctx.fillStyle = '#6b3d1a';
+    ctx.strokeStyle = '#2a1608';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.roundRect(logX - 10, groundY - 26, 160, 26, 13);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#d6a66a';
+    ctx.beginPath();
+    ctx.ellipse(logX + 150, groundY - 13, 6, 12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.save();
+    ctx.translate(logX + 75, groundY - 26);
+    for (const bug of this.spectators) {
+      const jumpSpeed = isVictory ? 12 : 4.5;
+      const jumpHeight = isVictory ? 34 : 6;
+      const bounce = Math.abs(Math.sin(time * jumpSpeed + bug.phase)) * jumpHeight;
+      ctx.save();
+      ctx.translate(bug.offsetX * 0.75, (bug.flying ? -90 : -bug.size) - bounce);
+      if (isVictory) ctx.rotate(Math.sin(time * 14 + bug.phase) * 0.22);
+      this.drawSpectatorBug(ctx, bug, time, isVictory);
+      ctx.restore();
+    }
+    ctx.restore();
+    ctx.restore();
+  }
+
+  drawSpectatorBug(ctx, bug, time, cheering) {
+    const s = bug.size;
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#1e1b18';
+    if (bug.type === 'bee') {
+      const wingY = Math.sin(time * 35) * 4;
+      ctx.fillStyle = 'rgba(235, 248, 255, 0.85)';
+      ctx.beginPath();
+      ctx.ellipse(-4, -s - 2 + wingY, 9, 6, -0.4, 0, Math.PI * 2);
+      ctx.ellipse(6, -s - 2 - wingY, 9, 6, 0.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    // Body (shell for beetles & ladybugs, fuzzy for bees)
+    const grad = ctx.createRadialGradient(-s * 0.3, -s * 0.4, s * 0.2, 0, 0, s * 1.1);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.25, bug.color);
+    grad.addColorStop(1, bug.color);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s * 1.05, s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    if (bug.type === 'ladybug' || bug.type === 'beetle') {
+      ctx.beginPath();
+      ctx.moveTo(0, -s);
+      ctx.lineTo(0, s);
+      ctx.stroke();
+    }
+    if (bug.type === 'ladybug') {
+      ctx.fillStyle = '#1e1b18';
+      for (const [dx, dy] of [[-5, -4], [5, -2], [-4, 5], [6, 6]]) {
+        ctx.beginPath();
+        ctx.arc(dx, dy, 2.6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (bug.type === 'bee') {
+      ctx.fillStyle = '#1e1b18';
+      ctx.fillRect(-4, -s * 0.85, 3.5, s * 1.7);
+      ctx.fillRect(4, -s * 0.85, 3.5, s * 1.7);
+    }
+    // Head with eyes and antennae, facing the track (left)
+    ctx.fillStyle = '#1e1b18';
+    ctx.beginPath();
+    ctx.arc(-s * 0.95, -2, s * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1e1b18';
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(-s * 1.1, -s * 0.4);
+    ctx.quadraticCurveTo(-s * 1.4, -s * 1.1, -s * 1.6, -s * 1.2);
+    ctx.moveTo(-s * 0.9, -s * 0.45);
+    ctx.quadraticCurveTo(-s * 1.0, -s * 1.2, -s * 1.15, -s * 1.35);
+    ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(-s * 1.1, -4, 3.4, 0, Math.PI * 2);
+    ctx.arc(-s * 0.8, -4, 3.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1e1b18';
+    ctx.beginPath();
+    ctx.arc(-s * 1.15, -4, 1.6, 0, Math.PI * 2);
+    ctx.arc(-s * 0.85, -4, 1.6, 0, Math.PI * 2);
+    ctx.fill();
+    // Waving little arms when cheering
+    if (cheering) {
+      const wave = Math.sin(time * 16 + bug.phase) * 0.6;
+      ctx.strokeStyle = '#1e1b18';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -s * 0.6);
+      ctx.lineTo(Math.cos(-1.9 + wave) * s * 1.3, -s * 0.6 + Math.sin(-1.9 + wave) * s * 1.3);
+      ctx.stroke();
+    }
   }
 
   drawWaterZones(ctx, world, time) {
@@ -1076,6 +1442,103 @@ export class LevelRenderer {
     ctx.restore();
   }
 
+  // Foreground details (fg_*), drawn after the caterpillars for depth; small and low so
+  // they never hide the action
+  drawForeground(ctx, world, level, time) {
+    const pal = (level && level.palette) || {};
+    for (const dec of world.decorations) {
+      if (!dec.type.startsWith('fg_')) continue;
+      const s = dec.scale || 1;
+      ctx.save();
+      ctx.translate(dec.x, dec.y);
+      ctx.scale(s, s);
+      ctx.lineCap = 'round';
+      const sway = Math.sin(time * 2.2 + dec.x * 0.05) * 3;
+      switch (dec.type) {
+        case 'fg_grass':
+        case 'fg_glow_grass': {
+          const glow = dec.type === 'fg_glow_grass';
+          ctx.strokeStyle = glow ? 'rgba(120, 255, 200, 0.85)' : (pal.blade || '#2d8a18');
+          ctx.lineWidth = 3;
+          for (let k = -3; k <= 3; k++) {
+            ctx.beginPath();
+            ctx.moveTo(k * 4, 4);
+            ctx.quadraticCurveTo(k * 5, -10, k * 7 + sway, -22 + Math.abs(k) * 3);
+            ctx.stroke();
+          }
+          if (glow) {
+            ctx.fillStyle = 'rgba(180, 255, 230, 0.8)';
+            ctx.beginPath();
+            ctx.arc(sway + 6, -20, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          break;
+        }
+        case 'fg_flowers':
+          for (const [fx, col] of [[-10, '#ff8fab'], [6, '#fff3a8'], [16, '#b8a2ff']]) {
+            ctx.strokeStyle = '#2d8a18';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(fx, 4);
+            ctx.lineTo(fx + sway * 0.5, -16);
+            ctx.stroke();
+            ctx.fillStyle = col;
+            for (let k = 0; k < 5; k++) {
+              const a = (Math.PI * 2 / 5) * k;
+              ctx.beginPath();
+              ctx.arc(fx + sway * 0.5 + Math.cos(a) * 4, -18 + Math.sin(a) * 4, 3, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.fillStyle = '#ffb703';
+            ctx.beginPath();
+            ctx.arc(fx + sway * 0.5, -18, 2.2, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          break;
+        case 'fg_pebbles':
+          for (const [px, pr, col] of [[-10, 7, '#8d8f99'], [3, 5, '#a3a6b0'], [13, 4, '#787b86']]) {
+            ctx.fillStyle = col;
+            ctx.strokeStyle = 'rgba(30, 30, 40, 0.6)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.ellipse(px, 2, pr, pr * 0.7, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          }
+          break;
+        case 'fg_mushlets':
+          for (const [mx, mr] of [[-8, 7], [6, 5]]) {
+            ctx.fillStyle = '#f3e3c3';
+            ctx.fillRect(mx - 1.5, -mr, 3, mr + 4);
+            ctx.fillStyle = '#c0703a';
+            ctx.strokeStyle = '#4a2410';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.ellipse(mx, -mr, mr, mr * 0.6, 0, Math.PI, 0);
+            ctx.fill();
+            ctx.stroke();
+          }
+          break;
+        case 'fg_honey_drops':
+          for (const [hx, hr] of [[-8, 5], [5, 7], [15, 4]]) {
+            ctx.fillStyle = 'rgba(240, 160, 32, 0.95)';
+            ctx.strokeStyle = '#9a5a08';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.ellipse(hx, 2, hr, hr * 0.6, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(255, 245, 200, 0.8)';
+            ctx.beginPath();
+            ctx.arc(hx - hr * 0.3, 0, hr * 0.25, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          break;
+      }
+      ctx.restore();
+    }
+  }
+
   // Backdrop props (no physics): each cup's world gets its own silhouettes
   drawScenery(ctx, dec, time) {
     const s = dec.scale || 1;
@@ -1146,6 +1609,76 @@ export class LevelRenderer {
           ctx.arc(tx, ty - r, 4, 0, Math.PI * 2);
           ctx.fill();
         }
+        break;
+      }
+      case 'bg_sunflower': {
+        ctx.strokeStyle = '#3f7a2a';
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        ctx.moveTo(0, 10);
+        ctx.quadraticCurveTo(10, -120, sway * 60, -250);
+        ctx.stroke();
+        leafy(-22, -90, 26, 11, -0.4, '#4fae3a', '#1f4d16');
+        leafy(24, -150, 24, 10, 0.5, '#5bbf44', '#1f4d16');
+        ctx.save();
+        ctx.translate(sway * 60, -255);
+        ctx.rotate(0.2 + sway);
+        for (let k = 0; k < 16; k++) {
+          const a = (Math.PI * 2 / 16) * k;
+          leafy(Math.cos(a) * 34, Math.sin(a) * 34, 18, 8, a, k % 2 ? '#ffd32a' : '#ffbe0b', '#b8860b');
+        }
+        ctx.fillStyle = '#5a3412';
+        ctx.strokeStyle = '#2a1608';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, 24, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255, 220, 140, 0.35)';
+        for (let k = 0; k < 14; k++) {
+          ctx.beginPath();
+          ctx.arc(Math.cos(k * 2.4) * (k * 1.4), Math.sin(k * 2.4) * (k * 1.4), 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+        break;
+      }
+      case 'bg_honey_pot': {
+        ctx.fillStyle = '#c96f28';
+        ctx.strokeStyle = '#5a2d0c';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(-40, -10);
+        ctx.bezierCurveTo(-58, -60, -40, -105, -28, -112);
+        ctx.lineTo(28, -112);
+        ctx.bezierCurveTo(40, -105, 58, -60, 40, -10);
+        ctx.quadraticCurveTo(0, 6, -40, -10);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#f0a020';
+        ctx.beginPath();
+        ctx.ellipse(0, -112, 30, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(18, -110);
+        ctx.quadraticCurveTo(26, -80, 22, -62);
+        ctx.quadraticCurveTo(18, -55, 15, -64);
+        ctx.quadraticCurveTo(12, -90, 8, -108);
+        ctx.fill();
+        ctx.fillStyle = '#fff1c8';
+        ctx.strokeStyle = '#5a2d0c';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.roundRect(-24, -72, 40, 26, 5);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#5a2d0c';
+        ctx.font = '900 13px "Fredoka", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('MIEL', -4, -58);
         break;
       }
       case 'bg_carrot': {
@@ -2977,39 +3510,103 @@ export class LevelRenderer {
     ctx.restore();
   }
 
-  drawMushroom(ctx, m, time) {
+  // Bounce mushroom: domed cap with shading, gills underneath, ringed stem and spots.
+  // Same red & white everywhere so it always reads as "bounce"; glows at night.
+  drawMushroom(ctx, m, time, level) {
+    const night = level && level.theme === 'night';
+    const r = m.radius;
     ctx.save();
     ctx.translate(m.x, m.y);
     ctx.rotate(m.angle || 0);
-
     const sx = 1 + Math.sin(m.squash * Math.PI) * 0.35;
     const sy = 1 - Math.sin(m.squash * Math.PI) * 0.28;
     ctx.scale(sx, sy);
+    ctx.lineJoin = 'round';
 
-    const r = m.radius;
+    if (night) {
+      const glow = 0.55 + Math.sin(time * 2 + m.x * 0.01) * 0.15;
+      const halo = ctx.createRadialGradient(0, -r * 0.3, r * 0.2, 0, -r * 0.3, r * 2.2);
+      halo.addColorStop(0, `rgba(255, 120, 160, ${0.45 * glow})`);
+      halo.addColorStop(1, 'rgba(255, 120, 160, 0)');
+      ctx.fillStyle = halo;
+      ctx.beginPath();
+      ctx.arc(0, -r * 0.3, r * 2.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
 
-    ctx.fillStyle = '#fff3d6';
-    ctx.strokeStyle = '#2a1b0e';
-    ctx.lineWidth = 4;
+    // Stem: slightly bulging, shaded on one side, with a ring (annulus)
+    const stemGrad = ctx.createLinearGradient(-r * 0.4, 0, r * 0.4, 0);
+    stemGrad.addColorStop(0, '#fffaf0');
+    stemGrad.addColorStop(0.6, '#f3e3c3');
+    stemGrad.addColorStop(1, '#cdb48a');
+    ctx.fillStyle = stemGrad;
+    ctx.strokeStyle = '#3a2412';
+    ctx.lineWidth = 3.5;
     ctx.beginPath();
-    ctx.roundRect(-r * 0.38, -r * 0.1, r * 0.76, r * 0.95, 10);
+    ctx.moveTo(-r * 0.3, -r * 0.05);
+    ctx.quadraticCurveTo(-r * 0.46, r * 0.5, -r * 0.36, r * 0.92);
+    ctx.lineTo(r * 0.36, r * 0.92);
+    ctx.quadraticCurveTo(r * 0.46, r * 0.5, r * 0.3, -r * 0.05);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = '#fff6e6';
+    ctx.beginPath();
+    ctx.ellipse(0, r * 0.22, r * 0.44, r * 0.1, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = '#ff3864';
+    // Underside with gills
+    ctx.fillStyle = '#f2d9c0';
     ctx.beginPath();
-    ctx.arc(0, -r * 0.1, r, Math.PI, 0);
-    ctx.bezierCurveTo(r * 1.1, r * 0.18, -r * 1.1, r * 0.18, -r, -r * 0.1);
+    ctx.ellipse(0, -r * 0.08, r * 0.98, r * 0.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(120, 70, 40, 0.5)';
+    ctx.lineWidth = 1.4;
+    for (let k = -6; k <= 6; k++) {
+      ctx.beginPath();
+      ctx.moveTo(k * r * 0.07, -r * 0.08);
+      ctx.lineTo(k * r * 0.14, r * 0.06);
+      ctx.stroke();
+    }
+
+    // Cap: dome with a radial gradient and a darker rim
+    const capGrad = ctx.createRadialGradient(-r * 0.35, -r * 0.75, r * 0.1, 0, -r * 0.3, r * 1.2);
+    capGrad.addColorStop(0, night ? '#ff9ec0' : '#ff6b81');
+    capGrad.addColorStop(0.55, night ? '#e8457a' : '#e8283f');
+    capGrad.addColorStop(1, night ? '#9a1f52' : '#9e1426');
+    ctx.fillStyle = capGrad;
+    ctx.strokeStyle = '#3a1410';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.02, -r * 0.1);
+    ctx.bezierCurveTo(-r * 1.05, -r * 0.95, r * 1.05, -r * 0.95, r * 1.02, -r * 0.1);
+    ctx.quadraticCurveTo(0, r * 0.06, -r * 1.02, -r * 0.1);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
 
-    ctx.fillStyle = '#ffffff';
+    // Spots of different sizes, each with a soft shadow
+    const spots = [[-0.55, -0.35, 0.16], [-0.12, -0.62, 0.21], [0.42, -0.5, 0.17], [0.7, -0.2, 0.1], [-0.82, -0.18, 0.08], [0.12, -0.28, 0.1]];
+    for (const [px, py, pr] of spots) {
+      ctx.fillStyle = 'rgba(80, 10, 20, 0.25)';
+      ctx.beginPath();
+      ctx.ellipse(px * r + 1.5, py * r + 1.5, pr * r, pr * r * 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = night ? '#fff0fb' : '#fffdf6';
+      ctx.beginPath();
+      ctx.ellipse(px * r, py * r, pr * r, pr * r * 0.8, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // Gloss highlight
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.arc(-r * 0.48, -r * 0.45, r * 0.18, 0, Math.PI * 2);
-    ctx.arc(0, -r * 0.65, r * 0.22, 0, Math.PI * 2);
-    ctx.arc(r * 0.48, -r * 0.42, r * 0.17, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.arc(-r * 0.1, -r * 0.2, r * 0.72, Math.PI * 1.12, Math.PI * 1.42);
+    ctx.stroke();
 
     ctx.restore();
   }
@@ -3794,117 +4391,4 @@ export class LevelRenderer {
     ctx.restore();
   }
 
-  drawStartBanner(ctx, x, y) {
-    ctx.save();
-    ctx.translate(x, y);
-
-    ctx.fillStyle = '#8d5524';
-    ctx.strokeStyle = '#2a1b0e';
-    ctx.lineWidth = 3.5;
-    ctx.fillRect(-6, -85, 12, 85);
-    ctx.strokeRect(-6, -85, 12, 85);
-
-    ctx.fillStyle = '#ffd93b';
-    ctx.beginPath();
-    ctx.roundRect(-48, -115, 96, 36, 8);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.fillStyle = '#2a1b0e';
-    ctx.font = '900 15px "Fredoka", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('DÉPART ▶', 0, -92);
-
-    ctx.restore();
-  }
-
-  drawFinishLine(ctx, x, y, time, isVictory) {
-    ctx.save();
-    ctx.translate(x, y);
-
-    ctx.fillStyle = '#6b4226';
-    ctx.strokeStyle = '#2a1b0e';
-    ctx.lineWidth = 4;
-    ctx.fillRect(-6, -165, 12, 165);
-    ctx.strokeRect(-6, -165, 12, 165);
-
-    const wave = Math.sin(time * 5) * 5;
-    ctx.fillStyle = '#ffffff';
-    ctx.beginPath();
-    ctx.roundRect(-6, -162, 110, 36, 6);
-    ctx.fill();
-    ctx.stroke();
-
-    const cols = 6;
-    const sqW = 110 / cols;
-    const sqH = 18;
-    for (let r = 0; r < 2; r++) {
-      for (let c = 0; c < cols; c++) {
-        if ((r + c) % 2 === 0) {
-          ctx.fillStyle = '#2a1b0e';
-          ctx.fillRect(-6 + c * sqW, -162 + r * sqH, sqW, sqH);
-        }
-      }
-    }
-
-    ctx.fillStyle = '#ffd93b';
-    ctx.beginPath();
-    ctx.arc(0, -172 + wave * 0.3, 14, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    for (const bug of this.spectators) {
-      const jumpSpeed = isVictory ? 12 : 4.5;
-      const jumpHeight = isVictory ? 34 : 8;
-      const bounce = Math.abs(Math.sin(time * jumpSpeed + bug.phase)) * jumpHeight;
-      const bx = bug.offsetX;
-      const by = (bug.flying ? -95 : -bug.size) - bounce;
-
-      ctx.save();
-      ctx.translate(bx, by);
-      if (isVictory) {
-        ctx.rotate(Math.sin(time * 14 + bug.phase) * 0.22);
-      }
-
-      ctx.fillStyle = bug.color;
-      ctx.strokeStyle = '#1e1b18';
-      ctx.lineWidth = 2.8;
-      ctx.beginPath();
-      ctx.arc(0, 0, bug.size, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      if (bug.type === 'bee') {
-        ctx.fillStyle = '#1e1b18';
-        ctx.fillRect(-5, -bug.size * 0.8, 4, bug.size * 1.6);
-        ctx.fillRect(3, -bug.size * 0.8, 4, bug.size * 1.6);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        const wingY = Math.sin(time * 35) * 4;
-        ctx.beginPath();
-        ctx.ellipse(-3, -bug.size - 4 + wingY, 8, 5, -0.3, 0, Math.PI * 2);
-        ctx.ellipse(5, -bug.size - 4 - wingY, 8, 5, 0.3, 0, Math.PI * 2);
-        ctx.fill();
-      } else if (bug.type === 'ladybug') {
-        ctx.fillStyle = '#1e1b18';
-        ctx.beginPath();
-        ctx.arc(-4, -3, 3, 0, Math.PI * 2);
-        ctx.arc(4, 2, 3, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(-bug.size * 0.45, -3, 4.2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = '#1e1b18';
-      ctx.beginPath();
-      ctx.arc(-bug.size * 0.52, -3, 2, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.restore();
-    }
-
-    ctx.restore();
-  }
 }

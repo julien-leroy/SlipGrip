@@ -77,11 +77,20 @@ function kit(world, T) {
 
 // Backdrop props of each world, planted on the ground behind the track (no physics)
 const SCENERY = {
-  potager: ['bg_lettuce', 'bg_tomato_plant', 'bg_carrot', 'bg_lettuce', 'bg_tomato_plant'],
-  sousbois: ['bg_trunk', 'bg_big_fern', 'bg_glow_cluster', 'bg_big_fern'],
-  ruche: ['bg_comb', 'bg_comb', 'bg_bee', 'bg_comb'],
-  rosee: ['bg_night_flower', 'bg_fireflies', 'bg_cairn', 'bg_night_flower', 'bg_fireflies'],
-  initiation: ['bg_big_fern', 'bg_lettuce', 'bg_trunk']
+  potager: ['bg_lettuce', 'bg_tomato_plant', 'bg_carrot', 'bg_sunflower', 'bg_lettuce', 'bg_tomato_plant'],
+  sousbois: ['bg_trunk', 'bg_big_fern', 'bg_glow_cluster', 'bg_big_fern', 'bg_glow_cluster'],
+  ruche: ['bg_comb', 'bg_comb', 'bg_bee', 'bg_honey_pot', 'bg_comb'],
+  rosee: ['bg_night_flower', 'bg_fireflies', 'bg_cairn', 'bg_night_flower', 'bg_fireflies', 'bg_glow_cluster'],
+  initiation: ['bg_big_fern', 'bg_lettuce', 'bg_trunk', 'bg_sunflower']
+};
+
+// Small foreground details drawn IN FRONT of the caterpillars (depth), kept low
+const FOREGROUND = {
+  potager: ['fg_grass', 'fg_flowers', 'fg_pebbles', 'fg_grass'],
+  sousbois: ['fg_grass', 'fg_pebbles', 'fg_grass', 'fg_mushlets'],
+  ruche: ['fg_honey_drops', 'fg_pebbles', 'fg_honey_drops'],
+  rosee: ['fg_glow_grass', 'fg_pebbles', 'fg_glow_grass'],
+  initiation: ['fg_grass', 'fg_flowers', 'fg_pebbles']
 };
 
 // Ground height (top-most ground mass surface) at x, or null over a gap
@@ -105,11 +114,17 @@ function plantScenery(world, worldName, endX, seed) {
   const kinds = SCENERY[worldName] || [];
   let a = seed * 9301 + 49297;
   const rand = () => { a = (a * 9301 + 49297) % 233280; return a / 233280; };
-  for (let x = 120 + rand() * 120; x < endX + 300; x += 170 + rand() * 190) {
+  for (let x = 120 + rand() * 120; x < endX + 300; x += 140 + rand() * 160) {
     const y = groundYAt(world, x);
     if (y === null) continue;
     const type = kinds[Math.floor(rand() * kinds.length)];
     world.addDecoration(type, x, y + 14, 0.8 + rand() * 0.5);
+  }
+  const front = FOREGROUND[worldName] || [];
+  for (let x = 60 + rand() * 80; x < endX + 300; x += 90 + rand() * 140) {
+    const y = groundYAt(world, x);
+    if (y === null) continue;
+    world.addDecoration(front[Math.floor(rand() * front.length)], x, y - 14, 0.8 + rand() * 0.4);
   }
 }
 

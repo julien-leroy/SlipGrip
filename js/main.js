@@ -1683,6 +1683,7 @@ class SlipGripGame {
 
     // Draw local caterpillar on top
     this.caterpillar.draw(ctx, this.globalTime);
+    this.renderer.drawForeground(ctx, this.world, this.level, this.globalTime);
     this.particles.draw(ctx);
 
     ctx.restore();
