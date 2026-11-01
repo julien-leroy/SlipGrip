@@ -23,18 +23,35 @@ const PORT = 21000 + Math.floor(Math.random() * 1000);
       for (let f = 0; f < 60 * 120 && !g.raceFinished; f++) {
         t = f / 60;
         // Smarter bot: crawl + periodic jump; when stalled, climb with the suction feet
-        if (climbUntil > f) {
-          const ph = (f - climbStart) % 90; inp.up = true; inp.right = true;
+        if (climbUntil > f && f - climbStart < 90) {
+          // Unstick, step 1: let go of everything and push/hop forward (mushrooms only
+          // launch a caterpillar whose feet are free)
+          if (f === climbStart) { g.caterpillar.setRearHold(false, g.particles); g.caterpillar.setFrontHold(false, g.particles); }
+          inp.right = true; inp.up = false; inp.space = (f - climbStart) < 50;
+        } else if (climbUntil > f) {
+          // Unstick, step 2: climb with the suction feet
+          const ph = (f - climbStart - 90) % 90; inp.up = true; inp.right = true;
           if (ph === 0) { g.caterpillar.setFrontHold(true, g.particles); g.caterpillar.setRearHold(false, g.particles); }
           if (ph === 45) { g.caterpillar.setRearHold(true, g.particles); g.caterpillar.setFrontHold(false, g.particles); }
           inp.space = ph < 40;
           if (f === climbUntil - 1) { g.caterpillar.setRearHold(false, g.particles); g.caterpillar.setFrontHold(false, g.particles); inp.up = false; inp.space = false; }
+        } else if (g.caterpillar.getSpecies().contractStyle === 'omega') {
+          // Geometridae gait: grip head, draw the tail in under the loop, grip tail,
+          // let go of the head, unroll forward
+          const ph = f % 100;
+          inp.right = true; inp.up = false;
+          if (ph === 0) { g.caterpillar.setFrontHold(true, g.particles); g.caterpillar.setRearHold(false, g.particles); }
+          inp.space = ph < 50;
+          if (ph === 48) g.caterpillar.setRearHold(true, g.particles);
+          if (ph === 52) g.caterpillar.setFrontHold(false, g.particles);
+          if (ph === 99) g.caterpillar.setRearHold(false, g.particles);
+          if (f % 90 === 0) { if (g.caterpillar.head.x - lastCheckX < 25) { climbStart = f; climbUntil = f + 360; climbs++; } lastCheckX = g.caterpillar.head.x; }
         } else {
           const ph = f % 150;
           inp.space = ph >= 90 && ph < 140; inp.up = ph >= 90 && ph < 145;
           if (ph === 85) g.caterpillar.setRearHold(true, g.particles);
           if (ph === 141) g.caterpillar.setRearHold(false, g.particles);
-          if (f % 90 === 0) { if (g.caterpillar.head.x - lastCheckX < 25) { climbStart = f; climbUntil = f + 270; climbs++; } lastCheckX = g.caterpillar.head.x; }
+          if (f % 90 === 0) { if (g.caterpillar.head.x - lastCheckX < 25) { climbStart = f; climbUntil = f + 360; climbs++; } lastCheckX = g.caterpillar.head.x; }
         }
         g.update(1 / 60);
         const x = g.caterpillar.head.x; maxX = Math.max(maxX, x);

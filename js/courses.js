@@ -55,7 +55,8 @@ function kit(world, T) {
         type: 'leaf', material: 'leaf', pivotX: x, pivotY: y,
         moveX: drift, moveY: 0, moveSpeed: 0.8,
         localPoints: [[-halfWidth, 0], [-halfWidth * 0.3, -5], [halfWidth * 0.3, -5], [halfWidth, 0]],
-        baseAngle: 0, stiffness: 20, damping: 3.0, thickness: 36
+        // Stiff enough that a tilting leaf never sweeps through a body
+        baseAngle: 0, stiffness: 45, damping: 4.0, thickness: 36
       });
     },
     // Bounce mushroom standing on ground at groundY
@@ -249,7 +250,7 @@ export const LEVEL_DEFINITIONS = [
       k.ground([[-200, 200], [-200, 540], [1150, 540]]);
       k.ground([[1150, 540], [1200, 490], [1350, 490], [1400, 540]], 'slippery');
       k.ground([[1400, 540], [1500, 540]]);
-      k.plat([[500, 450], [700, 380], [900, 380], [1100, 450]]);
+      k.plat([[500, 420], [700, 370], [900, 370], [1100, 420]]);
       k.deco('fern', 300, 540, 1.2); k.deco('bracket_fungus', 800, 540, 1.0);
       world.addAnt(1000, 520, 25, 900, 1100);
       k.cp(1550, 540, 'Checkpoint 1');

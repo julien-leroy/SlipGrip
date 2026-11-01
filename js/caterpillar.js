@@ -97,9 +97,6 @@ export const COSMETIC_PALETTES = {
   }
 };
 
-// After a jump, feet can't re-grip for this long (s) even if Q/D are still held
-const JUMP_NO_GRIP_TIME = 0.25;
-
 export class Caterpillar {
   constructor(startX, startY, options = {}) {
     this.playerId = options.playerId || null;
@@ -219,7 +216,8 @@ export class Caterpillar {
     const rear = this.nodes[0];
     const head = this.nodes[N - 1];
     const L = segLen * (N - 1);
-    const OMEGA_CLOSE = 0.8; // at full contraction the feet are 20% of the body length apart
+    // Fraction of the body length the feet close by at full contraction (= stride length)
+    const OMEGA_CLOSE = this.getSpecies().omegaClose || 0.8;
     const targetChord = L * (1 - OMEGA_CLOSE * this.contraction);
 
     let ux = head.x - rear.x;
@@ -295,6 +293,13 @@ export class Caterpillar {
       const n = this.nodes[i];
       n.x += (tx - n.x) * ARC_PULL;
       n.y += (ty - n.y) * ARC_PULL;
+      // The loop is held by the muscles: velocity pumped in by other forces while the
+      // arc pins the shape must not be stored and released as a fling
+      if (this.wasSpaceHeld) {
+        const hold = 1 - 0.18 * this.contraction;
+        n.vx *= hold;
+        n.vy *= hold;
+      }
     }
   }
 
@@ -1603,6 +1608,12 @@ export class Caterpillar {
     // Special Whip Crack ("Coup de Fouet") when releasing détente while anchored by the head:
     // "je veux que quand on accroche par la tete et qu'on lache la detente ca oriente la queue droit dans cette direction pour la detendre. ceci faisant en plus l'arme de mélée la plus puissante de la chenille comme un genre de coup de fouet."
     const isAnchoredByHead = this.frontAnchor.anchored && !this.isHoldingMovable(this.frontAnchor);
+    // Grip has priority over everything: with both feet held there is no whip, the body
+    // simply stretches between its two gripped feet
+    if (isAnchoredByHead && this.rearAnchor.anchored && this.rearAnchor.holdingKey) {
+      this.extensionTimer = 0.25;
+      return;
+    }
     if (isAnchoredByHead) {
       if (this.rearAnchor.anchored) {
         this.releaseAnchor(this.rearAnchor, false, particles);
@@ -1798,17 +1809,14 @@ export class Caterpillar {
       this.launchSpinePower = power * 0.25;
     }
 
-    // Release any anchor grips immediately. The grip keys are usually still held at
-    // this point: without a short no-grip window the feet re-stuck to the ground on
-    // the very next substep and smothered the jump.
-    if (this.rearAnchor.anchored) {
+    // Grip has priority over the jump: a foot whose key is still held stays exactly
+    // where it is (the body then springs out around it). To leap, let go of Q/D.
+    if (this.rearAnchor.anchored && !this.rearAnchor.holdingKey) {
       this.releaseAnchor(this.rearAnchor, false, particles);
     }
-    if (this.frontAnchor.anchored) {
+    if (this.frontAnchor.anchored && !this.frontAnchor.holdingKey) {
       this.releaseAnchor(this.frontAnchor, true, particles);
     }
-    this.rearAnchor.noGripTimer = JUMP_NO_GRIP_TIME;
-    this.frontAnchor.noGripTimer = JUMP_NO_GRIP_TIME;
 
     // Progressive jump power
     if (power <= 0.005) {
@@ -1980,7 +1988,7 @@ export class Caterpillar {
     const rear = this.rear;
     const head = this.head;
     const mStats = this.getModifierStats();
-    const resp = (GAMEPLAY_CONFIG.orientationResponsiveness || 2.2) * mStats.speedMult;
+    const resp = (GAMEPLAY_CONFIG.orientationResponsiveness || 2.2) * mStats.speedMult * (this.getSpecies().driveMult || 1.0);
 
     for (let i = 0; i < N; i++) {
       this.nodes[i].stepStartX = this.nodes[i].x;
@@ -2042,7 +2050,9 @@ export class Caterpillar {
         // On the ground / anchored:
         const inertiaBoost = (isExtending || isHopping) ? 1.5 : 1.0;
         const clsAgility = ((this.bodyClass && this.bodyClass.agilityMult) || 1.0) * mStats.speedMult;
-        const clsMass = (this.bodyClass && this.bodyClass.massMult) || 1.0;
+        // Square root: light species stay livelier and heavy ones sluggish, without the
+        // ×1.8 / ×0.45 extremes a plain division gave (it decided every race)
+        const clsMass = Math.sqrt((this.bodyClass && this.bodyClass.massMult) || 1.0);
         // Bending: orient with muscular resistance (~2.2x slower) as user requested
         const bendMult = isBending ? (GAMEPLAY_CONFIG.bendOrientationPower !== undefined ? GAMEPLAY_CONFIG.bendOrientationPower * 0.45 : 0.45) : 1.0;
         const agilityRatio = (clsAgility / clsMass) * bendMult;
@@ -3248,7 +3258,9 @@ export class Caterpillar {
     // When desired direction is aligned with the head, align Head ahead of Neck.
     // When desired direction is more toward the tail (isSteeredTowardTail), NEVER teleport the head across the neck!
     // Instead, straighten and project the TAIL (Node 0 & Node 1) downward along the tailward axis!
-    if (isExtending && hasSteer && !frontLocked) {
+    // Not for the Geometridae: its loop keeps the full body length, so snapping it along
+    // the aim stood the whole body up like a pole (it looked like flying off)
+    if (isExtending && hasSteer && !frontLocked && !isOmega) {
       const aimDist = Math.hypot(steerX, effSteerY) || 1;
       const detDirX = steerX / aimDist;
       const detDirY = effSteerY / aimDist;
@@ -3616,13 +3628,13 @@ export class Caterpillar {
           const bounceY = -1;
           const bLen = Math.hypot(bounceX, bounceY) || 1;
 
-          this.rearAnchor.anchored = false;
-          this.rearAnchor.propRef = null;
-          this.frontAnchor.anchored = false;
-          this.frontAnchor.propRef = null;
-          // Same as a jump: held grip keys must not re-stick the feet mid-bounce
-          this.rearAnchor.noGripTimer = JUMP_NO_GRIP_TIME;
-          this.frontAnchor.noGripTimer = JUMP_NO_GRIP_TIME;
+          // Grip has priority: only free feet leave the ground
+          for (const anchor of [this.rearAnchor, this.frontAnchor]) {
+            if (!anchor.holdingKey) {
+              anchor.anchored = false;
+              anchor.propRef = null;
+            }
+          }
           this.hopTimer = Math.max(this.hopTimer, 0.4);
 
           for (let k = 0; k < N; k++) {

@@ -9,11 +9,13 @@
 //   jumpMult        → extra launch speed multiplier
 //   chargeSpeedMult → how fast Space charges / contracts
 //   agilityMult     → steering & air rotation responsiveness
+//   driveMult       → strength of the body's own pulling/steering forces (crawl pace)
 //   gravityMult     → personal gravity (light species fall slower)
 //   glide           → gentle gliding when falling with the arrows held
 //   gripExtraDistance → extra suction reach (px)
 //   mossGrip        → suction feet do not slide on moss
 //   contractStyle   → 'accordion' (segments shorten) or 'omega' (ends meet, body loops: Geometridae)
+//   omegaClose      → Ω only: fraction of body length the feet close by (= loop stride)
 //   visualScale     → drawn body thickness, matching the collision radii
 export const CATERPILLAR_CLASSES = {
   classique: {
@@ -57,11 +59,12 @@ export const CATERPILLAR_CLASSES = {
     crawlMult: 1.25,
     jumpHeightFrac: 0.42,
     jumpMult: 1.0,
-    chargeSpeedMult: 1.35,
-    agilityMult: 1.35,
-    gravityMult: 0.85,
+    chargeSpeedMult: 1.0,
+    agilityMult: 1.1,
+    driveMult: 0.85,
+    gravityMult: 0.95,
     glide: true,
-    gripExtraDistance: 6,
+    gripExtraDistance: 3,
     contractStyle: 'accordion',
     visualScale: 0.74
   },
@@ -104,13 +107,14 @@ export const CATERPILLAR_CLASSES = {
     radii: [8.5, 9.5, 10.0, 10.0, 9.5, 10.5],
     massMult: 0.85,
     crawlMult: 0.55,
-    jumpHeightFrac: 0.6,
+    jumpHeightFrac: 0.34,
     jumpMult: 1.0,
     chargeSpeedMult: 1.1,
     agilityMult: 1.1,
     gravityMult: 1.0,
     gripExtraDistance: 8,
     contractStyle: 'omega',
+    omegaClose: 0.55,
     visualScale: 0.72
   },
   monarque: {
