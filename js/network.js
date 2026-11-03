@@ -1,4 +1,5 @@
 // js/network.js — Client WebSocket Temps Réel, Gestionnaire de Rooms & Synchronisation Multijoueur SlipGrip
+import { reportError } from './errorReporter.js';
 
 export class NetworkManager {
   constructor() {
@@ -69,6 +70,7 @@ export class NetworkManager {
           cb(data);
         } catch (err) {
           console.error(`Error in network listener [${event}]:`, err);
+          reportError(err, `réseau:${event}`);
         }
       }
     }

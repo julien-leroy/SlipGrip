@@ -29,6 +29,9 @@ for f in server.js js/*.js; do node --check "$f"; done
   - `GAMEPLAY_CONFIG.autoFlip` : retournement quand le dos touche une surface.
 - **Chute en l'air** : sans appui ni ventouse, `enforceBallisticFall` impose une chute libre au centre de masse (le corps peut changer de forme mais pas planer). Seul un vrai plané y échappe (bonus plume, espèce avec `glide`).
 - **Primauté de l'accroche** : une patte dont la touche est tenue ne se décroche jamais à cause d'un saut, d'un fouet ou d'un champignon.
+- **Logs serveur** (`server.js`, section LOGS) : lancement de coupe avec les joueurs et leur espèce, départ et résultat de chaque course, vainqueur de la coupe, erreurs. `logLine`, `logServerError`, `logClientError`.
+- **Erreurs des joueurs** : `js/errorReporter.js` capte les erreurs JS, les promesses rejetées, les exceptions de la boucle de jeu (qui ne fige plus) et celles des écouteurs réseau. Il les envoie au serveur (`client_error` par WebSocket, sinon `POST /api/client-error`) avec le contexte de jeu. Les doublons sont regroupés des deux côtés (30 s).
+- Pas de limite de joueurs par room (`maxPlayers: null`).
 - Dégâts des projectiles : c'est la **victime** qui les applique, en rejouant le lancer reçu par `entity_throw`. Ne jamais aussi envoyer de `pvp_action` pour un projectile, sinon les dégâts sont doublés.
 - Reconnexion : le serveur donne un `resumeToken` (stocké dans sessionStorage) et garde la place 30 s (`RECONNECT_GRACE_MS`). Côté serveur, `handleWsMessage` peut renvoyer un autre objet client après une reprise de session.
 - Physique de la chenille : 6 sous-étapes à pas variable (`dt` limité à 1/30 dans `Caterpillar.update`, 0,05 dans `main.loop`). Beaucoup de coefficients sont appliqués par sous-étape sans `dt`. Le monde (`PhysicsWorld.update`) n'a pas de sous-étapes.
@@ -60,6 +63,7 @@ for f in server.js js/*.js; do node --check "$f"; done
 | `js/gameplayConfig.js` | `CATERPILLAR_CLASSES`, `BODY_SHAPES`, `GAMEPLAY_CONFIG` / `GAMEPLAY_PRESETS`, `RACE_MODIFIERS`, `CUPS_DEFINITIONS`, `COSMETICS_CATALOG` + déblocage (localStorage) | |
 | `js/uiManager.js` | Écrans (home / lobbies / room / game), atelier, salon, HUD de course multi, draft, podium | `showScreen`, `bindUIEvents`, handlers `network.on(...)` dans le constructeur, `escapeHtml` |
 | `js/network.js` | Client WebSocket + bus d'événements `on` / `emit` | `handleMessage`, `send*` |
+| `js/errorReporter.js` | Remonte les erreurs des joueurs à la console du serveur, avec le contexte | `installErrorReporter`, `reportError` |
 | `js/audio.js` | Sons synthétisés (Web Audio), singleton `sound` | |
 | `js/particles.js` | Particules + popups texte | `spawnPopup`, `spawnConfetti` |
 | `tools/smoke-test.js`, `tools/fuzz-branch.js`, `tools/species-bench.js` | Tests headless (Playwright) : bout en bout, anti-traversée, mesures par espèce | |

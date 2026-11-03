@@ -36,6 +36,105 @@ function getLocalIpAddress() {
   return fallback;
 }
 
+// ==================== LOGS ====================
+// Short, readable console lines: games started (with players), race results, cup
+// winners, and errors (from players' browsers and from the server itself).
+const USE_COLOR = process.stdout.isTTY && !process.env.NO_COLOR;
+const C = USE_COLOR
+  ? { dim: '\x1b[2m', bold: '\x1b[1m', red: '\x1b[31m', green: '\x1b[32m', yellow: '\x1b[33m', cyan: '\x1b[36m', reset: '\x1b[0m' }
+  : { dim: '', bold: '', red: '', green: '', yellow: '', cyan: '', reset: '' };
+
+function timeStamp() {
+  return new Date().toTimeString().slice(0, 8);
+}
+
+function logLine(icon, text, color = '') {
+  console.log(`${C.dim}[${timeStamp()}]${C.reset} ${icon} ${color}${text}${C.reset}`);
+}
+
+const SPECIES_NAMES = {
+  classique: 'Classique', voltigeuse: 'Voltigeuse', dodue: 'Mastodonte', arpenteuse: 'Arpenteuse', monarque: 'Monarque'
+};
+
+function describePlayer(p) {
+  const species = SPECIES_NAMES[p.cosmetics && p.cosmetics.bodyType] || 'Classique';
+  return `${p.pseudo} (${species})`;
+}
+
+function raceLabel(room, raceIndex = room.raceIndex) {
+  const cup = CUPS_CATALOG[room.config.cupId] || CUPS_CATALOG[DEFAULT_CUP_ID];
+  const name = (cup.levelNames && cup.levelNames[raceIndex]) || `course ${raceIndex + 1}`;
+  return `course ${raceIndex + 1}/3 « ${name.replace(/^\d+\.\s*/, '')} »`;
+}
+
+// Keeps only the useful part of a stack: "fn (file:line:col)", no host / query string
+function shortStack(stack, maxFrames = 4) {
+  return String(stack || '').split('\n')
+    .filter((l) => /\s+at\s|@/.test(l))
+    .slice(0, maxFrames)
+    .map((l) => l.trim().replace(/https?:\/\/[^/]+\//g, '').replace(/\?v=\d+/g, ''));
+}
+
+function logServerError(err, where) {
+  console.log(`${C.red}${C.bold}─── 💥 ERREUR SERVEUR ─────────────────────────────${C.reset}`);
+  logLine('💥', `${where} → ${err && err.name ? err.name + ': ' : ''}${err && err.message ? err.message : err}`, C.red);
+  for (const frame of shortStack(err && err.stack)) console.log(`      ${C.dim}${frame}${C.reset}`);
+}
+
+// Client errors: identical reports from the same player are grouped (first one printed
+// in full, repeats summarised) so a crash looping at 60 fps doesn't flood the console.
+const clientErrorSeen = new Map(); // key -> { count, first, lastPrint }
+const CLIENT_ERROR_REPEAT_MS = 30000;
+
+function cleanText(v, max = 300) {
+  return String(v === undefined || v === null ? '' : v).replace(/[\u0000-\u001f]+/g, ' ').slice(0, max);
+}
+
+function logClientError(report, client) {
+  if (!report || typeof report !== 'object') return;
+  const ctx = report.context && typeof report.context === 'object' ? report.context : {};
+  const who = client ? `${client.pseudo} (${client.id})` : cleanText(ctx.pseudo || 'joueur inconnu', 40);
+  const message = cleanText(report.message, 300);
+  const stack = Array.isArray(report.stack) ? report.stack.slice(0, 5).map((l) => cleanText(l, 160)) : [];
+  const key = `${client ? client.id : who}|${message}|${stack[0] || ''}`;
+  const now = Date.now();
+  const seen = clientErrorSeen.get(key);
+  if (seen) {
+    seen.count += 1 + (Number(report.repeats) || 0);
+    if (now - seen.lastPrint < CLIENT_ERROR_REPEAT_MS) return;
+    seen.lastPrint = now;
+    logLine('🔁', `${who} : même erreur ×${seen.count} depuis ${new Date(seen.first).toTimeString().slice(0, 8)} → ${message}`, C.yellow);
+    return;
+  }
+  clientErrorSeen.set(key, { count: 1, first: now, lastPrint: now });
+  if (clientErrorSeen.size > 500) clientErrorSeen.delete(clientErrorSeen.keys().next().value);
+
+  const room = client && client.roomCode ? rooms.get(client.roomCode) : null;
+  const where = [
+    room ? `room #${room.code}` : (ctx.roomCode ? `room #${cleanText(ctx.roomCode, 8)}` : 'solo'),
+    room && room.state === 'racing' ? raceLabel(room) : cleanText(ctx.level, 60),
+    ctx.species ? `espèce ${cleanText(ctx.species, 20)}` : ''
+  ].filter(Boolean).join(' · ');
+
+  console.log(`${C.red}${C.bold}─── ❌ ERREUR CHEZ UN JOUEUR ───────────────────────${C.reset}`);
+  logLine('❌', `${who} · ${where}`, C.red);
+  console.log(`      ${C.bold}${cleanText(report.kind, 40) ? `[${cleanText(report.kind, 40)}] ` : ''}${message}${C.reset}`);
+  for (const frame of stack) console.log(`      ${C.dim}${frame}${C.reset}`);
+  const details = [
+    ctx.screen ? `écran=${cleanText(ctx.screen, 12)}` : '',
+    ctx.raceTime !== undefined ? `t=${cleanText(ctx.raceTime, 8)}s` : '',
+    ctx.head ? `tête=${cleanText(ctx.head, 20)}` : '',
+    ctx.grips ? `ventouses ${cleanText(ctx.grips, 20)}` : '',
+    ctx.keys ? `touches=${cleanText(ctx.keys, 30)}` : '',
+    ctx.fps ? `fps≈${cleanText(ctx.fps, 4)}` : ''
+  ].filter(Boolean).join(', ');
+  if (details) console.log(`      contexte : ${details}`);
+  if (ctx.browser) console.log(`      ${C.dim}navigateur : ${cleanText(ctx.browser, 60)}${C.reset}`);
+}
+
+process.on('uncaughtException', (err) => logServerError(err, 'exception non gérée'));
+process.on('unhandledRejection', (err) => logServerError(err, 'promesse rejetée'));
+
 // ==================== CUPS & DEFAULT ROOM SETTINGS ====================
 const CUPS_CATALOG = {
   coupe_potager: {
@@ -81,7 +180,8 @@ const ROOM_SETTING_BOUNDS = {
 };
 
 function createDefaultRoomConfig() {
-  const config = { cupId: null, maxPlayers: 4 };
+  // No player limit by default (maxPlayers null); a host could still set one
+  const config = { cupId: null, maxPlayers: null };
   for (const [key, b] of Object.entries(ROOM_SETTING_BOUNDS)) config[key] = b.default;
   return config;
 }
@@ -110,7 +210,7 @@ function getPublicRoomList() {
       cupName: cup.name,
       cupIcon: cup.icon,
       playerCount: room.players.size,
-      maxPlayers: room.config.maxPlayers || 4,
+      maxPlayers: room.config.maxPlayers || null,
       state: room.state,
       raceIndex: room.raceIndex
     });
@@ -154,6 +254,24 @@ function serializeRoom(room) {
 // ==================== HTTP SERVER ====================
 const server = http.createServer((req, res) => {
   const urlPath = req.url.split('?')[0];
+
+  if (urlPath === '/api/client-error' && req.method === 'POST') {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk;
+      if (body.length > 20000) req.destroy();
+    });
+    req.on('end', () => {
+      try {
+        logClientError(JSON.parse(body), null);
+      } catch (err) {
+        // Ignore malformed reports
+      }
+      res.writeHead(204);
+      res.end();
+    });
+    return;
+  }
 
   if (urlPath === '/api/server-info') {
     const ip = getLocalIpAddress();
@@ -379,6 +497,11 @@ function concludeRoomRace(room) {
     });
   });
 
+  const resultLine = raceStandings.map((r) => r.finished
+    ? `${r.rank}. ${r.pseudo} ${Number(r.finishTime || 0).toFixed(1)}s`
+    : `${r.rank}. ${r.pseudo} (non arrivé, ${Math.round((r.progress || 0) * 100)}%)`).join(' · ');
+  logLine('🥇', `room #${room.code} · fin ${raceLabel(room)} → ${resultLine}`, C.green);
+
   if (room.raceIndex < 2) {
     // Races 1 & 2 -> Inter-race Standings & Modifier Draft!
     room.state = 'draft';
@@ -398,6 +521,11 @@ function concludeRoomRace(room) {
       return (a.totalTime || 0) - (b.totalTime || 0);
     });
     const champion = overallStandings[0];
+    if (champion) {
+      const table = overallStandings.map((p) => `${p.pseudo} ${p.score || 0} pts`).join(', ');
+      console.log(`${C.green}${C.bold}─── 👑 VAINQUEUR DE LA COUPE ──────────────────────${C.reset}`);
+      logLine('👑', `room #${room.code} · ${champion.pseudo} gagne avec ${champion.score || 0} pts · classement : ${table}`, C.green);
+    }
 
     broadcastRoom(room, 'cup_podium_start', {
       raceIndex: room.raceIndex,
@@ -450,6 +578,12 @@ function launchRoomRace(room, raceIndex) {
   }
 
   const levelId = cup.levels[raceIndex % cup.levels.length];
+  if (raceIndex === 0) {
+    const names = Array.from(room.players.values()).map(describePlayer).join(', ');
+    console.log(`${C.cyan}${C.bold}─── 🏆 COUPE LANCÉE ───────────────────────────────${C.reset}`);
+    logLine('🏆', `room #${room.code} · ${cup.icon} ${cup.name} · ${room.players.size} joueur${room.players.size > 1 ? 's' : ''} : ${names}`, C.cyan);
+  }
+  logLine('🏁', `room #${room.code} · départ ${raceLabel(room, raceIndex)}`);
   broadcastRoom(room, 'cup_race_start', {
     raceIndex,
     totalRaces: 3,
@@ -469,7 +603,11 @@ function removeClientFromRoom(client) {
   if (!room) return;
 
   room.players.delete(client.id);
+  if (room.state === 'racing' || room.state === 'draft') {
+    logLine('🚪', `room #${room.code} · ${client.pseudo} a quitté la coupe (${raceLabel(room)})`, C.yellow);
+  }
   if (room.players.size === 0) {
+    if (room.state !== 'lobby' && room.state !== 'podium') logLine('⚠️', `room #${room.code} fermée : tous les joueurs sont partis pendant la coupe`, C.yellow);
     if (room.raceTimerHandle) clearTimeout(room.raceTimerHandle);
     if (room.draftTimerHandle) clearTimeout(room.draftTimerHandle);
     if (room.autoLaunchTimerHandle) clearTimeout(room.autoLaunchTimerHandle);
@@ -562,6 +700,11 @@ function handleWsMessage(client, msg) {
       break;
     }
 
+    case 'client_error': {
+      logClientError(msg.report, client);
+      break;
+    }
+
     case 'list_rooms': {
       sendWs(client, 'rooms_list', { rooms: getPublicRoomList() });
       break;
@@ -612,7 +755,7 @@ function handleWsMessage(client, msg) {
         sendWs(client, 'room_error', { message: `Aucune room trouvée avec le code #${code}.` });
         return;
       }
-      if (room.players.size >= (room.config.maxPlayers || 4) && !room.players.has(client.id)) {
+      if (room.config.maxPlayers && room.players.size >= room.config.maxPlayers && !room.players.has(client.id)) {
         sendWs(client, 'room_error', { message: `La room #${code} est complète (${room.players.size}/${room.config.maxPlayers}).` });
         return;
       }
@@ -677,7 +820,8 @@ function handleWsMessage(client, msg) {
           room.config.cupId = msg.config.cupId;
         }
         if (msg.config.maxPlayers !== undefined) {
-          room.config.maxPlayers = Math.max(2, Math.min(8, parseInt(msg.config.maxPlayers, 10) || 4));
+          const max = parseInt(msg.config.maxPlayers, 10);
+          room.config.maxPlayers = Number.isFinite(max) && max >= 2 ? max : null;
         }
         for (const [key, b] of Object.entries(ROOM_SETTING_BOUNDS)) {
           if (msg.config[key] === undefined) continue;
@@ -1058,13 +1202,19 @@ server.on('upgrade', (req, socket, head) => {
         socket.write(pong);
       } else if (opcode === 0x1) {
         // Text frame
+        let parsed = null;
         try {
-          const str = payload.toString('utf8');
-          const parsed = JSON.parse(str);
-          const rebound = handleWsMessage(client, parsed);
-          if (rebound) client = rebound;
+          parsed = JSON.parse(payload.toString('utf8'));
         } catch (err) {
           // Ignore malformed JSON
+        }
+        if (parsed) {
+          try {
+            const rebound = handleWsMessage(client, parsed);
+            if (rebound) client = rebound;
+          } catch (err) {
+            logServerError(err, `message « ${cleanText(parsed.type, 30)} » de ${client.pseudo} (${client.id})`);
+          }
         }
       }
     }
@@ -1094,7 +1244,5 @@ server.on('upgrade', (req, socket, head) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   const ip = getLocalIpAddress();
-  console.log(`SlipGrip Multiplayer Server running at:`);
-  console.log(`  - Local:   http://localhost:${PORT}`);
-  console.log(`  - Network: http://${ip}:${PORT}`);
+  logLine('🐛', `Serveur SlipGrip prêt → http://localhost:${PORT}  ·  réseau local : http://${ip}:${PORT}`, C.bold);
 });

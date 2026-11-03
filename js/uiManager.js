@@ -900,7 +900,7 @@ export class UIManager {
             <div class="lrc-meta-row">
               <span>👑 Admin : <strong>${this.escapeHtml(hostPseudo)}</strong></span>
               <span>${r.cupIcon || '🏆'} ${this.escapeHtml(r.cupName || 'Coupe')}</span>
-              <span>👥 <strong>${r.playerCount}/${r.maxPlayers || 4}</strong> Joueurs</span>
+              <span>👥 <strong>${r.maxPlayers ? `${r.playerCount}/${r.maxPlayers}` : r.playerCount}</strong> Joueurs</span>
             </div>
           </div>
           <div class="lrc-actions">
@@ -938,7 +938,7 @@ export class UIManager {
       roleEl.textContent = isHost ? '👑 ADMIN DE LA ROOM' : '🐛 PARTICIPANT';
       roleEl.className = `role-badge ${isHost ? 'host' : 'guest'}`;
     }
-    if (countEl) countEl.textContent = `${(room.players || []).length}/${cfg.maxPlayers || 4}`;
+    if (countEl) countEl.textContent = cfg.maxPlayers ? `${(room.players || []).length}/${cfg.maxPlayers}` : `${(room.players || []).length}`;
     if (roomPseudo && document.activeElement !== roomPseudo) {
       roomPseudo.value = this.network.pseudo;
     }

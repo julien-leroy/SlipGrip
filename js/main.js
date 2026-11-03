@@ -21,6 +21,7 @@ import {
 } from './gameplayConfig.js';
 import { NetworkManager } from './network.js';
 import { UIManager } from './uiManager.js';
+import { installErrorReporter, reportError, countFrame } from './errorReporter.js';
 
 // How far below a checkpoint / finish line (in px) the head may be and still validate it
 const CHECKPOINT_BELOW_TOLERANCE = 160;
@@ -1716,13 +1717,27 @@ class SlipGripGame {
     const dt = Math.min(0.05, (now - this.lastFrameTime) / 1000);
     this.lastFrameTime = now;
 
-    this.update(dt);
-    this.draw();
+    // An exception here used to kill the loop silently (frozen game): report it to the
+    // server console and keep running
+    try {
+      this.update(dt);
+      this.draw();
+    } catch (err) {
+      reportError(err, 'boucle de jeu');
+    }
+    countFrame();
 
     this.rafId = requestAnimationFrame((t) => this.loop(t));
   }
 }
 
+installErrorReporter(() => window.slipGripGame);
+
 window.addEventListener('DOMContentLoaded', () => {
-  window.slipGripGame = new SlipGripGame();
+  try {
+    window.slipGripGame = new SlipGripGame();
+  } catch (err) {
+    reportError(err, 'démarrage');
+    throw err;
+  }
 });
