@@ -303,6 +303,36 @@ export class Caterpillar {
     }
   }
 
+  getCenterOfMassMotion() {
+    const N = this.nodes.length;
+    let x = 0, y = 0, vx = 0, vy = 0;
+    for (const n of this.nodes) { x += n.x; y += n.y; vx += n.vx; vy += n.vy; }
+    return { x: x / N, y: y / N, vx: vx / N, vy: vy / N };
+  }
+
+  // In the air, internal forces (lifting the head, arching, the Geometridae loop) used to
+  // slow the fall or even lift the body: holding Space let a caterpillar hover. The centre
+  // of mass now follows a ballistic fall vertically; the body still changes shape. Real gliding (feather
+  // power-up, light species) is exempt. Called before collisions, so mushrooms and hits
+  // still act.
+  enforceBallisticFall(start, dt, world, mStats) {
+    const species = this.getSpecies();
+    const gliding = (this.activePowerUp && this.activePowerUp.type === 'feather') || species.glide ||
+      (this.modifiers && (this.modifiers.includes('lune') || this.modifiers.includes('voltige')));
+    if (gliding) return;
+    const g = (world.gravity || GAMEPLAY_CONFIG.gravity || 740) * mStats.gravityMult * (species.gravityMult || 1.0);
+    const drag = Math.pow(0.994, dt * 60);
+    const expectedVy = (start.vy + g * dt) * drag;
+    const expectedY = start.y + expectedVy * dt;
+    const now = this.getCenterOfMassMotion();
+    const dvy = expectedVy - now.vy;
+    const dy = expectedY - now.y;
+    for (const n of this.nodes) {
+      n.vy += dvy;
+      n.y += dy;
+    }
+  }
+
   // Current species data (see CATERPILLAR_CLASSES for the meaning of each field)
   getSpecies() {
     return this.bodyClass || CATERPILLAR_CLASSES.classique;
@@ -941,8 +971,8 @@ export class Caterpillar {
       }
     }
 
-    // 5. Rival Caterpillars in Multiplayer PvP
-    if (world.caterpillars && world.caterpillars.length > 0) {
+    // 5. Rival Caterpillars in Multiplayer PvP (only when the room enables body contact)
+    if (GAMEPLAY_CONFIG.playerContact && world.caterpillars && world.caterpillars.length > 0) {
       for (const other of world.caterpillars) {
         if (other === this || other.hp <= 0 || this.whipHitEntities.has(other)) continue;
         for (const n of checkNodes) {
@@ -1994,6 +2024,12 @@ export class Caterpillar {
       this.nodes[i].stepStartX = this.nodes[i].x;
       this.nodes[i].stepStartY = this.nodes[i].y;
     }
+
+    // Free fall bookkeeping: with nothing to push against, the body's own muscles can
+    // change its shape but not slow its fall (see enforceBallisticFall)
+    const freeFall = !this.rearAnchor.anchored && !this.frontAnchor.anchored &&
+      !this.nodes.some((n) => n.onGround || n.surfaceAdhesionTimer > 0);
+    const fallStart = freeFall ? this.getCenterOfMassMotion() : null;
 
     // 1. Update Suction Anchors
     this.updateAnchor(this.rearAnchor, rear, false, dt, world, particles, isFirstSubstep);
@@ -3349,6 +3385,8 @@ export class Caterpillar {
     // Run gripped segment lock once per substep (smooth, no redundant velocity killing)
     this.enforceGrippedSegmentLocks(this.extendedSegLen);
 
+    if (fallStart) this.enforceBallisticFall(fallStart, dt, world, mStats);
+
     // 5. Handle World Collisions
     this.handleWorldCollisions(dt, world, particles, inputs, isFirstSubstep);
 
@@ -3365,7 +3403,7 @@ export class Caterpillar {
     // Automatically rights the caterpillar when it lands on its back in mid-air.
     // "mais une fois qu'on a agrippé et qu'on ne lache pas on ne retourne plus la chenille jusqu'a lacher prise"
     const isGripped = (this.rearAnchor && this.rearAnchor.anchored) || (this.frontAnchor && this.frontAnchor.anchored);
-    if (isFirstSubstep && this.flipCooldown <= 0 && !isGripped) {
+    if (GAMEPLAY_CONFIG.autoFlip && isFirstSubstep && this.flipCooldown <= 0 && !isGripped) {
       let dorsalTouches = 0;
       let footOnDorsal = false;
 

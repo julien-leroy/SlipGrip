@@ -2009,6 +2009,8 @@ export class PhysicsWorld {
 
   // Find closest segment of another caterpillar in the world so players can grab, hold or throw rivals!
   findClosestOtherCaterpillar(selfCat, px, py, maxSurfaceDist) {
+    // Grabbing a rival is an optional rule (room setting), off by default
+    if (!GAMEPLAY_CONFIG.playerContact) return null;
     if (!this.caterpillars || this.caterpillars.length <= 1) return null;
     const safeMax = (Number.isFinite(maxSurfaceDist) && maxSurfaceDist > 0) ? maxSurfaceDist : 36;
     let best = null;

@@ -2936,3 +2936,18 @@ kbd {
 }
 
 
+
+/* Room settings: on/off rules */
+.room-toggle-item {
+  cursor: pointer;
+  display: block;
+}
+.room-toggle-item input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  accent-color: #38d84e;
+  cursor: pointer;
+}
+.room-toggle-item input[type="checkbox"]:disabled {
+  cursor: default;
+}

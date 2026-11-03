@@ -481,8 +481,9 @@ class SlipGripGame {
     this.world.gravity = GAMEPLAY_CONFIG.gravity;
     this.world.pvpDamageMult = typeof s.pvpDamageMult === 'number' ? s.pvpDamageMult : 1.0;
 
-    const startScale = typeof s.startScale === 'number' ? s.startScale : 1.0;
-    const startSegments = typeof s.startSegments === 'number' ? s.startSegments : 5;
+    // Body size / segment count are no longer room settings (they changed the game too much)
+    const startScale = 1.0;
+    const startSegments = 5;
 
     this.caterpillar.playerId = this.network.playerId;
     this.caterpillar.pseudo = this.network.pseudo;

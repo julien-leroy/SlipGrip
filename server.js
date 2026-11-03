@@ -69,17 +69,21 @@ const CUPS_CATALOG = {
 };
 const DEFAULT_CUP_ID = 'coupe_potager';
 
+// Host-editable settings, for one room only. Same bounds as ROOM_SETTINGS in
+// js/gameplayConfig.js: modest tweaks, not another game.
+const ROOM_SETTING_BOUNDS = {
+  jumpBoost: { min: 0.85, max: 1.2, default: 1.0 },
+  gravity: { min: 660, max: 820, default: 740 },
+  gripDistance: { min: 20, max: 30, default: 24 },
+  pvpDamageMult: { min: 0.5, max: 1.5, default: 1.0 },
+  playerContact: { toggle: true, default: false },
+  autoFlip: { toggle: true, default: false }
+};
+
 function createDefaultRoomConfig() {
-  return {
-    cupId: null, // No cup selected by default
-    maxPlayers: 4,
-    jumpBoost: 1.0,
-    startScale: 1.0,
-    startSegments: 5,
-    gravity: 740,
-    gripDistance: 26,
-    pvpDamageMult: 1.0
-  };
+  const config = { cupId: null, maxPlayers: 4 };
+  for (const [key, b] of Object.entries(ROOM_SETTING_BOUNDS)) config[key] = b.default;
+  return config;
 }
 
 // ==================== ROOMS & CLIENTS STATE ====================
@@ -675,23 +679,14 @@ function handleWsMessage(client, msg) {
         if (msg.config.maxPlayers !== undefined) {
           room.config.maxPlayers = Math.max(2, Math.min(8, parseInt(msg.config.maxPlayers, 10) || 4));
         }
-        if (msg.config.jumpBoost !== undefined) {
-          room.config.jumpBoost = Math.max(0.5, Math.min(2.5, parseFloat(msg.config.jumpBoost) || 1.0));
-        }
-        if (msg.config.startScale !== undefined) {
-          room.config.startScale = Math.max(0.6, Math.min(1.8, parseFloat(msg.config.startScale) || 1.0));
-        }
-        if (msg.config.startSegments !== undefined) {
-          room.config.startSegments = Math.max(4, Math.min(9, parseInt(msg.config.startSegments, 10) || 5));
-        }
-        if (msg.config.gravity !== undefined) {
-          room.config.gravity = Math.max(250, Math.min(1100, parseInt(msg.config.gravity, 10) || 740));
-        }
-        if (msg.config.gripDistance !== undefined) {
-          room.config.gripDistance = Math.max(12, Math.min(48, parseInt(msg.config.gripDistance, 10) || 26));
-        }
-        if (msg.config.pvpDamageMult !== undefined) {
-          room.config.pvpDamageMult = Math.max(0.25, Math.min(3.0, parseFloat(msg.config.pvpDamageMult) || 1.0));
+        for (const [key, b] of Object.entries(ROOM_SETTING_BOUNDS)) {
+          if (msg.config[key] === undefined) continue;
+          if (b.toggle) {
+            room.config[key] = !!msg.config[key];
+          } else {
+            const v = Number(msg.config[key]);
+            if (Number.isFinite(v)) room.config[key] = Math.max(b.min, Math.min(b.max, v));
+          }
         }
       }
 

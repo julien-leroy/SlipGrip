@@ -291,6 +291,12 @@ export const GAMEPLAY_CONFIG = {
   // Gravité du monde (en px/s²) — physique vive et ancrée, fin de la gravité lunaire
   gravity: 740,
 
+  // Règles optionnelles (désactivées par défaut, activables par l'hôte d'une room) :
+  // contact & prises entre chenilles (s'agripper à un rival, coup de fouet sur un rival)
+  playerContact: false,
+  // retournement automatique quand le dos de la chenille touche une surface
+  autoFlip: false,
+
   // Force de plaquage / amortissement au sol
   groundSnapping: 1.5,
 
@@ -428,10 +434,23 @@ export function applyRoomGameplayConfig(roomSettings = {}) {
   const personal = {};
   for (const key of PERSONAL_DISPLAY_KEYS) personal[key] = GAMEPLAY_CONFIG[key];
   Object.assign(GAMEPLAY_CONFIG, JSON.parse(JSON.stringify(DEFAULT_GAMEPLAY_CONFIG)), personal);
-  for (const key of ['jumpBoost', 'gravity', 'gripDistance']) {
-    if (typeof roomSettings[key] === 'number') GAMEPLAY_CONFIG[key] = roomSettings[key];
+  for (const def of ROOM_SETTINGS) {
+    const v = roomSettings[def.key];
+    if (def.type === 'toggle' ? typeof v === 'boolean' : typeof v === 'number') GAMEPLAY_CONFIG[def.key] = v;
   }
 }
+
+// What the host of a room may tweak, for that room only (never saved). Ranges are kept
+// modest on purpose: adjust the feel, not turn it into another game. server.js clamps
+// with the same bounds (ROOM_SETTING_BOUNDS) — keep both in sync.
+export const ROOM_SETTINGS = [
+  { key: 'jumpBoost', label: '🦘 Puissance des sauts', type: 'range', min: 0.85, max: 1.2, step: 0.05, default: 1.0, format: (v) => `×${Number(v).toFixed(2)}` },
+  { key: 'gravity', label: '🌍 Gravité', type: 'range', min: 660, max: 820, step: 20, default: 740, format: (v) => `${v}` },
+  { key: 'gripDistance', label: '🧲 Portée des ventouses', type: 'range', min: 20, max: 30, step: 1, default: 24, format: (v) => `${v} px` },
+  { key: 'pvpDamageMult', label: '💥 Dégâts des objets lancés', type: 'range', min: 0.5, max: 1.5, step: 0.25, default: 1.0, format: (v) => `×${Number(v).toFixed(2)}` },
+  { key: 'playerContact', label: '🤼 Contact & prises entre chenilles', type: 'toggle', default: false },
+  { key: 'autoFlip', label: '🔄 Retournement automatique', type: 'toggle', default: false }
+];
 
 export function restoreSoloGameplayConfig() {
   if (!soloConfigSnapshot) return;

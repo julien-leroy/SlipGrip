@@ -5,6 +5,7 @@ import {
   BODY_SHAPES,
   RACE_MODIFIERS,
   CUPS_DEFINITIONS,
+  ROOM_SETTINGS,
   GRIP_STYLES,
   COSMETICS_CATALOG,
   isCosmeticUnlocked,
@@ -269,54 +270,8 @@ export class UIManager {
                   <button id="btn-reset-room-settings" class="mini-wood-btn" title="Réinitialiser les réglages">🔄 Défaut</button>
                 </div>
 
-                <div class="room-sliders-list">
-                  <div class="room-slider-item">
-                    <div class="rs-label-row">
-                      <span>🦘 Distance des sauts</span>
-                      <strong id="rs-val-jumpBoost">1.00x</strong>
-                    </div>
-                    <input type="range" id="rs-jumpBoost" min="0.6" max="2.2" step="0.05" value="1.0" />
-                  </div>
-
-                  <div class="room-slider-item">
-                    <div class="rs-label-row">
-                      <span>📏 Taille chenilles départ</span>
-                      <strong id="rs-val-startScale">1.00x</strong>
-                    </div>
-                    <input type="range" id="rs-startScale" min="0.6" max="1.8" step="0.05" value="1.0" />
-                  </div>
-
-                  <div class="room-slider-item">
-                    <div class="rs-label-row">
-                      <span>🐛 Segments de départ</span>
-                      <strong id="rs-val-startSegments">5</strong>
-                    </div>
-                    <input type="range" id="rs-startSegments" min="4" max="9" step="1" value="5" />
-                  </div>
-
-                  <div class="room-slider-item">
-                    <div class="rs-label-row">
-                      <span>🌍 Gravité</span>
-                      <strong id="rs-val-gravity">740</strong>
-                    </div>
-                    <input type="range" id="rs-gravity" min="300" max="950" step="20" value="740" />
-                  </div>
-
-                  <div class="room-slider-item">
-                    <div class="rs-label-row">
-                      <span>🧲 Portée des ventouses</span>
-                      <strong id="rs-val-gripDistance">26 px</strong>
-                    </div>
-                    <input type="range" id="rs-gripDistance" min="16" max="45" step="1" value="26" />
-                  </div>
-
-                  <div class="room-slider-item">
-                    <div class="rs-label-row">
-                      <span>💥 Dégâts PvP (Objets)</span>
-                      <strong id="rs-val-pvpDamageMult">1.00x</strong>
-                    </div>
-                    <input type="range" id="rs-pvpDamageMult" min="0.5" max="2.5" step="0.1" value="1.0" />
-                  </div>
+                <div class="room-sliders-list" id="room-settings-list">
+                  <!-- Built from ROOM_SETTINGS (gameplayConfig.js) by renderRoomSettingsControls -->
                 </div>
               </div>
             </div>
@@ -471,6 +426,37 @@ export class UIManager {
     this.bindUIEvents();
   }
 
+  renderRoomSettingsControls() {
+    const list = document.getElementById('room-settings-list');
+    if (!list) return;
+    list.innerHTML = ROOM_SETTINGS.map((def) => def.type === 'toggle' ? `
+      <label class="room-slider-item room-toggle-item">
+        <div class="rs-label-row">
+          <span>${def.label}</span>
+          <strong id="rs-val-${def.key}">${def.default ? 'Oui' : 'Non'}</strong>
+        </div>
+        <input type="checkbox" id="rs-${def.key}" ${def.default ? 'checked' : ''} />
+      </label>` : `
+      <div class="room-slider-item">
+        <div class="rs-label-row">
+          <span>${def.label}</span>
+          <strong id="rs-val-${def.key}">${def.format(def.default)}</strong>
+        </div>
+        <input type="range" id="rs-${def.key}" min="${def.min}" max="${def.max}" step="${def.step}" value="${def.default}" />
+      </div>`).join('');
+    for (const def of ROOM_SETTINGS) {
+      const input = document.getElementById(`rs-${def.key}`);
+      const valEl = document.getElementById(`rs-val-${def.key}`);
+      if (!input) continue;
+      input.addEventListener(def.type === 'toggle' ? 'change' : 'input', () => {
+        if (!this.network.isHost()) return;
+        const val = def.type === 'toggle' ? input.checked : parseFloat(input.value);
+        if (valEl) valEl.textContent = def.type === 'toggle' ? (val ? 'Oui' : 'Non') : def.format(val);
+        this.network.updateRoomConfig({ [def.key]: val });
+      });
+    }
+  }
+
   bindUIEvents() {
     const homePseudo = document.getElementById('home-pseudo-input');
     const roomPseudo = document.getElementById('room-pseudo-input');
@@ -576,36 +562,14 @@ export class UIManager {
       });
     });
 
-    // Host Room Settings Sliders
-    const bindRoomSlider = (id, key, formatFn, isInt = false) => {
-      const slider = document.getElementById(`rs-${id}`);
-      const valEl = document.getElementById(`rs-val-${id}`);
-      if (!slider) return;
-      slider.addEventListener('input', () => {
-        if (!this.network.isHost()) return;
-        const val = isInt ? parseInt(slider.value, 10) : parseFloat(slider.value);
-        if (valEl) valEl.textContent = formatFn(val);
-        this.network.updateRoomConfig({ [key]: val });
-      });
-    };
-
-    bindRoomSlider('jumpBoost', 'jumpBoost', v => `${v.toFixed(2)}x`, false);
-    bindRoomSlider('startScale', 'startScale', v => `${v.toFixed(2)}x`, false);
-    bindRoomSlider('startSegments', 'startSegments', v => `${v}`, true);
-    bindRoomSlider('gravity', 'gravity', v => `${v}`, true);
-    bindRoomSlider('gripDistance', 'gripDistance', v => `${v} px`, true);
-    bindRoomSlider('pvpDamageMult', 'pvpDamageMult', v => `${v.toFixed(2)}x`, false);
+    // Host room settings (built from ROOM_SETTINGS)
+    this.renderRoomSettingsControls();
 
     document.getElementById('btn-reset-room-settings')?.addEventListener('click', () => {
       if (!this.network.isHost()) return;
-      this.network.updateRoomConfig({
-        jumpBoost: 1.0,
-        startScale: 1.0,
-        startSegments: 5,
-        gravity: 740,
-        gripDistance: 26,
-        pvpDamageMult: 1.0
-      });
+      const defaults = {};
+      for (const def of ROOM_SETTINGS) defaults[def.key] = def.default;
+      this.network.updateRoomConfig(defaults);
       sound.playBoing();
     });
 
@@ -1080,12 +1044,17 @@ export class UIManager {
       if (valEl) valEl.textContent = fmt(val);
     };
 
-    syncSlider('jumpBoost', cfg.jumpBoost !== undefined ? cfg.jumpBoost : 1.0, v => `${Number(v).toFixed(2)}x`);
-    syncSlider('startScale', cfg.startScale !== undefined ? cfg.startScale : 1.0, v => `${Number(v).toFixed(2)}x`);
-    syncSlider('startSegments', cfg.startSegments !== undefined ? cfg.startSegments : 5, v => `${v}`);
-    syncSlider('gravity', cfg.gravity !== undefined ? cfg.gravity : 740, v => `${v}`);
-    syncSlider('gripDistance', cfg.gripDistance !== undefined ? cfg.gripDistance : 26, v => `${v} px`);
-    syncSlider('pvpDamageMult', cfg.pvpDamageMult !== undefined ? cfg.pvpDamageMult : 1.0, v => `${Number(v).toFixed(2)}x`);
+    for (const def of ROOM_SETTINGS) {
+      const val = cfg[def.key] !== undefined ? cfg[def.key] : def.default;
+      if (def.type === 'toggle') {
+        const box = document.getElementById(`rs-${def.key}`);
+        const valEl = document.getElementById(`rs-val-${def.key}`);
+        if (box) { box.checked = !!val; box.disabled = !isHost; }
+        if (valEl) valEl.textContent = val ? 'Oui' : 'Non';
+      } else {
+        syncSlider(def.key, val, def.format);
+      }
+    }
 
     const resetBtn = document.getElementById('btn-reset-room-settings');
     if (resetBtn) resetBtn.style.display = isHost ? 'inline-flex' : 'none';

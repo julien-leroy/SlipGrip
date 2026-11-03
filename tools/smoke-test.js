@@ -74,16 +74,17 @@ async function openPage(browser, errors) {
     const code = await A.evaluate(() => window.slipGripGame.network.currentRoom.code);
     await B.evaluate((c) => window.slipGripGame.network.joinRoom(c, window.slipGripGame.caterpillar.cosmetics), code);
     await B.waitForTimeout(300);
-    await A.evaluate(() => window.slipGripGame.network.updateRoomConfig({ cupId: 'coupe_potager', jumpBoost: 2.0, gripDistance: 40 }));
+    await A.evaluate(() => window.slipGripGame.network.updateRoomConfig({ cupId: 'coupe_potager', jumpBoost: 5.0, gripDistance: 28, playerContact: true }));
     await A.waitForTimeout(200);
     await A.evaluate(() => window.slipGripGame.network.startCup());
     await A.waitForTimeout(4500);
 
     const cfg = await B.evaluate(async () => {
       const c = (await import('/js/gameplayConfig.js')).GAMEPLAY_CONFIG;
-      return { jumpBoost: c.jumpBoost, grip: c.gripDistance };
+      return { jumpBoost: c.jumpBoost, grip: c.gripDistance, contact: c.playerContact, flip: c.autoFlip };
     });
-    check('mp: room settings reach the caterpillar', cfg.jumpBoost === 2 && cfg.grip === 40, JSON.stringify(cfg));
+    check('mp: room settings reach the caterpillar (clamped to the allowed range)',
+      cfg.jumpBoost === 1.2 && cfg.grip === 28 && cfg.contact === true && cfg.flip === false, JSON.stringify(cfg));
     check('mp: remote caterpillar spawned', (await B.evaluate(() => window.slipGripGame.remoteCaterpillars.size)) === 1);
 
     const idBefore = await B.evaluate(() => window.slipGripGame.network.playerId);
@@ -100,6 +101,16 @@ async function openPage(browser, errors) {
     await A.waitForTimeout(600);
     const popups = await A.evaluate(() => window.slipGripGame.particles.popups.map((p) => p.text).join(' | '));
     check('mp: finish popup shows rank', /termine 1er/.test(popups), popups);
+
+    // Room settings apply to that game only: back in solo, the normal rules are restored
+    const solo = await B.evaluate(async () => {
+      const g = window.slipGripGame;
+      g.network.leaveRoom();
+      g.startSoloMode();
+      const c = (await import('/js/gameplayConfig.js')).GAMEPLAY_CONFIG;
+      return { jumpBoost: c.jumpBoost, contact: c.playerContact };
+    });
+    check('room settings do not leak into solo', solo.jumpBoost === 1 && solo.contact === false, JSON.stringify(solo));
 
     check('no page errors / failed requests', errors.length === 0, errors.slice(0, 3).join(' ; '));
   } finally {

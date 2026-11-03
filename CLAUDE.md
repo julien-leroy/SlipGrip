@@ -23,12 +23,17 @@ for f in server.js js/*.js; do node --check "$f"; done
   - En multi, `applyRoomGameplayConfig` repart des défauts, applique les réglages de room et met la config perso de côté.
   - `restoreSoloGameplayConfig` remet la config perso de côté en place (dans `startSoloMode`).
   - `saveGameplayConfig` ne sauvegarde rien tant qu'une config de room est active.
+- **Réglages de room** : définis une seule fois dans `ROOM_SETTINGS` (`gameplayConfig.js`). L'interface est générée depuis cette liste et le serveur borne les valeurs avec `ROOM_SETTING_BOUNDS` (`server.js`) : garder les deux synchronisés. Plages volontairement modestes. Ils ne valent que pour la partie (`applyRoomGameplayConfig` / `restoreSoloGameplayConfig`).
+- Règles optionnelles, désactivées par défaut et activables par l'hôte :
+  - `GAMEPLAY_CONFIG.playerContact` : prises sur un rival et coup de fouet sur un rival. Les objets lancés font des dégâts dans tous les cas.
+  - `GAMEPLAY_CONFIG.autoFlip` : retournement quand le dos touche une surface.
+- **Chute en l'air** : sans appui ni ventouse, `enforceBallisticFall` impose une chute libre au centre de masse (le corps peut changer de forme mais pas planer). Seul un vrai plané y échappe (bonus plume, espèce avec `glide`).
+- **Primauté de l'accroche** : une patte dont la touche est tenue ne se décroche jamais à cause d'un saut, d'un fouet ou d'un champignon.
 - Dégâts des projectiles : c'est la **victime** qui les applique, en rejouant le lancer reçu par `entity_throw`. Ne jamais aussi envoyer de `pvp_action` pour un projectile, sinon les dégâts sont doublés.
 - Reconnexion : le serveur donne un `resumeToken` (stocké dans sessionStorage) et garde la place 30 s (`RECONNECT_GRACE_MS`). Côté serveur, `handleWsMessage` peut renvoyer un autre objet client après une reprise de session.
 - Physique de la chenille : 6 sous-étapes à pas variable (`dt` limité à 1/30 dans `Caterpillar.update`, 0,05 dans `main.loop`). Beaucoup de coefficients sont appliqués par sous-étape sans `dt`. Le monde (`PhysicsWorld.update`) n'a pas de sous-étapes.
 - Espèces : toujours passer par `getSpecies()` (= `CATERPILLAR_CLASSES[bodyType]`). Les champs sont documentés en tête de `CATERPILLAR_CLASSES`. `contractStyle: 'omega'` active `applyOmegaLoop` (géométridé).
 - Anti-traversée : `keepBodyOutsideSegments` en fin de chaque sous-pas, et `updateAnchor` lâche une ventouse plutôt que de recoller le pied à travers une branche. Tout code qui déplace des nœuds doit passer avant `handleWorldCollisions`.
-- Après un saut ou un champignon, `noGripTimer` empêche les ventouses (touches encore tenues) de se raccrocher pendant `JUMP_NO_GRIP_TIME`.
 - Rendu des branches : largeur dessinée = épaisseur de collision (`drawElevatedStructure`, `drawBarkBranch`). Ne pas ajouter de minimum.
 - Progression : ne regarde que X.
 - Checkpoints : X dépassé, et la tête au plus 160 px sous le point (`CHECKPOINT_BELOW_TOLERANCE`).
