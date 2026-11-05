@@ -2951,3 +2951,299 @@ kbd {
 .room-toggle-item input[type="checkbox"]:disabled {
   cursor: default;
 }
+
+/* ==================== Between races (results + catch-up bonus) ==================== */
+.rr-card {
+  max-width: 560px;
+  padding: 0;
+  overflow: hidden;
+  background: #1d2a1a;
+  color: #f5efdc;
+  text-align: left;
+}
+.rr-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  background: linear-gradient(180deg, #7a4a22, #5c3415);
+  border-bottom: 4px solid var(--card-border);
+}
+.rr-title small {
+  display: block;
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #ffd99a;
+  opacity: 0.9;
+}
+.rr-title strong {
+  font-family: var(--font-display);
+  font-size: 1.45rem;
+  color: #fff6dc;
+}
+.rr-timer {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  flex: none;
+}
+.rr-timer svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+.rr-timer circle {
+  fill: none;
+  stroke-width: 4;
+}
+.rr-timer-bg { stroke: rgba(255, 255, 255, 0.18); }
+.rr-timer-arc {
+  stroke: var(--accent-yellow);
+  stroke-linecap: round;
+  stroke-dasharray: 97.4;
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1s linear;
+}
+.rr-timer span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: #fff6dc;
+}
+.rr-standings {
+  list-style: none;
+  padding: 12px 14px 4px;
+  max-height: 42vh;
+  overflow-y: auto;
+}
+.rr-row {
+  display: grid;
+  grid-template-columns: 34px 12px 1fr 62px 36px 58px 24px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  margin-bottom: 4px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 0.92rem;
+}
+.rr-row.is-me {
+  background: rgba(255, 217, 59, 0.16);
+  box-shadow: inset 0 0 0 2px rgba(255, 217, 59, 0.7);
+}
+.rr-rank { font-size: 1.05rem; text-align: center; }
+.rr-dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35); }
+.rr-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rr-name em { font-style: normal; font-size: 0.72rem; color: #1d2a1a; background: var(--accent-yellow); border-radius: 6px; padding: 1px 5px; margin-left: 4px; }
+.rr-mods { margin-left: 6px; font-size: 0.85rem; }
+.rr-time { text-align: right; color: #cfe6c4; font-variant-numeric: tabular-nums; }
+.rr-time.dnf { color: #ff9f9f; opacity: 0.85; }
+.rr-pts { text-align: right; color: #7ee787; }
+.rr-total { text-align: right; color: var(--accent-yellow); font-family: var(--font-display); }
+.rr-pick { text-align: center; font-size: 0.95rem; opacity: 0.85; }
+.rr-action {
+  margin: 8px 14px 4px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.22);
+}
+.rr-action h3 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  color: #fff6dc;
+  margin-bottom: 10px;
+  text-align: center;
+}
+.rr-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.rr-mod {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 8px;
+  border-radius: 14px;
+  border: 3px solid var(--mod-color, #ffd93b);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff6dc;
+  cursor: pointer;
+  transition: transform 0.12s, background 0.12s;
+}
+.rr-mod:hover { transform: translateY(-3px); background: rgba(255, 255, 255, 0.12); }
+.rr-mod-icon { font-size: 2rem; line-height: 1; }
+.rr-mod-name { font-family: var(--font-display); font-size: 0.95rem; text-align: center; line-height: 1.15; }
+.rr-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px; }
+.rr-chip {
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #f5efdc;
+}
+.rr-chip.up { background: rgba(56, 216, 78, 0.22); color: #9ff0a6; }
+.rr-chip.down { background: rgba(255, 71, 87, 0.22); color: #ffb3b9; }
+.rr-winner, .rr-chosen {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-body);
+}
+.rr-winner strong, .rr-chosen strong { display: block; font-family: var(--font-display); font-size: 1.1rem; color: #fff6dc; }
+.rr-winner small, .rr-chosen small { color: #cfe6c4; font-weight: 700; }
+.rr-winner-medal, .rr-chosen-icon { font-size: 2.2rem; }
+.rr-footer {
+  padding: 10px 18px 14px;
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: 0.88rem;
+  color: #cfe6c4;
+  text-align: center;
+}
+@media (max-width: 560px) {
+  .rr-row { grid-template-columns: 28px 10px 1fr 52px 32px 52px 20px; gap: 5px; font-size: 0.82rem; }
+  .rr-cards { grid-template-columns: 1fr; }
+}
+
+/* ==================== Compact in-game HUD ==================== */
+/* Multiplayer: hide solo-only parts */
+body.mp-mode #solo-level-select,
+body.mp-mode .record-block,
+body.mp-mode .timer-divider,
+body.mp-mode #btn-tuning,
+body.mp-mode #btn-restart,
+body.mp-mode #coach-banner {
+  display: none !important;
+}
+
+#hud-bottom {
+  bottom: 12px;
+  gap: 10px;
+}
+.anchor-widget {
+  padding: 5px 10px 5px 6px;
+  gap: 8px;
+  border-radius: 14px;
+  min-width: 0;
+}
+#anchor-front-widget { padding: 5px 6px 5px 10px; }
+.anchor-widget .anchor-title,
+.anchor-widget .suction-icon {
+  display: none;
+}
+.anchor-widget .key-cap {
+  width: 34px;
+  height: 34px;
+  font-size: 1.05rem;
+}
+.anchor-widget .anchor-state {
+  font-size: 0.78rem;
+  min-width: 64px;
+  text-align: center;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.omega-widget {
+  padding: 6px 12px;
+  min-width: 190px;
+  gap: 4px;
+}
+.omega-widget .com-row { display: none; }
+.omega-widget .omega-title { font-size: 0.72rem; }
+.omega-widget .omega-meter-track { height: 9px; }
+
+.coach-banner {
+  bottom: 64px;
+  font-size: 0.78rem;
+  padding: 4px 14px;
+  max-width: min(760px, 92vw);
+  white-space: normal;
+  text-align: center;
+  opacity: 0.92;
+}
+
+/* Global: anything flagged .hidden is hidden, whatever its component sets for display
+   (several cards used to stay visible because they had no .hidden rule of their own) */
+.hidden {
+  display: none !important;
+}
+
+/* Smaller HUD action buttons so the top bar fits on a laptop screen */
+.actions-card .action-btn {
+  padding: 5px 8px;
+  font-size: 0.8rem;
+  border-radius: 10px;
+}
+.actions-card { gap: 4px; padding: 5px 8px; }
+
+/* Health pops up under the timer instead of reserving room in the top bar */
+#hud-top .health-card {
+  position: absolute;
+  top: 74px;
+  left: 50%;
+  translate: -50% 0;
+}
+#hud-top .solo-level-select { max-width: 230px; }
+.actions-card .action-btn.icon-only {
+  width: 32px;
+  height: 32px;
+  font-size: 1rem;
+}
+
+/* ==================== End of cup podium ==================== */
+.pd-steps {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 18px 16px 6px;
+}
+.pd-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 128px;
+  font-family: var(--font-body);
+  font-weight: 800;
+}
+.pd-medal { font-size: 1.9rem; line-height: 1; }
+.pd-name { margin-top: 4px; font-family: var(--font-display); font-size: 1.05rem; color: #fff6dc; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-col.is-me .pd-name { color: var(--accent-yellow); }
+.pd-pts { font-size: 0.85rem; color: #cfe6c4; margin-bottom: 6px; }
+.pd-block {
+  width: 100%;
+  display: grid;
+  place-items: center;
+  border-radius: 12px 12px 4px 4px;
+  border: 3px solid rgba(0, 0, 0, 0.35);
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  color: #fff;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.35);
+}
+.pd-place-1 .pd-block { height: 96px; }
+.pd-place-2 .pd-block { height: 68px; }
+.pd-place-3 .pd-block { height: 48px; }
+.pd-rest { grid-template-columns: 34px 1fr 70px; }
+.pd-gift {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pd-gift-icon { font-size: 2.2rem; }
+.pd-gift-text { flex: 1; font-family: var(--font-body); }
+.pd-gift-text strong { display: block; font-family: var(--font-display); font-size: 1.1rem; color: #fff6dc; }
+.pd-gift-text small { color: #cfe6c4; font-weight: 700; }
+.rr-footer .cartoon-btn { font-size: 0.95rem; }

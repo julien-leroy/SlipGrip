@@ -463,6 +463,7 @@ class SlipGripGame {
     this.loadLevel(this.currentLevelIndex !== undefined ? this.currentLevelIndex : 0);
     this.startIntroCinematic(this.level.name);
     this.resumeGameLoop();
+    this.ui.applyHudMode();
   }
 
   startMultiplayerRace(msg) {
@@ -536,7 +537,8 @@ class SlipGripGame {
     // Update Multiplayer Race HUD Banner
     const cupPill = document.getElementById('mp-cup-race-pill');
     if (cupPill) {
-      cupPill.textContent = `🏆 Course ${(msg.raceIndex || 0) + 1} / ${msg.totalRaces || 3} — ${this.level.name}`;
+      const raceName = this.level.name.split(' — ').pop();
+      cupPill.textContent = `🏆 Course ${(msg.raceIndex || 0) + 1}/${msg.totalRaces || 3} · ${raceName}`;
     }
     document.getElementById('mp-finish-countdown-banner')?.classList.add('hidden');
     document.getElementById('mp-race-hud')?.classList.remove('hidden');
@@ -553,6 +555,7 @@ class SlipGripGame {
 
     this.startIntroCinematic(this.level.name);
     this.resumeGameLoop();
+    this.ui.applyHudMode();
   }
 
   startIntroCinematic(mapName) {
@@ -1422,46 +1425,36 @@ class SlipGripGame {
     this.elComRight.classList.toggle('active', this.inputs.right);
   }
 
+  // Compact suction-foot indicator: the colour (CSS class) carries the state, one short word
+  // confirms it
   updateAnchorWidget(widgetEl, stateEl, iconEl, anchor, defaultIcon) {
     widgetEl.classList.remove('anchored', 'armed', 'slipping', 'stuck');
-
+    let state = 'libre';
+    let icon = '⚪';
     if (anchor.stuckCrumb) {
       widgetEl.classList.add('stuck');
-      stateEl.textContent = 'ENGLUÉE !';
-      iconEl.textContent = '🍯';
+      state = 'engluée'; icon = '🍯';
     } else if (anchor.playerRef) {
       widgetEl.classList.add('anchored');
-      stateEl.textContent = `AGRIPPÉE (${anchor.playerRef.pseudo || 'RIVAL'} !)`;
-      iconEl.textContent = '🤼';
-    } else if (anchor.hedgehogRef) {
+      state = anchor.playerRef.pseudo || 'rival'; icon = '🤼';
+    } else if (anchor.hedgehogRef || anchor.aphidRef || anchor.antRef || anchor.propRef) {
       widgetEl.classList.add('anchored');
-      stateEl.textContent = 'AGRIPPÉE (HÉRISSON !)';
-      iconEl.textContent = '🦔';
-    } else if (anchor.aphidRef) {
-      widgetEl.classList.add('anchored');
-      stateEl.textContent = 'AGRIPPÉE (PUCERON)';
-      iconEl.textContent = '🐛';
-    } else if (anchor.propRef) {
-      widgetEl.classList.add('anchored');
-      stateEl.textContent = anchor.propRef.type === 'pinecone' ? 'AGRIPPÉE (POMME DE PIN)' : 'AGRIPPÉE (GLAND)';
-      iconEl.textContent = '🌰';
+      state = 'tient';
+      icon = anchor.hedgehogRef ? '🦔' : anchor.antRef ? '🐜' : anchor.aphidRef ? '🐛' : '🌰';
     } else if (anchor.anchored && anchor.slipping) {
       widgetEl.classList.add('slipping');
-      stateEl.textContent = 'GLISSE !';
-      iconEl.textContent = '🫧';
+      state = 'glisse'; icon = '🫧';
     } else if (anchor.anchored) {
       widgetEl.classList.add('anchored');
-      stateEl.textContent = 'AGRIPPÉE AU SOL';
-      iconEl.textContent = defaultIcon;
+      state = 'accrochée'; icon = defaultIcon;
     } else if (anchor.holdingKey) {
       widgetEl.classList.add('armed');
-      stateEl.textContent = 'CHERCHE LE SOL...';
-      iconEl.textContent = '🧲';
-    } else {
-      stateEl.textContent = 'LIBRE (RELÂCHÉE)';
-      iconEl.textContent = '⚪';
+      state = 'cherche…'; icon = '🧲';
     }
+    if (stateEl.textContent !== state) stateEl.textContent = state;
+    if (iconEl.textContent !== icon) iconEl.textContent = icon;
   }
+
 
   update(dt) {
     this.globalTime += dt;

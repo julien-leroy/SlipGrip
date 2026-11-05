@@ -313,81 +313,48 @@ export class UIManager {
 
       <!-- ==================== 5. MODAL INTER-COURSE & DRAFT DES MODIFICATEURS ==================== -->
       <div id="modal-race-results" class="modal-backdrop hidden">
-        <div class="modal-card mp-results-card dark-glass-panel">
-          <div class="panel-wood-header big-wood-header">
-            <span id="results-modal-title">🏁 RÉSULTATS DE LA COURSE 1 / 3</span>
-            <span id="results-draft-timer" class="draft-timer-pill">⏱️ 15s</span>
-            <span id="results-draft-status" class="pill-badge gold-pill">Choix des bonus en cours...</span>
-          </div>
-
-          <div class="results-two-cols">
-            <!-- Left: Race Ranking & Cup Points -->
-            <div class="results-standings-box">
-              <h3>🏆 Classement & Points de la Coupe</h3>
-              <div id="results-rankings-list" class="results-rankings-list"></div>
+        <div class="modal-card rr-card">
+          <header class="rr-head">
+            <div class="rr-title">
+              <small id="rr-cup-name"></small>
+              <strong id="results-modal-title">Course 1/3 terminée</strong>
             </div>
-
-            <!-- Right: Catch-Up Modifier Draft (For players who didn't finish 1st) -->
-            <div class="results-draft-box">
-              <div id="draft-eligible-panel">
-                <h3>⚡ BONUS DE RATTRAPAGE (CHOISISSEZ 1 MODIFICATEUR)</h3>
-                <p class="draft-subtitle">
-                  Choisissez un modificateur cumulable pour votre chenille sur les courses suivantes ! (Sélection automatique après 15s)
-                </p>
-                <div id="draft-cards-container" class="draft-cards-grid"></div>
-              </div>
-
-              <div id="draft-winner-panel" class="draft-winner-notice hidden">
-                <div class="winner-medal-big">🥇</div>
-                <h3>VOUS AVEZ TERMINÉ 1ER DE LA COURSE !</h3>
-                <p>
-                  Bravo ! Vous prenez la tête avec <strong>+10 points</strong>. Les poursuivants choisissent actuellement leur modificateur de rattrapage pour tenter de vous détrôner à la course suivante !
-                </p>
-              </div>
+            <div class="rr-timer" title="Course suivante">
+              <svg viewBox="0 0 36 36"><circle class="rr-timer-bg" cx="18" cy="18" r="15.5"></circle><circle id="rr-timer-arc" class="rr-timer-arc" cx="18" cy="18" r="15.5"></circle></svg>
+              <span id="results-draft-timer">15</span>
             </div>
-          </div>
-
-          <div class="modal-buttons results-auto-box">
-            <div id="results-draft-status" class="results-draft-status">
-              ⏳ Choix des bonus en cours...
-            </div>
-            <div id="results-auto-launch-msg" class="results-auto-launch-msg">
-              ⏱️ La course suivante démarre automatiquement dès que les choix sont faits (ou après 15s).
-            </div>
-          </div>
+          </header>
+          <ol id="results-rankings-list" class="rr-standings"></ol>
+          <section id="rr-action" class="rr-action"></section>
+          <footer id="results-draft-status" class="rr-footer"></footer>
         </div>
       </div>
 
       <!-- ==================== 6. MODAL PODIUM FINAL DE LA COUPE & CADEAU COSMÉTIQUE ==================== -->
       <div id="modal-cup-podium" class="modal-backdrop hidden">
-        <div class="modal-card mp-podium-card dark-glass-panel">
-          <div class="panel-wood-header big-wood-header gold-wood">
-            <span id="podium-cup-title">🏆 PODIUM FINAL DE LA COUPE ! 🏆</span>
-          </div>
-
-          <!-- Visual 3-Step Podium -->
-          <div id="podium-steps-container" class="podium-steps-container"></div>
-
-          <!-- Mystery Cosmetic Gift Box for Competition End -->
-          <div id="podium-gift-section" class="podium-gift-section">
-            <div id="podium-gift-box" class="podium-gift-box">
-              <div class="gift-icon-anim" id="gift-icon-anim">🎁</div>
-              <div class="gift-info">
-                <h3 id="gift-headline">RÉCOMPENSE DE LA COMPÉTITION !</h3>
-                <p id="gift-description">Ouvrez votre cadeau mystère pour débloquer un nouveau cosmétique dans votre vestiaire !</p>
-              </div>
-              <div class="gift-buttons-group">
-                <button id="btn-open-gift" class="cartoon-btn orange-btn">✨ Déverrouiller mon Cadeau !</button>
-                <button id="btn-equip-gift" class="cartoon-btn green-btn hidden">🎨 Équiper immédiatement !</button>
-              </div>
+        <div class="modal-card rr-card">
+          <header class="rr-head">
+            <div class="rr-title">
+              <small id="podium-cup-name"></small>
+              <strong id="podium-cup-title">Coupe terminée</strong>
             </div>
-          </div>
-
-          <div class="modal-buttons">
-            <button id="btn-podium-return-room" class="cartoon-btn green-btn">
-              🏠 Retourner au Salon
-            </button>
-          </div>
+          </header>
+          <div id="podium-steps-container" class="pd-steps"></div>
+          <ol id="podium-rest-list" class="rr-standings"></ol>
+          <section id="podium-gift-section" class="rr-action">
+            <div id="podium-gift-box" class="pd-gift">
+              <span class="pd-gift-icon" id="gift-icon-anim">🎁</span>
+              <div class="pd-gift-text">
+                <strong id="gift-headline"></strong>
+                <small id="gift-description"></small>
+              </div>
+              <button id="btn-open-gift" class="cartoon-btn orange-btn">Ouvrir mon cadeau</button>
+              <button id="btn-equip-gift" class="cartoon-btn green-btn hidden">Équiper</button>
+            </div>
+          </section>
+          <footer class="rr-footer">
+            <button id="btn-podium-return-room" class="cartoon-btn green-btn">🏠 Retour au salon</button>
+          </footer>
         </div>
       </div>
 
@@ -751,11 +718,10 @@ export class UIManager {
     });
 
     this.network.on('modifier_selected', (msg) => {
-      const statusEl = document.getElementById('results-draft-status');
-      if (statusEl && msg.pseudo) {
-        const mod = RACE_MODIFIERS[msg.modifierId];
-        statusEl.textContent = `${msg.pseudo} a choisi ${mod ? mod.icon + ' ' + mod.name : 'son bonus'} !`;
-      }
+      if (!this.resultsDraft || !msg.playerId) return;
+      this.resultsDraft.chosen.set(msg.playerId, msg.modifierId);
+      if (this.lastStandings) this.renderResultsStandings(this.lastStandings);
+      this.updateResultsFooter(Number(document.getElementById('results-draft-timer')?.textContent) || 0);
     });
 
     this.network.on('draft_all_ready', () => {
@@ -763,14 +729,8 @@ export class UIManager {
         clearInterval(this.draftTimerInterval);
         this.draftTimerInterval = null;
       }
-      const timerEl = document.getElementById('results-draft-timer');
-      if (timerEl) {
-        timerEl.textContent = '⏱️ 0s';
-      }
-      const statusEl = document.getElementById('results-draft-status');
-      if (statusEl) {
-        statusEl.textContent = '🚀 Choix terminés ! Lancement de la course suivante...';
-      }
+      const footer = document.getElementById('results-draft-status');
+      if (footer) footer.textContent = '🚀 Tout le monde est prêt, course suivante !';
     });
 
     this.network.on('cup_podium_start', (msg) => {
@@ -805,6 +765,11 @@ export class UIManager {
     }
   }
 
+  // Multiplayer hides solo-only HUD parts (level select, record, restart, tuning, tips)
+  applyHudMode() {
+    document.body.classList.toggle('mp-mode', !!this.game.isMultiplayer);
+  }
+
   showScreen(screenName) {
     this.activeScreen = screenName;
     const sHome = document.getElementById('screen-home');
@@ -824,7 +789,7 @@ export class UIManager {
     botHud?.classList.toggle('hidden', !inGame);
     coach?.classList.toggle('hidden', !inGame);
     mpHud?.classList.toggle('hidden', !(inGame && this.game.isMultiplayer));
-    document.getElementById('solo-level-select')?.classList.toggle('hidden', !(inGame && !this.game.isMultiplayer));
+    this.applyHudMode();
 
     const gameCanvas = document.getElementById('game-canvas');
     if (gameCanvas) {
@@ -1359,6 +1324,24 @@ export class UIManager {
   }
 
   // ==================== INTER-RACE RESULTS & MODIFIER DRAFT MODAL ====================
+  // Short, comparable effect chips for a race modifier (biggest effects first)
+  modifierChips(mod) {
+    const pct = (m) => Math.round((m - 1) * 100);
+    const chips = [];
+    const add = (label, value, weight) => { if (value) chips.push({ label, good: value > 0, weight }); };
+    if (mod.speedMult && mod.speedMult !== 1) add(`Vitesse ${pct(mod.speedMult) > 0 ? '+' : ''}${pct(mod.speedMult)}%`, pct(mod.speedMult), Math.abs(pct(mod.speedMult)));
+    if (mod.jumpMult && mod.jumpMult !== 1) add(`Saut ${pct(mod.jumpMult) > 0 ? '+' : ''}${pct(mod.jumpMult)}%`, pct(mod.jumpMult), Math.abs(pct(mod.jumpMult)));
+    if (mod.extraSegments) add(`+${mod.extraSegments} segments`, 1, mod.extraSegments * 30);
+    if (mod.hpBonus) add(`+${mod.hpBonus} PV`, 1, mod.hpBonus * 0.6);
+    if (mod.strengthMult && mod.strengthMult !== 1) add(`Force ${pct(mod.strengthMult) > 0 ? '+' : ''}${pct(mod.strengthMult)}%`, pct(mod.strengthMult), Math.abs(pct(mod.strengthMult)) * 0.6);
+    if (mod.gravityMult && mod.gravityMult !== 1) add(`Gravité ${pct(mod.gravityMult) > 0 ? '+' : ''}${pct(mod.gravityMult)}%`, -pct(mod.gravityMult), Math.abs(pct(mod.gravityMult)));
+    if (mod.scaleMult && mod.scaleMult !== 1) chips.push({ label: `Taille ${pct(mod.scaleMult) > 0 ? '+' : ''}${pct(mod.scaleMult)}%`, good: null, weight: Math.abs(pct(mod.scaleMult)) * 0.8 });
+    if (mod.reachMult && mod.reachMult !== 1) add(`Allonge ${pct(mod.reachMult) > 0 ? '+' : ''}${pct(mod.reachMult)}%`, pct(mod.reachMult), Math.abs(pct(mod.reachMult)) * 0.7);
+    return chips.sort((x, y) => y.weight - x.weight).slice(0, 3);
+  }
+
+  // Between two races of a cup. Everyone sees the standings; only players who did not
+  // win the race get to pick a catch-up bonus.
   showRaceResultsModal(msg) {
     const modal = document.getElementById('modal-race-results');
     if (!modal) return;
@@ -1366,131 +1349,133 @@ export class UIManager {
     sound.playVictory();
 
     this.selectedModifierId = null;
-
-    const titleEl = document.getElementById('results-modal-title');
-    if (titleEl) {
-      titleEl.textContent = `🏁 RÉSULTATS — COURSE ${(msg.raceIndex || 0) + 1} / 3`;
-    }
-
     const standings = msg.standings || [];
-    const rankingsEl = document.getElementById('results-rankings-list');
-    if (rankingsEl) {
-      rankingsEl.innerHTML = standings.map(r => {
-        const isMe = r.id === this.network.playerId;
-        const modsIcons = (r.modifiers || []).map(m => (RACE_MODIFIERS[m] ? RACE_MODIFIERS[m].icon : '')).join(' ');
-        return `
-          <div class="res-rank-row ${isMe ? 'is-me' : ''} ${r.rank === 1 ? 'first-place' : ''}">
-            <span class="res-pos">${r.rank === 1 ? '🥇 1er' : (r.rank === 2 ? '🥈 2e' : (r.rank === 3 ? '🥉 3e' : `${r.rank}e`))}</span>
-            <span class="res-pseudo">${this.escapeHtml(r.pseudo)} ${modsIcons}</span>
-            <span class="res-race-pts">+${r.pointsEarned} pts</span>
-            <strong class="res-total-pts">🏆 ${r.totalScore} pts</strong>
-          </div>
-        `;
-      }).join('');
-    }
+    this.resultsDraft = {
+      eligible: new Set(standings.filter((r) => (r.draftOptions || []).length > 0).map((r) => r.id)),
+      chosen: new Map()
+    };
 
-    const myEntry = standings.find(r => r.id === this.network.playerId);
-    const myChoices = (myEntry && myEntry.draftOptions) || [];
-    const isFirstPlaceNoDraft = myEntry && myEntry.rank === 1 && myChoices.length === 0;
+    const room = this.network.currentRoom;
+    const cupName = room && room.cup ? `${room.cup.icon || ''} ${room.cup.name}` : '';
+    document.getElementById('rr-cup-name').textContent = cupName;
+    document.getElementById('results-modal-title').textContent = `Course ${(msg.raceIndex || 0) + 1}/3 terminée`;
 
-    const eligiblePanel = document.getElementById('draft-eligible-panel');
-    const winnerPanel = document.getElementById('draft-winner-panel');
-    const cardsContainer = document.getElementById('draft-cards-container');
+    this.renderResultsStandings(standings);
 
-    // Start 15s visual countdown on results modal
-    if (this.draftTimerInterval) {
-      clearInterval(this.draftTimerInterval);
-      this.draftTimerInterval = null;
-    }
+    const me = standings.find((r) => r.id === this.network.playerId);
+    this.renderResultsAction(me);
 
-    let secondsRemaining = msg.draftDuration || 15;
-    const timerEl = document.getElementById('results-draft-timer');
-    const autoLaunchMsg = document.getElementById('results-auto-launch-msg');
-    const draftStatusEl = document.getElementById('results-draft-status');
-
-    if (timerEl) {
-      timerEl.textContent = `⏱️ ${secondsRemaining}s`;
-      timerEl.classList.remove('hidden');
-    }
-    if (autoLaunchMsg) {
-      autoLaunchMsg.textContent = `⏱️ La course suivante démarre automatiquement dans ${secondsRemaining}s (ou dès que tous les choix sont faits).`;
-    }
-    if (draftStatusEl) {
-      draftStatusEl.textContent = isFirstPlaceNoDraft
-        ? '🥇 Vous êtes 1er ! Les poursuivants choisissent leurs bonus...'
-        : '⚡ Choisissez votre bonus de rattrapage !';
-    }
-
+    // Countdown ring + footer
+    if (this.draftTimerInterval) clearInterval(this.draftTimerInterval);
+    const total = msg.draftDuration || 15;
+    let remaining = total;
+    const tick = () => {
+      document.getElementById('results-draft-timer').textContent = Math.max(0, remaining);
+      const arc = document.getElementById('rr-timer-arc');
+      if (arc) arc.style.strokeDashoffset = String(97.4 * (1 - Math.max(0, remaining) / total));
+      this.updateResultsFooter(remaining);
+    };
+    tick();
     this.draftTimerInterval = setInterval(() => {
-      secondsRemaining--;
-      if (timerEl) {
-        timerEl.textContent = `⏱️ ${Math.max(0, secondsRemaining)}s`;
-      }
-      if (autoLaunchMsg) {
-        autoLaunchMsg.textContent = `⏱️ La course suivante démarre automatiquement dans ${Math.max(0, secondsRemaining)}s (ou dès que tous les choix sont faits).`;
-      }
-      if (secondsRemaining <= 0) {
+      remaining--;
+      tick();
+      if (remaining <= 0) {
         clearInterval(this.draftTimerInterval);
         this.draftTimerInterval = null;
-        if (!this.selectedModifierId && myChoices.length > 0) {
-          const autoMod = myChoices[Math.floor(Math.random() * myChoices.length)];
-          this.selectModifierChoice(autoMod, cardsContainer);
+        const options = (me && me.draftOptions) || [];
+        if (!this.selectedModifierId && options.length > 0) {
+          this.selectModifierChoice(options[Math.floor(Math.random() * options.length)]);
         }
       }
     }, 1000);
-
-    if (isFirstPlaceNoDraft || myChoices.length === 0) {
-      eligiblePanel?.classList.add('hidden');
-      winnerPanel?.classList.remove('hidden');
-    } else {
-      eligiblePanel?.classList.remove('hidden');
-      winnerPanel?.classList.add('hidden');
-
-      if (cardsContainer) {
-        cardsContainer.innerHTML = myChoices.map(modId => {
-          const mod = RACE_MODIFIERS[modId];
-          if (!mod) return '';
-          return `
-            <button class="draft-mod-card" data-mod="${mod.id}" style="--mod-color: ${mod.color};">
-              <div class="dmc-icon">${mod.icon}</div>
-              <div class="dmc-title">${mod.name}</div>
-              <div class="dmc-sub">${mod.subtitle}</div>
-              <p class="dmc-desc">${mod.desc}</p>
-              <span class="dmc-select-pill">Choisir ce bonus ✨</span>
-            </button>
-          `;
-        }).join('');
-
-        // Event delegation for clicks on draft cards
-        cardsContainer.onclick = (e) => {
-          const card = e.target.closest('.draft-mod-card');
-          if (!card || this.selectedModifierId) return;
-          const modId = card.dataset.mod;
-          this.selectModifierChoice(modId, cardsContainer);
-        };
-      }
-    }
   }
 
-  selectModifierChoice(modId, cardsContainer) {
+  renderResultsStandings(standings) {
+    const list = document.getElementById('results-rankings-list');
+    if (!list) return;
+    const medals = ['🥇', '🥈', '🥉'];
+    list.innerHTML = standings.map((r) => {
+      const isMe = r.id === this.network.playerId;
+      const pal = COSMETIC_PALETTES[(r.cosmetics && r.cosmetics.palette) || 'emerald'] || COSMETIC_PALETTES.emerald;
+      const time = r.finished ? `${Number(r.finishTime || 0).toFixed(1)} s` : `${Math.round((r.progress || 0) * 100)} %`;
+      const mods = (r.modifiers || []).map((m) => (RACE_MODIFIERS[m] ? RACE_MODIFIERS[m].icon : '')).join('');
+      const picked = this.resultsDraft.chosen.get(r.id);
+      const draftMark = this.resultsDraft.eligible.has(r.id)
+        ? `<span class="rr-pick" title="Bonus">${picked ? (RACE_MODIFIERS[picked] ? RACE_MODIFIERS[picked].icon : '✓') : '…'}</span>`
+        : '<span class="rr-pick"></span>';
+      return `
+        <li class="rr-row ${isMe ? 'is-me' : ''}">
+          <span class="rr-rank">${medals[r.rank - 1] || `${r.rank}e`}</span>
+          <span class="rr-dot" style="background:${pal.bodyFill || '#4cd137'}"></span>
+          <span class="rr-name">${this.escapeHtml(r.pseudo)}${isMe ? ' <em>toi</em>' : ''}<span class="rr-mods">${mods}</span></span>
+          <span class="rr-time ${r.finished ? '' : 'dnf'}">${time}</span>
+          <span class="rr-pts">+${r.pointsEarned}</span>
+          <strong class="rr-total">${r.totalScore} pts</strong>
+          ${draftMark}
+        </li>`;
+    }).join('');
+    this.lastStandings = standings;
+  }
+
+  renderResultsAction(me) {
+    const box = document.getElementById('rr-action');
+    if (!box) return;
+    const options = (me && me.draftOptions) || [];
+    if (options.length === 0) {
+      box.className = 'rr-action rr-winner';
+      box.innerHTML = me && me.rank === 1
+        ? '<span class="rr-winner-medal">🥇</span><div><strong>Tu as gagné cette course !</strong><small>Le vainqueur ne prend pas de bonus.</small></div>'
+        : '<div><strong>Pas de bonus pour toi cette fois.</strong></div>';
+      return;
+    }
+    if (this.selectedModifierId) {
+      const mod = RACE_MODIFIERS[this.selectedModifierId];
+      box.className = 'rr-action rr-chosen';
+      box.innerHTML = `<span class="rr-chosen-icon">${mod ? mod.icon : '✓'}</span><div><strong>Bonus choisi : ${mod ? mod.name : ''}</strong><small>Il reste actif jusqu’à la fin de la coupe.</small></div>`;
+      return;
+    }
+    box.className = 'rr-action';
+    box.innerHTML = `
+      <h3>Choisis un bonus pour la suite de la coupe</h3>
+      <div class="rr-cards">
+        ${options.map((id) => {
+          const mod = RACE_MODIFIERS[id];
+          if (!mod) return '';
+          const chips = this.modifierChips(mod).map((c) =>
+            `<span class="rr-chip ${c.good === null ? '' : (c.good ? 'up' : 'down')}">${c.label}</span>`).join('');
+          return `<button class="rr-mod" data-mod="${mod.id}" style="--mod-color:${mod.color}" title="${this.escapeHtml(mod.desc || '')}">
+              <span class="rr-mod-icon">${mod.icon}</span>
+              <span class="rr-mod-name">${mod.name}</span>
+              <span class="rr-chips">${chips}</span>
+            </button>`;
+        }).join('')}
+      </div>`;
+    box.onclick = (e) => {
+      const card = e.target.closest('.rr-mod');
+      if (card) this.selectModifierChoice(card.dataset.mod);
+    };
+  }
+
+  updateResultsFooter(remaining) {
+    const footer = document.getElementById('results-draft-status');
+    if (!footer || !this.resultsDraft) return;
+    const waiting = this.resultsDraft.eligible.size - this.resultsDraft.chosen.size;
+    const left = Math.max(0, remaining);
+    footer.textContent = this.resultsDraft.eligible.size === 0 || waiting <= 0
+      ? 'Course suivante…'
+      : `Course suivante dans ${left} s · bonus choisis ${this.resultsDraft.chosen.size}/${this.resultsDraft.eligible.size}`;
+  }
+
+  selectModifierChoice(modId) {
     if (this.selectedModifierId) return;
     this.selectedModifierId = modId;
-    if (cardsContainer) {
-      cardsContainer.querySelectorAll('.draft-mod-card').forEach(c => {
-        const isMatch = c.dataset.mod === modId;
-        c.classList.toggle('selected', isMatch);
-        c.classList.toggle('dimmed', !isMatch);
-        if (isMatch) {
-          const pill = c.querySelector('.dmc-select-pill');
-          if (pill) pill.textContent = '✅ BONUS SÉLECTIONNÉ !';
-        }
-      });
-    }
     sound.playPowerUp();
     this.network.selectModifier(modId);
+    this.renderResultsAction((this.lastStandings || []).find((r) => r.id === this.network.playerId));
   }
 
   // ==================== FINAL CUP PODIUM & COSMETIC GIFT MODAL ====================
+  // End of a cup: podium for everyone; only the cup champion unlocks a cosmetic
   showCupPodiumModal(msg) {
     const modal = document.getElementById('modal-cup-podium');
     if (!modal) return;
@@ -1501,73 +1486,56 @@ export class UIManager {
     this.game.caterpillar.resetProgression();
     this.game.isInActiveCup = false;
 
-    this.hasClaimedCupGift = false;
     const standings = msg.overallStandings || [];
-    const podiumEl = document.getElementById('podium-steps-container');
+    const room = this.network.currentRoom;
+    document.getElementById('podium-cup-name').textContent = room && room.cup ? `${room.cup.icon || ''} ${room.cup.name}` : '';
+    document.getElementById('podium-cup-title').textContent = 'Coupe terminée';
 
-    if (podiumEl) {
-      const first = standings[0];
-      const second = standings[1];
-      const third = standings[2];
+    const step = (p, place) => {
+      if (!p) return '';
+      const pal = COSMETIC_PALETTES[(p.cosmetics && p.cosmetics.palette) || 'emerald'] || COSMETIC_PALETTES.emerald;
+      const isMe = p.id === this.network.playerId;
+      return `
+        <div class="pd-col pd-place-${place} ${isMe ? 'is-me' : ''}">
+          <span class="pd-medal">${['👑', '🥈', '🥉'][place - 1]}</span>
+          <strong class="pd-name">${this.escapeHtml(p.pseudo)}</strong>
+          <span class="pd-pts">${p.totalScore} pts</span>
+          <div class="pd-block" style="background: linear-gradient(180deg, ${pal.bodyFill}, ${pal.bodyShade});">${place}</div>
+        </div>`;
+    };
+    // Visual order: 2nd, 1st, 3rd (only the places that exist)
+    document.getElementById('podium-steps-container').innerHTML =
+      step(standings[1], 2) + step(standings[0], 1) + step(standings[2], 3);
 
-      const renderStep = (p, place, medal, heightClass) => {
-        if (!p) return `<div class="podium-column empty ${heightClass}"></div>`;
-        const pal = COSMETIC_PALETTES[(p.cosmetics && p.cosmetics.palette) || 'emerald'] || COSMETIC_PALETTES.emerald;
-        return `
-          <div class="podium-column ${heightClass}">
-            <div class="podium-player-badge" style="border-color: ${pal.bodyFill};">
-              <div class="podium-medal">${medal}</div>
-              <strong class="podium-name">${this.escapeHtml(p.pseudo)}</strong>
-              <span class="podium-pts">${p.totalScore} pts</span>
-            </div>
-            <div class="podium-step-block" style="background: linear-gradient(180deg, ${pal.bodyFill}, ${pal.bodyShade});">
-              <span class="podium-step-num">${place}</span>
-            </div>
-          </div>
-        `;
-      };
+    document.getElementById('podium-rest-list').innerHTML = standings.slice(3).map((p, i) => `
+      <li class="rr-row pd-rest ${p.id === this.network.playerId ? 'is-me' : ''}">
+        <span class="rr-rank">${i + 4}e</span>
+        <span class="rr-name">${this.escapeHtml(p.pseudo)}</span>
+        <strong class="rr-total">${p.totalScore} pts</strong>
+      </li>`).join('');
 
-      podiumEl.innerHTML = `
-        ${renderStep(second, '2e', '🥈', 'step-2')}
-        ${renderStep(first, '1er', '👑', 'step-1')}
-        ${renderStep(third, '3e', '🥉', 'step-3')}
-      `;
-    }
-
-    // Reset gift state completely for each new competition
     this.hasClaimedCupGift = false;
     this.currentCupReward = null;
-
-    const giftHeadline = document.getElementById('gift-headline');
-    const giftDesc = document.getElementById('gift-description');
+    const isCupWinner = msg.championId === this.network.playerId;
+    const me = standings.find((p) => p.id === this.network.playerId);
+    const myRank = me ? standings.indexOf(me) + 1 : null;
     const btnOpenGift = document.getElementById('btn-open-gift');
     const btnEquipGift = document.getElementById('btn-equip-gift');
-    const giftIcon = document.getElementById('gift-icon-anim');
-
-    if (giftIcon) giftIcon.textContent = '🎁';
-    if (btnOpenGift) {
-      btnOpenGift.classList.remove('hidden');
-      btnOpenGift.disabled = false;
-      btnOpenGift.textContent = '✨ Déverrouiller mon Cadeau !';
-    }
-    if (btnEquipGift) {
-      btnEquipGift.classList.add('hidden');
-      btnEquipGift.disabled = false;
-      btnEquipGift.textContent = '🎨 Équiper immédiatement !';
-    }
-
-    const isCupWinner = msg.championId === this.network.playerId;
-    if (isCupWinner) {
-      if (giftHeadline) giftHeadline.textContent = '👑 FÉLICITATIONS ! GRAND CHAMPION DE LA COUPE !';
-      if (giftDesc) giftDesc.textContent = 'Bravo pour votre victoire sur les 3 courses ! Déverrouillez votre Cadeau Mystère pour enrichir votre vestiaire !';
-    } else {
-      if (giftHeadline) giftHeadline.textContent = '🎁 COMPÉTITION TERMINÉE — CADEAU DE FIN DE COUPE !';
-      if (giftDesc) giftDesc.textContent = 'Bien joué ! Vous avez disputé la totalité de la Coupe. Déverrouillez votre Cadeau pour débloquer un nouveau cosmétique !';
-    }
+    document.getElementById('gift-icon-anim').textContent = isCupWinner ? '🎁' : (['', '👑', '🥈', '🥉'][myRank] || '🏁');
+    btnEquipGift.classList.add('hidden');
+    btnOpenGift.disabled = false;
+    btnOpenGift.classList.toggle('hidden', !isCupWinner);
+    document.getElementById('gift-headline').textContent = isCupWinner
+      ? 'Champion de la coupe !'
+      : `Tu termines ${myRank === 1 ? '1er' : `${myRank}e`} sur ${standings.length}${me ? ` · ${me.totalScore} pts` : ''}`;
+    document.getElementById('gift-description').textContent = isCupWinner
+      ? 'Ouvre ton cadeau : un nouveau cosmétique t’attend.'
+      : 'Le champion de la coupe débloque un cosmétique. Revanche ?';
   }
 
   claimVictoryCosmeticGift() {
-    if (this.hasClaimedCupGift) return;
+    // Only the cup champion is rewarded (the button is hidden for the others)
+    if (this.hasClaimedCupGift || document.getElementById('btn-open-gift')?.classList.contains('hidden')) return;
     this.hasClaimedCupGift = true;
 
     const result = unlockRandomCosmeticGift();
@@ -1586,11 +1554,11 @@ export class UIManager {
       if (giftIcon) giftIcon.textContent = reward.icon || '🌟';
       if (giftHeadline) {
         giftHeadline.textContent = !result.isNew
-          ? `🌟 COLLECTION COMPLÈTE ! (${reward.name})`
-          : `🎉 NOUVEAU DÉBLOQUÉ : ${reward.name.toUpperCase()} !`;
+          ? `Collection complète ! (${reward.name})`
+          : `Débloqué : ${reward.name}`;
       }
       if (giftDesc) {
-        giftDesc.textContent = `Ce cosmétique est désormais débloqué dans votre Atelier de la Chenille !`;
+        giftDesc.textContent = 'Disponible dans l’atelier.';
       }
       if (btnOpenGift) {
         btnOpenGift.classList.add('hidden');
@@ -1598,7 +1566,7 @@ export class UIManager {
       if (btnEquipGift) {
         btnEquipGift.classList.remove('hidden');
         btnEquipGift.disabled = false;
-        btnEquipGift.textContent = `🎨 Équiper ${reward.name} !`;
+        btnEquipGift.textContent = 'Équiper';
       }
     }
   }
